@@ -35,7 +35,10 @@
     '....SSSSS....'
   ];
   const HEAD_LEGS = ['...WWW.WWW...', '....BB.BB....', '.............'];
+  // 메시 before the growth-hormone treatment (and his whole career in 하드 모드): one torso and one shorts row less
+  const kidRows = (rows) => rows.filter((r, i) => i !== 3 && i !== 7);
   const HAIR = {
+    kid: ['...HHHHH...', '..HHHHHHH..', '..HHHssss..', '..Hssesse..', '...sssss...'],
     young: ['...hHhHh...', '..HhHHhHH..', '..HHsssss..', '..Hssesse..', '...sssss...'],
     slick: ['....HHHH...', '..HHHHHHH..', '..HHsssss..', '..Hssesse..', '...sssss...'],
     fade: ['...HHHHH...', '..fHHHHHH..', '..fssssss..', '..fssesse..', '...sssss...'],
@@ -186,11 +189,12 @@
   }
 
   // pose: undefined → 4 run frames; 'kick' / 'head' → one posed frame
-  function person(hair, pose) {
+  function person(hair, pose, kid) {
     const head = (HAIR[hair] || HAIR.short).map(pad);
-    if (pose === 'kick') return [head.concat(BODY, KICK_LEGS)];
-    if (pose === 'head') return [head.concat(HEAD_BODY, HEAD_LEGS)];
-    return LEGS.map((legs) => head.concat(BODY, legs));
+    const body = kid ? kidRows(BODY) : BODY;
+    if (pose === 'kick') return [head.concat(body, KICK_LEGS)];
+    if (pose === 'head') return [head.concat(kid ? kidRows(HEAD_BODY) : HEAD_BODY, HEAD_LEGS)];
+    return LEGS.map((legs) => head.concat(body, legs));
   }
 
   const cache = {};
@@ -209,18 +213,20 @@
       key: 'ron|' + hair + '|' + y.era + '|' + (y.year >= 2008) + '|' + (y.year >= 2016)
     };
   };
-  // 메시 keeps his look; the kit follows the club, gold boots from the first 발롱도르, armband as captain.
-  RS.messiLook = function (yearIdx, yd) {
+  // 메시: a kid haircut in the youth, his own look after; the kit follows the club, gold boots from the first
+  // 발롱도르, armband as captain. small = the short body (before the growth hormone, or 하드 모드).
+  RS.messiLook = function (yearIdx, yd, small) {
     const y = yd || RS.YEARS[yearIdx];
     const era = RS.ERAS[y.era];
+    const hair = y.youth ? 'kid' : 'messi';
     return {
-      hair: 'messi', kit: era.kit,
+      hair, kid: !!small, kit: era.kit,
       goldBoots: y.year >= 2009,
       armband: y.year >= 2018,
-      key: 'mes|' + y.era + '|' + (y.year >= 2009) + '|' + (y.year >= 2018)
+      key: 'mes|' + hair + '|' + !!small + '|' + y.era + '|' + (y.year >= 2009) + '|' + (y.year >= 2018)
     };
   };
-  RS.heroLook = (hero, yearIdx, yd) => hero === 'messi' ? RS.messiLook(yearIdx, yd) : RS.ronaldoLook(yearIdx, yd);
+  RS.heroLook = (hero, yearIdx, yd, small) => hero === 'messi' ? RS.messiLook(yearIdx, yd, small) : RS.ronaldoLook(yearIdx, yd);
 
   function kitPal(kit, extra) {
     return Object.assign({ K: kit.main, k2: kit.alt, S: kit.shorts, W: kit.socks }, extra || {});
@@ -229,10 +235,10 @@
   RS.Sprites = {
     ronaldo(yearIdx, scale, yd) { return RS.Sprites.hero('ronaldo', yearIdx, scale, yd); },
     // Player sprite for a hero: frames 0-3 run cycle, 4 kick pose, 5 heading jump (see Renderer.drawPlayer)
-    hero(hero, yearIdx, scale, yd) {
-      const L = RS.heroLook(hero, yearIdx, yd);
+    hero(hero, yearIdx, scale, yd, small) {
+      const L = RS.heroLook(hero, yearIdx, yd, small);
       return get(L.key + '|' + (scale || 1), () => {
-        const frames = person(L.hair).concat(person(L.hair, 'kick'), person(L.hair, 'head'));
+        const frames = person(L.hair, null, L.kid).concat(person(L.hair, 'kick', L.kid), person(L.hair, 'head', L.kid));
         if (L.armband) for (const f of frames) f[7] = f[7].slice(0, 2) + 'A' + f[7].slice(3);
         const pal = hero === 'messi'
           ? kitPal(L.kit, { H: '#4a3020', b: '#4a3020', B: L.goldBoots ? '#f0c030' : '#f0f0f0', A: '#75aadb', s: '#e8b48e' })
@@ -252,7 +258,7 @@
       return get('mate|' + id + '|' + RS.YEARS[yearIdx].era, () => {
         const hairs = ['short', 'slick', 'long', 'fade', 'bald'];
         let hash = 0; for (const ch of id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-        const hair = def.role === 'keeper' ? 'cap' : hairs[hash % hairs.length];
+        const hair = def.style || (def.role === 'keeper' ? 'cap' : hairs[hash % hairs.length]);
         const pal = def.role === 'keeper'
           ? { K: '#2fd36b', k2: '#1a1a1a', S: '#1a1a1a', W: '#2fd36b', H: def.hair, s: def.skin, C: '#1a1a1a', B: '#222' }
           : kitPal(era.kit, { H: def.hair, s: def.skin, f: def.hair });
@@ -307,10 +313,14 @@
         switch (key) {
           case 'ball': rows = SMALL.ball; p = Object.assign({ W: '#ffffff', B: '#1a1a1a' }, p); break;
           case 'golden': rows = SMALL.ball; p = { W: '#ffd84a', B: '#b07a10' }; break;
+          case 'tiki': rows = SMALL.ball; p = { W: '#ffffff', B: '#a50044' }; break; // 메시's passes: blaugrana
+          case 'curler': rows = SMALL.ball; p = { W: '#eaf6ff', B: '#75aadb' }; break; // albiceleste
           case 'knuckle': rows = SMALL.ball; p = { W: '#e8f6ff', B: '#2a6ad8' }; break;
           case 'cannon': rows = SMALL.ball7; p = { W: '#ffb347', B: '#d0281a' }; break;
           case 'scissor': rows = SMALL.ball; p = { W: '#ffffff', B: '#e0306a' }; break;
           case 'scissor2': rows = SMALL.ball; p = { W: '#e8d0ff', B: '#7a2ad8' }; break;
+          case 'rabona': rows = SMALL.ball; p = { W: '#fff0d0', B: '#e06a10' }; break;
+          case 'rabona2': rows = SMALL.ball7; p = { W: '#ffe0f4', B: '#c02a90' }; break;
           case 'shot': rows = SMALL.ball7; p = { W: '#fffbe0', B: '#e0a010' }; break;
           case 'pass': case 'mateball': rows = SMALL.ball; p = { W: '#ffffff', B: '#3a8a3a' }; break;
           case 'eball': rows = SMALL.ball; p = { W: '#ffd0d0', B: '#a01010' }; break;

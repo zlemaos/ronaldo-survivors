@@ -3,13 +3,16 @@
   'use strict';
 
   RS.SAVE_KEY = 'ronaldo-survivors.save.v1';
+  RS.CAREER_V = 2; // career schema 2: 메시's youth seasons come before his 2004 debut (see RS.migrateCareer)
 
   RS.newSave = function () {
     return {
       version: 1,
       career: {
+        v: RS.CAREER_V,
         yearIdx: 0, // next year to play
         cleared: [], // cleared[idx] = true
+        eventDone: -1, // story event of year idx (RS.EVENTS) resolved when eventDone >= idx
         coachDone: -1, // coach card for year idx picked when coachDone >= idx
         transferDone: -1, // transfer window for year idx handled when transferDone >= idx
         rewardDone: -1, // boss reward for year idx picked when rewardDone >= idx
@@ -32,12 +35,16 @@
     let s;
     try { s = JSON.parse(raw); } catch (e) { return d; }
     if (!s || typeof s !== 'object') return d;
+    const savedV = s.career && s.career.v;
     s.career = Object.assign(d.career, s.career || {});
+    s.career.v = savedV || 1; // careers saved before schema 2 carry no version
     s.meta = Object.assign(d.meta, s.meta || {});
     s.version = 1;
     s.career.build = RS.normalizeBuild(s.career.build);
     for (const k of Object.keys(s.career.snapshots || {})) s.career.snapshots[k] = RS.normalizeBuild(s.career.snapshots[k]);
     s.careers = s.careers && typeof s.careers === 'object' ? s.careers : {}; // parked careers of the other heroes
+    RS.migrateCareer(s.career);
+    for (const h of Object.keys(s.careers)) RS.migrateCareer(s.careers[h]);
     RS.selectHero(s.career.build.hero);
     s.career.yearIdx = Math.max(0, Math.min(RS.YEARS.length - 1, s.career.yearIdx | 0));
     for (const k of Object.keys(s.meta.upgrades)) if (!RS.META[k]) delete s.meta.upgrades[k];
@@ -62,6 +69,29 @@
     return save.career;
   };
 
+  // A 메시 career saved before schema 2 started at his 2004 debut: its year indices move past the youth seasons
+  // (marked cleared so they can be replayed) and it keeps the grown body (normal mode). Fresh careers start in the
+  // youth. 날두 careers only get the version.
+  RS.migrateCareer = function (career) {
+    if (!career || career.v >= RS.CAREER_V) return career;
+    if (career.eventDone == null) career.eventDone = -1; // parked careers are stored without defaults
+    const b = career.build;
+    const started = (career.yearIdx | 0) > 0 || career.coachDone >= 0 || career.finished || (career.cleared || []).some(Boolean);
+    if (b && b.hero === 'messi' && started) {
+      const n = RS.YEARS_MESSI.filter((y) => y.youth).length;
+      const shift = (v) => (v == null || v < 0 ? v : v + n);
+      career.yearIdx = shift(career.yearIdx | 0);
+      for (const k of ['coachDone', 'transferDone', 'rewardDone']) career[k] = shift(career[k]);
+      career.cleared = new Array(n).fill(true).concat(career.cleared || []);
+      const snaps = {};
+      for (const k of Object.keys(career.snapshots || {})) { snaps[+k + n] = career.snapshots[k]; snaps[+k + n].hgh = true; }
+      career.snapshots = snaps;
+      b.hgh = true;
+    }
+    career.v = RS.CAREER_V;
+    return career;
+  };
+
   RS.writeSave = function (storage, save) {
     try { storage.set(RS.SAVE_KEY, JSON.stringify(save)); return true; } catch (e) { return false; }
   };
@@ -76,6 +106,28 @@
   };
   RS.isReplay = (save, idx) => idx !== save.career.yearIdx || save.career.finished;
   RS.needsCoach = (save, idx) => !RS.isReplay(save, idx) && save.career.coachDone < idx;
+
+  // Story events (메시: the growth-hormone choice = difficulty, 딩요's tutoring): once, before that season's coach.
+  RS.needsEvent = (save, idx) => !RS.isReplay(save, idx) && !!RS.YEARS[idx].event && save.career.eventDone < idx;
+  RS.eventChoices = function (save, idx) {
+    const b = save.career.build;
+    return RS.EVENTS[RS.YEARS[idx].event].cards.map((c) => {
+      const card = c.skill && c.alt && (b.skills[c.skill] || b.skillOrder.length >= RS.MAX_SKILLS) ? c.alt : c;
+      return Object.assign({ kind: 'event' }, card);
+    });
+  };
+  RS.applyEvent = function (save, idx, card) {
+    const c = save.career, b = c.build, ev = RS.EVENTS[RS.YEARS[idx].event];
+    const info = { card: card.id, text: card.result || '' };
+    if (card.hgh != null) b.hgh = card.hgh;
+    if (card.skill && !b.skills[card.skill] && b.skillOrder.length < RS.MAX_SKILLS) { b.skills[card.skill] = 1; b.skillOrder.push(card.skill); }
+    if (card.skillsUp) for (const id of b.skillOrder) b.skills[id] = Math.min(RS.SKILL_MAX, b.skills[id] + card.skillsUp);
+    if (card.mods && !b.coachCards.includes(card.id)) b.coachCards.push(card.id);
+    if (ev.mate && RS.addMate(b, ev.mate)) info.mate = ev.mate;
+    c.eventDone = idx;
+    c.snapshots[idx] = RS.cloneBuild(b);
+    return info;
+  };
 
   // Coach cards for year idx: 2 coach cards + 1 extra (recruit or train) when possible.
   RS.coachChoices = function (save, idx, rng) {
@@ -160,7 +212,7 @@
 
   RS.startYear = function (save, idx, opt) {
     opt = opt || {};
-    return new RS.World({ yearIdx: idx, build: RS.buildForYear(save, idx), meta: save.meta, seed: opt.seed, view: opt.view });
+    return new RS.World({ yearIdx: idx, build: RS.buildForYear(save, idx), meta: save.meta, wallet: save.meta.coins, seed: opt.seed, view: opt.view });
   };
 
   // Called when a year ends (clear, victory or death). Returns summary for the UI.
@@ -168,8 +220,9 @@
     const idx = world.yearIdx;
     const res = world.result();
     const replay = RS.isReplay(save, idx);
-    const out = { idx, replay, cleared: res.cleared, coins: res.coins, kills: res.kills, ballon: 0, finished: false, level: res.level };
-    save.meta.coins += res.coins;
+    const out = { idx, replay, cleared: res.cleared, coins: res.coins, kills: res.kills, ballon: 0, finished: false, level: res.level, spent: world.coinsSpent || 0 };
+    // level-up coin shop: wallet money spent during the match leaves the wallet, win or lose
+    save.meta.coins = Math.max(0, save.meta.coins - (world.walletSpent || 0)) + res.coins;
     save.meta.totalKills += res.kills;
     if (res.cleared) {
       const yd = RS.YEARS[idx];

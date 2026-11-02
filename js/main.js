@@ -52,6 +52,7 @@
       this.world = null;
       this.input.enabled = false;
       $('hud').classList.add('hidden');
+      $('tap-hint').classList.add('hidden'); // lives outside the HUD; stays up when the debut match ends without a move
       $('vignette').classList.add('hidden'); this.hud.low = false;
       for (const o of document.querySelectorAll('.overlay')) o.classList.add('hidden');
       this.show('title');
@@ -60,11 +61,12 @@
       const started = c.yearIdx > 0 || c.coachDone >= 0;
       const hero = RS.HEROES[c.build.hero];
       $('btn-play').textContent = c.finished ? '🏆 커리어 완주! 다시 보기' : started ? '▶ 이어하기 · ' + yd.year + '년' : '⚽ ' + hero.name + ' 커리어 시작';
-      $('title-progress').textContent = c.finished ? hero.rival + '를 꺾은 전설 · ' + (c.laps + 1) + '회차' : hero.name + ' · ' + yd.year + '년 · ' + RS.yearAge(c.yearIdx) + '세 · ' + RS.ERAS[yd.era].club;
+      $('title-progress').textContent = (c.finished ? hero.rival + '를 꺾은 전설 · ' + (c.laps + 1) + '회차' : hero.name + ' · ' + yd.year + '년 · ' + RS.yearAge(c.yearIdx) + '세 · ' + RS.ERAS[yd.era].club) +
+        (RS.hardMode(c.build) ? ' · 🔥 하드 모드' : '');
       for (const b of document.querySelectorAll('#hero-pick .hero')) b.classList.toggle('on', b.dataset.hero === c.build.hero);
       this.renderWallet($('title-wallet'));
       const ts = $('title-sprite'); ts.innerHTML = '';
-      ts.appendChild(RS.Sprites.toCanvas(RS.Sprites.hero(c.build.hero, c.yearIdx), 0, 7));
+      ts.appendChild(RS.Sprites.toCanvas(RS.Sprites.hero(c.build.hero, c.yearIdx, 1, null, RS.smallBody(c.build)), 0, 7));
       this.makeAttract();
     },
 
@@ -138,10 +140,36 @@
     },
 
     // ------------------------------------------------------------ career flow
+    // season flow: story event (메시) → coach card → transfer window → intro → kick-off
     startYear(idx) {
       if (!RS.canPlay(this.save, idx)) return;
+      if (RS.needsEvent(this.save, idx)) this.showEvent(idx);
+      else this.afterEvent(idx);
+    },
+
+    afterEvent(idx) {
       if (RS.needsCoach(this.save, idx)) this.showCoach(idx);
       else this.afterCoach(idx);
+    },
+
+    // 메시's story choices: the growth-hormone treatment (= difficulty) and 딩요's tutoring.
+    showEvent(idx) {
+      this.show('event');
+      const yd = RS.YEARS[idx], ev = RS.EVENTS[yd.event], b = this.save.career.build;
+      $('ev-season').textContent = yd.year + ' · ' + RS.yearAge(idx) + '세 · ' + RS.ERAS[yd.era].club;
+      $('ev-title').textContent = ev.title;
+      $('ev-who').textContent = ev.who;
+      $('ev-story').textContent = ev.story;
+      const sp = $('ev-sprite'); sp.innerHTML = '';
+      sp.appendChild(RS.Sprites.toCanvas(ev.mate ? RS.Sprites.mate(ev.mate, idx) : RS.Sprites.hero(b.hero, idx, 1, null, RS.smallBody(b)), 0, 4));
+      const cards = RS.eventChoices(this.save, idx);
+      this.renderCards($('ev-cards'), cards, (i) => {
+        const info = RS.applyEvent(this.save, idx, cards[i]);
+        this.persist();
+        RS.Audio.sfx(cards[i].hgh === false ? 'boss' : 'evolve');
+        this.toast(info.text + (info.mate ? ' · ' + RS.TEAMMATES[info.mate].name + ' 합류!' : ''));
+        this.afterEvent(idx);
+      });
     },
 
     afterCoach(idx) {
@@ -202,23 +230,27 @@
       this.show('intro');
       const yd = RS.YEARS[idx];
       const replay = RS.isReplay(this.save, idx);
+      const b0 = RS.buildForYear(this.save, idx), small = RS.smallBody(b0);
       $('intro-year').textContent = yd.year;
-      $('intro-club').textContent = RS.yearAge(idx) + '세 · ' + RS.ERAS[yd.era].club + (replay ? ' · 다시하기 (커리어에 영향 없음)' : '');
+      $('intro-club').textContent = RS.yearAge(idx) + '세 · ' + RS.ERAS[yd.era].club + (replay ? ' · 다시하기 (커리어에 영향 없음)' : '') + (RS.hardMode(b0) ? ' · 🔥 하드 모드' : '');
       $('intro-title').textContent = yd.title;
       $('intro-story').textContent = yd.story || '';
       const evo = $('intro-evo'); evo.innerHTML = '';
       const hero = this.save.career.build.hero;
-      const look = RS.heroLook(hero, idx);
-      const prev = idx > 0 ? RS.heroLook(hero, idx - 1) : null;
+      // the growth-hormone season shows the treatment (small body → grown); otherwise last season → this one
+      const grew = yd.event === 'hgh' && !small;
+      const from = grew ? { i: idx, small: true } : idx > 0 ? { i: idx - 1, small } : null;
+      const look = RS.heroLook(hero, idx, null, small);
+      const prev = from ? RS.heroLook(hero, from.i, null, from.small) : null;
       if (prev && prev.key !== look.key) {
-        evo.appendChild(RS.Sprites.toCanvas(RS.Sprites.hero(hero, idx - 1), 0, 5));
+        evo.appendChild(RS.Sprites.toCanvas(RS.Sprites.hero(hero, from.i, 1, null, from.small), 0, 5));
         const a = document.createElement('div'); a.className = 'arrow'; a.textContent = '➜'; evo.appendChild(a);
         const wrap = document.createElement('div');
-        const lab = document.createElement('div'); lab.className = 'evo-label'; lab.textContent = RS.HEROES[hero].short + ' 진화!';
+        const lab = document.createElement('div'); lab.className = 'evo-label'; lab.textContent = grew ? '💉 몸이 자랐다!' : RS.HEROES[hero].short + ' 진화!';
         wrap.appendChild(lab);
-        wrap.appendChild(RS.Sprites.toCanvas(RS.Sprites.hero(hero, idx), 0, 6));
+        wrap.appendChild(RS.Sprites.toCanvas(RS.Sprites.hero(hero, idx, 1, null, small), 0, 6));
         evo.appendChild(wrap);
-      } else evo.appendChild(RS.Sprites.toCanvas(RS.Sprites.hero(hero, idx), 0, 6));
+      } else evo.appendChild(RS.Sprites.toCanvas(RS.Sprites.hero(hero, idx, 1, null, small), 0, 6));
       const stars = RS.threatStars(idx);
       const drawSquad = () => {
         const b = RS.buildForYear(this.save, idx);
@@ -241,6 +273,7 @@
           : '<span class="chip">' + s.icon + ' ' + esc(s.name) + ' ' + b.skills[id] + '</span>';
       }
       for (const id of b.passiveOrder) h += '<span class="chip">' + RS.PASSIVES[id].icon + ' ' + b.passives[id] + '</span>';
+      for (const id of b.relicOrder || []) { const r = RS.RELICS[id]; h += '<span class="chip t-' + r.tier + '">' + r.icon + ' ' + esc(r.name) + '</span>'; }
       if (b.coachCards.length) h += '<span class="chip">👔 감독 카드 ' + b.coachCards.length + '</span>';
       return h + this.squadLines(b);
     },
@@ -304,7 +337,7 @@
       const shownAt = performance.now();
       cards.forEach((c, i) => {
         const b = document.createElement('button');
-        b.className = 'card k-' + c.kind;
+        b.className = 'card k-' + c.kind + (c.tier ? ' t-' + c.tier : '');
         b.innerHTML = '<div class="ic"></div><div class="tx"><div class="nm"><span class="n"></span><span class="tg"></span></div><div class="ds"></div><div class="hn"></div></div>';
         b.querySelector('.ic').textContent = c.icon || '⚽';
         b.querySelector('.n').textContent = c.name;
@@ -325,15 +358,58 @@
       const w = this.world;
       this.input.release();
       $('levelup').classList.remove('hidden');
-      $('lv-title').textContent = '레벨 업!';
+      // a graded or gamble card in the hand is announced in the title
+      const sp = w.choices.find((c) => c.kind === 'relic' || c.kind === 'gamble');
+      const tier = sp ? sp.tier || 'gamble' : '';
+      $('lv-title').textContent = { super: '🌈 슈퍼히든 카드 등장!!', ultra: '🔥 초히든 카드 등장!', hidden: '🔮 히든 카드 등장!', rare: '💎 레어 카드 등장', gamble: '🎰 도박 카드 등장' }[tier] || '레벨 업!';
+      $('lv-title').className = 'glow' + (tier ? ' t-' + tier : '');
       $('reroll-n').textContent = w.rerolls;
       $('btn-reroll').classList.toggle('hidden', w.rerolls <= 0);
+      const dice = $('btn-dice');
+      dice.classList.toggle('hidden', !w.build.relics.dice);
+      dice.disabled = w.diceUsed;
+      dice.textContent = w.diceUsed ? '🎲 주사위 사용함' : '🎲 행운의 주사위 (무료 1회)';
+      this.renderDraw();
+      this.renderShop();
       this.renderCards($('lv-cards'), w.choices, (i) => {
         w.choose(i);
         $('levelup').classList.add('hidden');
         this.lvShown = false;
       });
       this.lvShown = true;
+    },
+    refreshLevelUp() { this.lvShown = false; this.showLevelUp(); },
+
+    // The item bought with the grade draw of this level-up, shown above the hand.
+    renderDraw() {
+      const w = this.world, el = $('lv-draw');
+      if (!w.lastDraw) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+      el.classList.remove('hidden');
+      this.renderCards(el, [Object.assign({}, w.lastDraw, { tag: RS.TIERS[w.lastDraw.tier].name + ' 획득!', hint: '뽑기 결과 · 바로 적용됨' })], () => {});
+      el.firstChild.classList.add('reveal');
+    },
+
+    // Coin shop on every level-up screen: paid rerolls, and one grade draw per level-up.
+    renderShop() {
+      const w = this.world, row = $('lv-shop-row');
+      $('lv-shop').classList.remove('hidden');
+      $('lv-purse').textContent = '💰 ' + w.purse().toLocaleString() + ' 코인';
+      row.innerHTML = '';
+      const left = RS.relicsLeft(w.build);
+      const add = (label, cost, cls, off, onClick) => {
+        const b = document.createElement('button');
+        b.className = 'btn small coin ' + cls;
+        b.innerHTML = '<span class="cl"></span><span class="cc"></span>';
+        b.querySelector('.cl').textContent = label;
+        b.querySelector('.cc').textContent = '💰' + cost;
+        b.disabled = off || w.purse() < cost;
+        b.onclick = (ev) => { ev.stopPropagation(); onClick(); };
+        row.appendChild(b);
+      };
+      add('🔁 다시 뽑기', RS.COIN_REROLL, 'c-reroll', false, () => { if (w.coinReroll()) { RS.Audio.sfx('coin'); this.refreshLevelUp(); } });
+      for (const d of RS.COIN_DRAWS) {
+        add(d.icon + ' ' + (left ? d.name : '모두 보유'), d.cost, 'c-' + d.id, w.drawUsed || !left, () => { if (w.coinDraw(d.id)) this.refreshLevelUp(); });
+      }
     },
 
     // In-run transfer offer (rescue marker with a full squad).
@@ -342,7 +418,11 @@
       this.input.release();
       $('levelup').classList.remove('hidden');
       $('lv-title').textContent = '이적 제안!';
+      $('lv-title').className = 'glow';
       $('btn-reroll').classList.add('hidden');
+      $('btn-dice').classList.add('hidden');
+      $('lv-shop').classList.add('hidden');
+      $('lv-draw').classList.add('hidden');
       this.renderCards($('lv-cards'), w.swapChoices, (i) => {
         w.chooseSwap(i);
         $('levelup').classList.add('hidden');
@@ -387,6 +467,7 @@
       this.state = 'menu';
       this.input.enabled = false;
       $('hud').classList.add('hidden');
+      $('tap-hint').classList.add('hidden');
       $('vignette').classList.add('hidden'); this.hud.low = false;
       for (const o of document.querySelectorAll('.overlay')) o.classList.add('hidden');
       if (w.phase === 'victory') return this.showVictory(w, out);
@@ -394,7 +475,7 @@
       const yd = RS.YEARS[out.idx];
       $('res-title').textContent = out.cleared ? yd.year + ' 시즌 클리어!' : '부상 아웃...';
       $('res-title').className = out.cleared ? 'glow' : '';
-      $('res-sub').textContent = out.cleared ? (out.replay ? '다시하기 클리어 (커리어 진행에는 영향 없음)' : yd.boss.name + ' 격파! SIUU!') : '괜찮아, 다시 일어나면 돼. 코인은 그대로 받는다.';
+      $('res-sub').textContent = out.cleared ? (out.replay ? '다시하기 클리어 (커리어 진행에는 영향 없음)' : yd.boss.name + ' 격파! ' + this.cheerText(w.hero)) : '괜찮아, 다시 일어나면 돼. 코인은 그대로 받는다.';
       const m = Math.floor(w.t / 60), s = Math.floor(w.t % 60);
       $('res-stats').innerHTML = '';
       const add = (v, l) => { const d = document.createElement('div'); d.className = 'stat'; d.innerHTML = '<b></b><span></span>'; d.querySelector('b').textContent = v; d.querySelector('span').textContent = l; $('res-stats').appendChild(d); };
@@ -447,7 +528,7 @@
       this.show('victory');
       const ws = $('win-sprites'); ws.innerHTML = '';
       const hero = this.save.career.build.hero;
-      ws.appendChild(RS.Sprites.toCanvas(RS.Sprites.hero(hero, RS.YEARS.length - 1), 0, 8));
+      ws.appendChild(RS.Sprites.toCanvas(RS.Sprites.hero(hero, RS.YEARS.length - 1, 1, null, RS.smallBody(this.save.career.build)), 0, 8));
       const fallen = RS.Sprites.boss(RS.YEARS[RS.YEARS.length - 1].boss.type, RS.YEARS.length - 1);
       const ms = RS.Sprites.toCanvas(fallen, 0, 5); ms.style.opacity = '0.7'; ms.style.transform = 'rotate(80deg)';
       ws.appendChild(ms);
@@ -457,6 +538,7 @@
       add('+' + out.ballon, '발롱도르 🏆');
       add(w.kills, '처치');
       add('Lv.' + w.build.level, '최종 레벨');
+      if (RS.hardMode(w.build)) add('🔥', '하드 모드 클리어');
       $('btn-win-new').textContent = '새 커리어 (' + (this.save.career.laps + 2) + '회차)';
       const conf = $('confetti'); conf.innerHTML = '';
       const cols = ['#ffd23a', '#c41e2a', '#1f7a3a', '#ffffff', '#7fe0ff'];
@@ -468,9 +550,12 @@
         c.style.animationDelay = (-Math.random() * 4) + 's';
         conf.appendChild(c);
       }
-      RS.Audio.siuu();
-      setTimeout(() => RS.Audio.siuu(), 2700);
+      this.celebrate(hero);
+      setTimeout(() => this.celebrate(hero), 2700);
     },
+    // SIUU is 날두's: 메시 celebrates with the crowd and a finger to the sky.
+    celebrate(hero) { if (hero === 'messi') RS.Audio.sfx('cheer'); else RS.Audio.siuu(); },
+    cheerText(hero) { return hero === 'messi' ? '☝️' : 'SIUU!'; },
 
     // ------------------------------------------------------------ main loop
     frame(ts) {
@@ -536,7 +621,7 @@
       for (const e of w.events) {
         switch (e.type) {
           case 'sfx': RS.Audio.sfx(e.name); break;
-          case 'siuu': RS.Audio.siuu(); break;
+          case 'siuu': this.celebrate(w.hero); break;
           case 'levelup': RS.Audio.sfx('levelup'); this.renderer.shake = Math.max(this.renderer.shake, 0.1); $('hud-power').parentElement.classList.remove('bump'); void $('hud-power').offsetWidth; $('hud-power').parentElement.classList.add('bump'); break;
           case 'shake': this.renderer.shake = Math.max(this.renderer.shake, e.k || 0.1); break;
           case 'wave': RS.Audio.sfx('wave'); this.renderer.shake = Math.max(this.renderer.shake, 0.12); break;
@@ -545,6 +630,23 @@
           case 'slide': this.renderer.shake = Math.max(this.renderer.shake, 0.05); break;
           case 'chest': RS.Audio.sfx('chest'); break;
           case 'evolve': RS.Audio.sfx('evolve'); this.renderer.shake = 0.2; break;
+          case 'special': // a graded / gamble card was dealt
+            if (e.tier === 'super' || e.tier === 'ultra') { RS.Audio.sfx('jackpot'); this.renderer.shake = Math.max(this.renderer.shake, 0.15); } else RS.Audio.sfx('sparkle');
+            break;
+          case 'relic': {
+            const r = RS.RELICS[e.id];
+            this.banner(RS.TIERS[e.tier].name + ' 획득! ' + r.icon + ' ' + r.name);
+            RS.Audio.sfx(e.tier === 'rare' ? 'chest' : e.tier === 'hidden' ? 'evolve' : 'jackpot');
+            if (e.tier === 'ultra' || e.tier === 'super') this.renderer.shake = 0.4;
+            break;
+          }
+          case 'gamble': {
+            const r = e.relic && RS.RELICS[e.relic];
+            this.banner((e.win ? '🎉 ' : '💀 ') + e.text + (r ? ' · ' + r.icon + ' ' + r.name : ''));
+            RS.Audio.sfx(e.win ? 'jackpot' : 'lose');
+            if (e.win) this.renderer.shake = Math.max(this.renderer.shake, 0.25);
+            break;
+          }
           case 'hurt': RS.Audio.sfx('hurt'); this.renderer.shake = 0.12; if (navigator.vibrate) try { navigator.vibrate(15); } catch (er) { /* ignore */ } break;
           case 'boss':
             RS.Audio.sfx('boss');
@@ -558,9 +660,9 @@
           case 'banner': this.banner(e.text); break;
           case 'rage': this.renderer.shake = 0.5; RS.Audio.sfx('boss'); break;
           case 'elite': this.banner('엘리트 등장! 보물 상자를 노려라'); break;
-          case 'revive': RS.Audio.siuu(); break;
+          case 'revive': this.celebrate(w.hero); break;
           case 'dead': RS.Audio.sfx('dead'); break;
-          case 'clear': this.banner('시즌 클리어! SIUU!'); RS.Audio.sfx('cheer'); this.renderer.shake = 0.5; break;
+          case 'clear': this.banner('시즌 클리어! ' + this.cheerText(w.hero)); RS.Audio.sfx('cheer'); this.renderer.shake = 0.5; break;
           case 'victory': this.banner(RS.HEROES[w.hero].rival + ' 격파!!!'); RS.Audio.sfx('cheer'); this.renderer.shake = 0.8; break;
         }
       }
@@ -582,7 +684,7 @@
       const xs = Math.round(xpr * 100);
       if (this.hud.xp !== xs) { this.hud.xp = xs; $('xpfill').style.width = xs + '%'; }
       this.setText('lv', $('hud-level'), 'Lv.' + b.level);
-      this.setText('yr', $('hud-year'), w.yearDef.year + ' · ' + RS.yearAge(w.yearIdx) + '세');
+      this.setText('yr', $('hud-year'), w.yearDef.year + ' · ' + RS.yearAge(w.yearIdx) + '세' + (RS.hardMode(w.build) ? ' · 하드' : ''));
       this.setText('k', $('hud-kills'), String(w.kills));
       this.setText('c', $('hud-coins'), String(Math.round(w.coinsPicked)));
       this.setText('pw', $('hud-power'), String(w.power()));
@@ -649,9 +751,8 @@
         w.phase = 'dead';
         this.endYear();
       };
-      $('btn-reroll').onclick = () => {
-        if (this.world.reroll()) { this.lvShown = false; $('levelup').classList.add('hidden'); this.showLevelUp(); }
-      };
+      $('btn-reroll').onclick = () => { if (this.world.reroll()) this.refreshLevelUp(); };
+      $('btn-dice').onclick = () => { if (this.world.rollDice()) { RS.Audio.sfx('sparkle'); this.refreshLevelUp(); } };
       $('btn-chest-ok').onclick = () => { this.world.closeChest(); $('chest').classList.add('hidden'); this.chestShown = false; };
       $('btn-res-menu').onclick = () => this.showTitle();
       $('btn-win-menu').onclick = () => this.showTitle();
@@ -661,7 +762,7 @@
       for (const b of document.querySelectorAll('[data-home]')) b.onclick = () => this.showTitle();
       window.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') { if (this.state === 'play') this.pause(!this.paused); }
-        if (this.state === 'play' && this.world && this.world.phase === 'levelup' && this.lvShown && ['1', '2', '3'].includes(e.key)) {
+        if (this.state === 'play' && this.world && this.world.phase === 'levelup' && this.lvShown && ['1', '2', '3', '4'].includes(e.key)) {
           const btn = $('lv-cards').children[+e.key - 1]; if (btn) btn.click();
         }
       });

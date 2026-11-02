@@ -44,8 +44,16 @@
   <div id="levelup" class="overlay hidden">
     <div class="panel">
       <h2 class="glow" id="lv-title">레벨 업!</h2>
+      <div id="lv-draw" class="cards lv-draw hidden"></div>
       <div id="lv-cards" class="cards"></div>
-      <button id="btn-reroll" class="btn small">🔁 다시 뽑기 (<span id="reroll-n">0</span>)</button>
+      <div class="lv-tools">
+        <button id="btn-reroll" class="btn small">🔁 무료 다시 뽑기 (<span id="reroll-n">0</span>)</button>
+        <button id="btn-dice" class="btn small hidden">🎲 행운의 주사위</button>
+      </div>
+      <div id="lv-shop" class="lv-shop">
+        <div class="lv-purse"><span id="lv-purse">💰 0 코인</span><span class="dim">이번 경기 코인 먼저, 모자라면 지갑에서</span></div>
+        <div id="lv-shop-row" class="lv-shop-row"></div>
+      </div>
     </div>
   </div>
   <div id="chest" class="overlay hidden">
@@ -80,7 +88,7 @@
       <div id="title-progress" class="sub"></div>
       <div id="hero-pick" class="hero-pick">
         <button class="hero" data-hero="ronaldo"><b>호날두</b><span>투사체 공격 · 슬라이딩 5초</span></button>
-        <button class="hero" data-hero="messi"><b>메시</b><span>빠른 발 · 회전 발롱도르 공 · 슬라이딩 3초</span></button>
+        <button class="hero" data-hero="messi"><b>메시</b><span>유소년부터 · 빠른 발 · 회전 공 · 성장호르몬 선택 = 난이도</span></button>
       </div>
       <button id="btn-play" class="btn primary big">커리어 시작</button>
       <div class="row">
@@ -101,13 +109,18 @@
       <h2>플레이 방법</h2>
       <ul class="howto">
         <li>👆 화면 아무 곳이나 누르고 끌면 이동. PC는 WASD·방향키.</li>
-        <li>⚽ 공격은 자동! 날두가 가장 가까운 적에게 공을 찬다.</li>
-        <li>💎 적이 떨군 공을 주워 레벨 업 → 카드 3장 중 1장 선택.</li>
+        <li>⚽ 공격은 자동! 날두는 가장 가까운 적에게 공을 차고, 메시는 몸 주위를 도는 공으로 때린다.</li>
+        <li>💎 적이 떨군 공을 주워 레벨 업 → 카드 4장 중 1장 선택.</li>
+        <li>🎴 4번째 카드는 가끔 등급 카드: <b style="color:#4aa8ff">레어</b> · <b style="color:#b65cff">히든</b> · <b style="color:#ff4a4a">초히든</b> · <b style="color:#ffd84a">슈퍼히든</b> (예: 🥋 호날도). 한 번 얻으면 커리어 내내 유지.</li>
+        <li>🎰 도박 카드는 확률이 적혀 있고, 고르는 순간 결과가 정해진다.</li>
+        <li>💰 레벨업 화면에서 코인으로 다시 뽑기·등급 뽑기 (이번 경기 코인 먼저, 모자라면 지갑에서).</li>
+        <li>🐢 덩치 큰 적은 느리고 묵직하다. 💨 작은 태클러는 빠르지만 약하다.</li>
         <li>🌟 스킬 최대 레벨 + 짝 패시브 = 진화! (상자에서도 진화)</li>
         <li>🤝 필드의 <b class="cyan">!</b> 동료 위에 잠시 서 있으면 합류. 스쿼드가 꽉 차면 교체 제안.</li>
         <li>✈️ 클럽을 옮기면 이적 시장: 새 클럽 동료와 교체 가능 (레벨 승계).</li>
         <li>👔 시즌마다 감독 카드 1장. 효과는 커리어 내내 누적.</li>
-        <li>🏆 시즌 보스를 쓰러뜨리면 다음 해로. 2026년 최종 보스는 메시.</li>
+        <li>🏆 시즌 보스를 쓰러뜨리면 다음 해로. 2026년 최종 보스는 라이벌(날두 커리어는 메시, 메시 커리어는 날두).</li>
+        <li>💉 메시 커리어는 8세 유소년부터. 11세에 성장호르몬 주사를 거절하면 끝까지 작은 몸으로 싸우는 하드 모드.</li>
         <li>💰 코인·발롱도르로 훈련장에서 영구 강화.</li>
       </ul>
       <button class="btn primary" data-back>확인</button>
@@ -137,6 +150,21 @@
       </div>
       <p class="sub">감독의 전술 카드를 하나 고르세요. 효과는 커리어 내내 유지됩니다.</p>
       <div id="coach-cards" class="cards"></div>
+    </div>
+  </section>
+
+  <section id="event" class="screen hidden">
+    <div class="panel">
+      <div class="sub" id="ev-season"></div>
+      <div class="coach-head">
+        <div id="ev-sprite"></div>
+        <div>
+          <h2 id="ev-title" class="glow"></h2>
+          <div class="tag" id="ev-who"></div>
+        </div>
+      </div>
+      <p class="story" id="ev-story"></p>
+      <div id="ev-cards" class="cards"></div>
     </div>
   </section>
 

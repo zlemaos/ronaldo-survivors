@@ -175,17 +175,38 @@ invisible. This removes the power creep of the carried-over build: late bosses n
 - Death → victory screen with SIUU (twice), confetti, +1 발롱도르, new-career lap option (meta kept).
 - Final bosses are generic: `RS.FINAL[type]` holds the two action lists, rage multipliers, ball sprite and minion.
   The 메시 career ends with `ronaldo` (dash·snipe·pslam·burst·wall → + ring·summon 꼬마 날두).
+- The final keeps the hero's pace (`World.recalc`): boss bullets, dashes and walking speed scale by
+  `max(1, hero move / (RS.BASE_MOVE × moveMul × RS.FINAL_PACE))`; telegraph and cooldown times do not scale.
+  `RS.FINAL_PACE = 1.2` reproduces the round-5 duel (30 seeds: strong bot 26/30 wins, 21/30 below half; weak bot
+  10/30 wins; round 5: 25/30, 22/30, 9/30). Without it a round-6 build (≈150 px/s) outran every pattern.
+  `finalScale` multiplies the duel's damage by the toughness the graded items add (max HP + 60 s of regen).
 
 ### 메시 (playable hero, `RS.HEROES.messi`)
 - Title-screen hero buttons; each hero keeps his own career (`save.careers[hero]` parks the other), meta is shared.
-  `RS.selectHero()` points `RS.YEARS`/`DEBUT_YEAR`/`BIRTH_YEAR` at the active career; `RS.YEARS_MESSI` has 23
-  years (2004 Barcelona debut → 2026 final vs 날두) with eras barcelona/paris/miami/argentina and 10 parody coaches.
+  `RS.selectHero()` points `RS.YEARS`/`DEBUT_YEAR`/`BIRTH_YEAR` at the active career; `RS.YEARS_MESSI` has 26
+  seasons: youth (`youth: true`) 1995 로사리오 · 1998 성장호르몬 진단 · 2001 냅킨 계약서/라 마시아, then the 2004 Barcelona
+  debut → 2026 final vs 날두, with eras rosario/masia/barcelona/paris/miami/argentina.
+- Difficulty follows `RS.tuneIdx`: youth seasons play like the debut year; pro seasons count from the debut, so both
+  heroes share one pro curve.
+- Story events (`RS.EVENTS`, `year.event`) are asked once before that season's coach (career years only):
+  - `hgh` (1998): 성장호르몬 주사 = difficulty. Until it (and for the whole career when refused) 메시 has a small body:
+    `RS.SMALL_BODY` (max HP −30, damage −20 %) and a shorter sprite. `build.hgh`: null undecided, true treated,
+    false = 하드 모드 (shown on the title, intro, HUD and victory screen).
+  - `dingyo` (2004): 딩요 joins the squad and teaches one of: 엘라스티코 (a `gift` move never dealt at level-ups; a
+    full skill bar gets "모든 스킬 Lv.+1" instead), 노룩 패스 or 즐기는 축구 (lasting mods, stored like coach cards).
+- Old saves: career schema `v: 2` (`RS.migrateCareer`). A 메시 career saved before the youth seasons shifts its year
+  indices past them (youth marked cleared), keeps its snapshots and is treated (`hgh: true`).
 - Move speed ×1.22, slide cooldown 3 s (날두 5 s).
 - No projectiles: starts with `orbit` (발롱도르 공) — `count` golden balls circle at `radius`, each enemy touched takes
   `dmg` every `cd` s (per-enemy timer `e.orbT`). Lv.1→6: 1→4 balls, size 1→2×. Evolution with the 발롱도르 수집 passive
   offers two cards: 8발롱도르공 (8 balls) or 8발롱도르 (one ball 8×, knockback). `build.evolved.orbit` stores the
   variant name; `RS.skillStats` reads `evos[variant].stats`.
-- 킥, 무회전 프리킥, SIUU 함성 are 날두-only (`skill.hero`); orbit and 발롱도르 수집 are 메시-only.
+- Every move belongs to one hero (`skill.hero`). 메시's own: 발롱도르 공, 티키타카 (bouncing passes), 왼발 감아차기
+  (homing curlers), 원더골 드리블 (auto dash), 뭘 봐, 바보야? (stun glare, no SIUU), 킬 패스 (straight piercing pass),
+  칩슛 (lobs onto the toughest enemy, boss first) and 엘라스티코 (딩요's gift). `skill.use` reuses a 날두 runtime
+  behaviour under 메시's own name, numbers, ball look (`skill.proj`) and evolution. Passives paired only with the other
+  hero's moves are never offered (`RS.passiveFor`); 메시 has 7 of his own. Items: 호날도/에그타르트 are 날두's,
+  메시아 (메! 시! 아! combo)/마테차 are 메시's (`relic.hero`). 메시 celebrates with the crowd and ☝️, not SIUU.
 
 ### Hero readability (round 3)
 - The hero sprite alone has a gold double outline (`paint` `opt.glow`), a pulsing gold ring + soft light pool under

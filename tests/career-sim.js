@@ -11,6 +11,8 @@ module.exports = function simCareer(opt) {
   for (let idx = 0; idx <= to; idx++) {
     let cleared = false;
     for (let attempt = 0; attempt < (opt.tries || 3) && !cleared; attempt++) {
+      // story events: the first card unless opt.events names another ({ hgh: 1 } = 하드 모드)
+      if (RS.needsEvent(save, idx)) { const ev = RS.YEARS[idx].event; RS.applyEvent(save, idx, RS.eventChoices(save, idx)[(opt.events && opt.events[ev]) || 0]); }
       if (RS.needsCoach(save, idx)) RS.applyCoach(save, idx, RS.coachChoices(save, idx, rng)[0], rng);
       RS.autoTransfers(save, idx, rng);
       const w = RS.startYear(save, idx, { seed: seed * 100 + idx * 7 + attempt });

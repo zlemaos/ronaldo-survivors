@@ -28,16 +28,16 @@ test('enemies take damage and die, dropping XP gems', () => {
   assert.ok(w.pickups.some((p) => p.kind === 'gem' && p.value >= 1));
 });
 
-test('collecting XP levels up and offers 3 picks; picking applies and resumes', () => {
+test('collecting XP levels up and offers 4 picks; picking applies and resumes', () => {
   const w = new RS.World({ yearIdx: 0, seed: 2 });
   w.gainXp(RS.xpToNext(1) + RS.xpToNext(2));
   assert.equal(w.build.level, 3);
   assert.equal(w.levelQueue, 2);
   w.update(1 / 60, { x: 0, y: 0 });
   assert.equal(w.phase, 'levelup');
-  assert.equal(w.choices.length, 3);
+  assert.equal(w.choices.length, RS.LEVEL_CARDS);
   const kinds = new Set(w.choices.map((c) => c.kind + ':' + c.id));
-  assert.equal(kinds.size, 3, 'choices are distinct');
+  assert.equal(kinds.size, RS.LEVEL_CARDS, 'choices are distinct');
   for (const c of w.choices) assert.ok(c.name && c.desc && c.icon, 'cards are described');
   const before = JSON.stringify(w.build);
   w.choose(0);

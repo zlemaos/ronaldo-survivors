@@ -65,6 +65,23 @@
         L.drawImage(it.n, sx - (it.w >> 1), sy - (it.h >> 1) + bob);
       }
 
+      // 불꽃 질주: burning turf patches (ground layer, under everything that stands)
+      for (const z of w.zones) {
+        if (z.t >= z.life) continue;
+        const sx = Math.round(z.x - camX), sy = Math.round(z.y - camY);
+        if (sx < -30 || sy < -30 || sx > V.w + 30 || sy > V.h + 30) continue;
+        const k = z.t / z.life, fade = k < 0.12 ? k / 0.12 : 1 - Math.max(0, (k - 0.6) / 0.4);
+        const fl = 0.75 + 0.25 * Math.sin(w.t * 18 + z.seed);
+        const g = L.createRadialGradient(sx, sy, 1, sx, sy, z.r);
+        g.addColorStop(0, 'rgba(255,232,120,' + (0.6 * fade * fl) + ')');
+        g.addColorStop(0.5, (z.evo ? 'rgba(255,60,110,' : 'rgba(255,120,30,') + (0.45 * fade) + ')');
+        g.addColorStop(1, 'rgba(255,60,0,0)');
+        L.fillStyle = g; L.beginPath(); L.ellipse(sx, sy, z.r, z.r * 0.6, 0, 0, TAU); L.fill();
+        const h = Math.round((w.t * 30 + z.seed * 10) % 6); // two licking flame pixels
+        L.fillStyle = 'rgba(255,220,90,' + (0.85 * fade) + ')';
+        L.fillRect(sx - 2, sy - 2 - h, 1, 2); L.fillRect(sx + 2, sy - 1 - ((h + 3) % 6), 1, 2);
+      }
+
       // boss / 준보스 telegraphs (under units)
       const b = w.boss;
       for (const e of w.enemies) if (e.alive && e.tele) this.drawTele(L, e.tele, camX, camY, w.t);
@@ -86,9 +103,25 @@
         if (sx < -30 || sy < -40 || sx > V.w + 30 || sy > V.h + 40) continue;
         const spr = e.boss ? S.boss(e.sprite, w.yearIdx) : S.enemy(e.sprite, w.yearIdx, e.tier);
         if (!spr) continue;
-        const fr = spr.frames[e.stun > 0 ? 0 : (Math.floor(e.anim * 8) % spr.frames.length)];
+        // pace shows in the walk: heavy ones step slowly, quick ones scurry
+        const fps = e.boss ? 8 : e.pace === 'slow' ? 4 : e.pace === 'fast' ? 13 : 8;
+        const fr = spr.frames[e.stun > 0 ? 0 : (Math.floor(e.anim * fps) % spr.frames.length)];
         const img = e.flash > 0 ? (e.face < 0 ? fr.wf : fr.w) : (e.face < 0 ? fr.f : fr.n);
         const dx = Math.round(sx - spr.w / 2), dy = Math.round(sy - spr.h / 2);
+        if (!e.boss && e.stun <= 0 && e.pace === 'fast') { // speed streaks behind the runner
+          const ph = Math.floor(e.anim * 13) % 2, bx = Math.round(sx - e.face * (spr.w / 2 + 1));
+          L.fillStyle = 'rgba(255,255,255,0.6)';
+          L.fillRect(bx - (e.face > 0 ? 3 + ph : -ph), Math.round(sy - 2), 3, 1);
+          L.fillRect(bx - (e.face > 0 ? 4 + ph : -1 - ph), Math.round(sy + 1), 4, 1);
+        } else if (!e.boss && e.stun <= 0 && e.pace === 'slow') { // heavy stomps: a dust puff on every step
+          const st = (e.anim * 4) % 1;
+          if (st < 0.3) {
+            const big = e.elite || e.mini, fy = Math.round(sy + spr.h * (big ? 0.75 : 0.5)) - 1, sp = 5 + (big ? 4 : 0) + st * 10;
+            L.fillStyle = 'rgba(225,215,185,' + (0.6 * (1 - st / 0.3)) + ')';
+            L.fillRect(Math.round(sx - sp), fy, 2, 1); L.fillRect(Math.round(sx + sp - 1), fy, 2, 1);
+            L.fillRect(Math.round(sx - sp + 1), fy - 1, 1, 1); L.fillRect(Math.round(sx + sp - 1), fy - 1, 1, 1);
+          }
+        }
         if (e.elite) {
           L.fillStyle = 'rgba(255,210,60,0.35)';
           L.beginPath(); L.arc(Math.round(sx), Math.round(sy), e.r + 4, 0, TAU); L.fill();
@@ -162,8 +195,8 @@
         const sx = Math.round(pr.x - camX), sy = Math.round(pr.y - camY);
         if (sx < -20 || sy < -20 || sx > V.w + 20 || sy > V.h + 20) continue;
         // motion trail: two fading dots behind every ball (hot colours for the power shots)
-        const hot = pr.kind === 'cannon' || pr.kind === 'golden' || pr.kind === 'shot';
-        L.fillStyle = pr.kind === 'golden' ? 'rgba(255,215,80,0.5)' : hot ? 'rgba(255,140,40,0.5)' : 'rgba(255,255,255,0.35)';
+        const hot = pr.kind === 'cannon' || pr.kind === 'golden' || pr.kind === 'shot' || pr.kind === 'rabona2';
+        L.fillStyle = pr.kind === 'golden' ? 'rgba(255,215,80,0.5)' : pr.kind === 'rabona2' ? 'rgba(255,90,190,0.55)' : hot ? 'rgba(255,140,40,0.5)' : pr.kind === 'rabona' ? 'rgba(255,170,60,0.5)' : 'rgba(255,255,255,0.35)';
         L.fillRect(Math.round(sx - pr.vx * 0.025) - 1, Math.round(sy - pr.vy * 0.025) - 1, hot ? 3 : 2, hot ? 3 : 2);
         L.fillStyle = pr.kind === 'golden' ? 'rgba(255,215,80,0.25)' : hot ? 'rgba(255,140,40,0.25)' : 'rgba(255,255,255,0.18)';
         L.fillRect(Math.round(sx - pr.vx * 0.05) - 1, Math.round(sy - pr.vy * 0.05) - 1, 2, 2);
@@ -218,7 +251,7 @@
 
     drawPlayer(L, w, camX, camY) {
       const p = w.player, S = RS.Sprites;
-      const spr = S.hero(w.hero, w.yearIdx);
+      const spr = S.hero(w.hero, w.yearIdx, 1, null, w.small);
       // frames 0-3 run, 4 kick, 5 heading jump; running adds a 1-px bob
       const step = Math.floor(p.animT * 10);
       const fi = p.jump > 0 ? 5 : p.kickT > 0 ? 4 : p.moving ? step % 4 : 0;
@@ -231,10 +264,11 @@
         const it = S.item('ball');
         L.drawImage(it.n, sx + p.face * 7 - (it.w >> 1), sy - (spr.h >> 1) - 4);
       }
-      if (w.build.evolved.bicycle) { // tornado aura
-        const R = RS.SKILLS.bicycle.evo.radius * w.stats.area;
-        const a0 = (w.wstate.bicycle && w.wstate.bicycle.angle) || 0;
-        L.strokeStyle = 'rgba(200,240,255,0.55)'; L.lineWidth = 2;
+      const aura = w.build.skillOrder.find((id) => w.build.evolved[id] && RS.SKILLS[id].evo.aura);
+      if (aura) { // tornado aura (바이시클 킥 / 엘라스티코 evolved: gold)
+        const R = RS.SKILLS[aura].evo.radius * w.stats.area;
+        const a0 = (w.wstate[aura] && w.wstate[aura].angle) || 0;
+        L.strokeStyle = aura === 'elastico' ? 'rgba(255,216,74,0.6)' : 'rgba(200,240,255,0.55)'; L.lineWidth = 2;
         for (let i = 0; i < 3; i++) { L.beginPath(); L.arc(sx, sy + jumpY, R - i * 6, a0 + i * 2.1, a0 + i * 2.1 + 1.2); L.stroke(); }
       }
       // hero spotlight: a soft light pool and a pulsing gold ring under the feet, always under the sprite
@@ -320,16 +354,31 @@
             L.strokeStyle = f.color || '#fff'; L.globalAlpha = 1 - k; L.lineWidth = 2;
             L.beginPath(); L.arc(sx, sy, f.r * (0.55 + 0.45 * k), 0, TAU); L.stroke();
             L.globalAlpha = 1; break;
-          case 'swing': {
-            L.strokeStyle = 'rgba(255,255,255,' + (1 - k) + ')'; L.lineWidth = 3;
+          case 'swing': { // f.gold: 호날도's tornado kick
+            L.strokeStyle = (f.gold ? 'rgba(255,216,74,' : 'rgba(255,255,255,') + (1 - k) + ')'; L.lineWidth = f.gold ? 4 : 3;
             const a0 = k * TAU * 1.2;
             L.beginPath(); L.arc(sx, sy, f.r * 0.85, a0, a0 + 2.2); L.stroke();
-            L.strokeStyle = 'rgba(160,220,255,' + (1 - k) + ')'; L.lineWidth = 1;
+            if (f.gold) { L.beginPath(); L.arc(sx, sy, f.r * 0.85, a0 + Math.PI, a0 + Math.PI + 2.2); L.stroke(); }
+            L.strokeStyle = (f.gold ? 'rgba(255,140,60,' : 'rgba(160,220,255,') + (1 - k) + ')'; L.lineWidth = 1;
             L.beginPath(); L.arc(sx, sy, f.r, a0 + 0.3, a0 + 2.6); L.stroke();
             break;
           }
+          case 'meteor': { // 별똥별 슛 / 메시's 칩슛 (f.white): a ball falls from the sky; its landing shadow grows
+            const h = 72 * (1 - k), off = Math.round(12 * (1 - k)), it = S.item(f.white ? 'ball' : 'golden');
+            L.fillStyle = (f.white ? 'rgba(255,255,255,' : 'rgba(255,215,80,') + (0.35 * k) + ')';
+            L.beginPath(); L.ellipse(sx, sy, 2 + 7 * k, 1 + 3 * k, 0, 0, TAU); L.fill();
+            L.strokeStyle = f.white ? 'rgba(255,255,255,0.6)' : 'rgba(255,236,150,0.65)'; L.lineWidth = 2;
+            L.beginPath(); L.moveTo(sx + off + 7, Math.round(sy - h) - 16); L.lineTo(sx + off, Math.round(sy - h)); L.stroke();
+            L.drawImage(it.n, sx + off - (it.w >> 1), Math.round(sy - h) - (it.h >> 1));
+            break;
+          }
+          case 'whistle': // 추가시간 휘슬: a white wave over the pitch
+            L.strokeStyle = 'rgba(255,255,255,' + (0.9 * (1 - k)) + ')'; L.lineWidth = 2;
+            L.beginPath(); L.arc(sx, sy, 10 + f.r * k, 0, TAU); L.stroke();
+            L.beginPath(); L.arc(sx, sy, 4 + f.r * 0.6 * k, 0, TAU); L.stroke();
+            break;
           case 'ghost': case 'mghost': case 'bghost': {
-            const spr = f.kind === 'ghost' ? S.hero(w.hero, w.yearIdx) : f.kind === 'mghost' ? S.mate(f.id, w.yearIdx) : S.boss(f.sprite, w.yearIdx);
+            const spr = f.kind === 'ghost' ? S.hero(w.hero, w.yearIdx, 1, null, w.small) : f.kind === 'mghost' ? S.mate(f.id, w.yearIdx) : S.boss(f.sprite, w.yearIdx);
             L.globalAlpha = 0.45 * (1 - k);
             L.drawImage(f.face < 0 ? spr.frames[0].f : spr.frames[0].n, sx - (spr.w >> 1), sy - (spr.h >> 1));
             L.globalAlpha = 1; break;
@@ -371,7 +420,8 @@
             L.fillRect(Math.round(sx + (f.vx || 0) * k), Math.round(sy + (f.vy || 0) * k), k < 0.5 ? 2 : 1, k < 0.5 ? 2 : 1);
             L.fillRect(Math.round(sx + (f.vx || 0) * k * 0.6 + 2), Math.round(sy + (f.vy || 0) * k * 0.4), 1, 1);
             break;
-          case 'levelburst': { // rising sparks and an expanding ring around 날두
+          case 'levelburst': { // rising sparks and an expanding ring around 날두 (graded items: in their colour)
+            if (f.tier) { L.strokeStyle = RS.TIERS[f.tier].color; L.globalAlpha = 1 - k; L.lineWidth = 3; L.beginPath(); L.arc(sx, sy, 10 + 40 * k, 0, TAU); L.stroke(); L.globalAlpha = 1; }
             L.strokeStyle = 'rgba(255,230,120,' + (1 - k) + ')'; L.lineWidth = 2;
             L.beginPath(); L.arc(sx, sy, 6 + 26 * k, 0, TAU); L.stroke();
             for (let i = 0; i < 8; i++) {
@@ -433,6 +483,21 @@
         C.fillText(str, x, y);
       }
       C.globalAlpha = 1;
+      // 호날도 syllables (호! 날! 도!, one per hit) and the 휘슬 call, above 날두
+      for (const f of w.fx) {
+        if ((f.kind !== 'martial' && f.kind !== 'whistle') || f.t >= f.dur) continue;
+        const k = f.t / f.dur, mart = f.kind === 'martial';
+        const x = (w.player.x - camX + (mart ? (f.n - 1) * 15 : 0)) * s, y = (w.player.y - camY - 28 - k * 12) * s;
+        const pop = 1 + 0.8 * Math.max(0, 1 - k * 6);
+        C.font = '900 ' + Math.round(base * (mart ? 2 : 1.4) * pop) + 'px system-ui, sans-serif';
+        C.globalAlpha = 1 - k * k;
+        C.lineWidth = s * 1.2; C.strokeStyle = '#111';
+        const str = mart ? f.ch : '삐익!';
+        C.strokeText(str, x, y);
+        C.fillStyle = mart ? ['#ffd84a', '#ffffff', '#ff7a3a'][f.n] : '#ffffff';
+        C.fillText(str, x, y);
+        C.globalAlpha = 1;
+      }
       // SIUU shout text
       for (const r of w.rings) {
         if (r.t > 0.6) continue;

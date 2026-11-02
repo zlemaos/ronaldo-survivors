@@ -129,6 +129,44 @@ h2 { font-size: 22px; }
 .card.k-mate .tg { background: #1d5a6a; }
 .card.k-skill .tg { background: #6a3a1d; }
 .card.k-passive .tg, .card.k-passiveUp .tg { background: #3a3a6a; }
+/* level-up: graded cards (레어 · 히든 · 초히든 · 슈퍼히든), gamble cards, the coin shop */
+#levelup .panel { max-height: 100%; overflow-y: auto; gap: 8px; }
+#lv-cards .card, .lv-draw .card { min-height: 64px; padding: 9px 12px; }
+#lv-cards .card .ic, .lv-draw .card .ic { flex-basis: 46px; height: 46px; font-size: 26px; }
+.card:nth-child(4) { animation-delay: 0.15s; }
+.card.t-rare { border-color: #4aa8ff; background: linear-gradient(180deg, #16314f, #0f1f33); box-shadow: 0 0 14px rgba(74,168,255,0.45); }
+.card.t-rare .tg { background: #4aa8ff; color: #06121f; }
+.card.t-hidden { border-color: #b65cff; background: linear-gradient(180deg, #34184f, #1d0d2e); box-shadow: 0 0 16px rgba(182,92,255,0.55); }
+.card.t-hidden .tg { background: #b65cff; color: #13051f; }
+.card.t-ultra { border-color: #ff4a4a; background: linear-gradient(180deg, #4f1414, #2a0808); animation: cardin 0.25s ease-out both, ultra 0.9s ease-in-out infinite alternate; }
+.card.t-ultra .tg { background: #ff4a4a; color: #1f0505; }
+.card.t-super { border: 3px solid transparent; background: linear-gradient(180deg, #2a2208, #120e02) padding-box,
+  linear-gradient(90deg, #ff4a4a, #ffd84a, #4ae06a, #4aa8ff, #b65cff, #ff4a4a) border-box; background-size: 100% 100%, 300% 100%;
+  box-shadow: 0 0 24px rgba(255,216,74,0.7); animation: cardin 0.25s ease-out both, rainbow 2s linear infinite; }
+.card.t-super .tg { background: linear-gradient(90deg, #ff4a4a, #ffd84a, #4ae06a, #4aa8ff, #b65cff); color: #111; }
+.card.t-rare .hn, .card.t-hidden .hn, .card.t-ultra .hn, .card.t-super .hn { color: #e8e0ff; }
+@keyframes rainbow { to { background-position: 0 0, 300% 0; } }
+@keyframes ultra { from { box-shadow: 0 0 8px rgba(255,74,74,0.45); } to { box-shadow: 0 0 26px rgba(255,74,74,0.95); } }
+.card.k-gamble { border-color: #ff9a2a; background: repeating-linear-gradient(135deg, #2e1c08 0 10px, #24160a 10px 20px); }
+.card.k-gamble .tg { background: #ff9a2a; color: #1f1000; }
+.card.k-gamble .hn { color: #ffb86a; }
+#lv-title.t-super { background: linear-gradient(90deg, #ff4a4a, #ffd84a, #4ae06a, #4aa8ff, #b65cff); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; }
+#lv-title.t-ultra { color: #ff6a5a; } #lv-title.t-hidden { color: #c88aff; } #lv-title.t-rare { color: #7ac0ff; } #lv-title.t-gamble { color: #ffb86a; }
+.lv-tools { display: flex; gap: 8px; }
+.lv-tools .btn { flex: 1; }
+.lv-shop { border-top: 1px dashed var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.lv-purse { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-weight: 900; color: var(--gold); font-size: 14px; }
+.lv-purse .dim { font-size: 11px; color: var(--muted); font-weight: 700; }
+.lv-shop-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.btn.coin { display: flex; justify-content: space-between; align-items: center; gap: 6px; min-height: 40px; font-size: 13px; padding: 6px 10px; }
+.btn.coin .cc { color: var(--gold); font-weight: 900; white-space: nowrap; }
+.btn.coin.c-rare { border-color: rgba(74,168,255,0.75); }
+.btn.coin.c-hidden { border-color: rgba(182,92,255,0.8); }
+.btn.coin.c-ultra { border-color: rgba(255,74,74,0.85); }
+.lv-draw .card { pointer-events: none; }
+.lv-draw .card.reveal { animation: reveal 0.6s ease-out both; }
+@keyframes reveal { 0% { transform: scale(0.3) rotate(-8deg); opacity: 0; } 60% { transform: scale(1.08); opacity: 1; } 100% { transform: none; } }
+.chip.t-rare { border-color: #4aa8ff; } .chip.t-hidden { border-color: #b65cff; } .chip.t-ultra { border-color: #ff4a4a; } .chip.t-super { border-color: #ffd84a; color: #ffd84a; }
 .chest-icon { font-size: 48px; animation: pop2 0.5s ease-out; }
 @keyframes pop2 { 0% { transform: scale(0.2) rotate(-20deg); } 70% { transform: scale(1.2); } 100% { transform: none; } }
 

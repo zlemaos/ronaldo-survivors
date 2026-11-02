@@ -16,13 +16,26 @@
       teammates: [], // on the pitch [{id, lv}], at most MAX_MATES
       bench: [], // bench warmers [{id, lv}], at most MAX_BENCH (weak passive synergy)
       coachCards: [], // card ids, stack for the career
+      relics: {}, relicOrder: [], // 특수 카드 items (id -> 1), kept for the career
       bonusHp: 0, bonusReroll: 0, // boss rewards (permanent for the career)
+      hgh: null, // 메시 growth hormone: null = not decided yet (small body), true = treated, false = 하드 모드
       hero
     };
   };
-  // Skills / passives a hero may take (hero-locked entries name their hero).
+  // Skills / passives / items a hero may take (hero-locked entries name their hero). A passive without a hero
+  // follows the moves it pairs with: one paired only with the other hero's moves is never offered.
   RS.skillFor = (id, hero) => { const h = RS.SKILLS[id].hero; return !h || h === hero; };
-  RS.passiveFor = (id, hero) => { const h = RS.PASSIVES[id].hero; return !h || h === hero; };
+  RS.passiveFor = (id, hero) => {
+    const h = RS.PASSIVES[id].hero;
+    if (h) return h === hero;
+    const pairs = Object.keys(RS.SKILLS).filter((k) => RS.SKILLS[k].passive === id);
+    return !pairs.length || pairs.some((k) => RS.skillFor(k, hero));
+  };
+  RS.relicFor = (id, hero) => { const h = RS.RELICS[id].hero; return !h || h === (hero || 'ronaldo'); };
+  RS.skillUse = (id) => RS.SKILLS[id].use || id; // runtime behaviour of a move
+  // 메시 plays in a small body until the growth-hormone treatment (for the whole career without it: 하드 모드).
+  RS.smallBody = (b) => !!b && b.hero === 'messi' && b.hgh !== true;
+  RS.hardMode = (b) => !!b && b.hero === 'messi' && b.hgh === false;
   RS.cloneBuild = (b) => JSON.parse(JSON.stringify(b));
   // Fill missing fields (old saves).
   RS.normalizeBuild = function (b) {
@@ -31,6 +44,8 @@
     for (const k of Object.keys(d)) if (b[k] === undefined) b[k] = d[k];
     b.skillOrder = b.skillOrder.filter((id) => RS.SKILLS[id] && b.skills[id]);
     b.passiveOrder = b.passiveOrder.filter((id) => RS.PASSIVES[id] && b.passives[id]);
+    for (const id of Object.keys(b.relics)) if (!RS.RELICS[id]) delete b.relics[id];
+    b.relicOrder = b.relicOrder.filter((id) => RS.RELICS[id] && b.relics[id]);
     b.teammates = b.teammates.filter((m) => m && RS.TEAMMATES[m.id]);
     b.bench = (b.bench || []).filter((m) => m && RS.TEAMMATES[m.id]);
     // old saves carried up to 5 on the pitch: the extras move to the bench
@@ -54,6 +69,7 @@
     for (const id of b.skillOrder) s += b.skills[id] * 10 + (b.evolved[id] ? 40 : 0);
     for (const id of b.passiveOrder) s += b.passives[id] * 8;
     for (const m of b.teammates) s += 6 + m.lv * 5;
+    for (const id of b.relicOrder || []) s += RS.TIER_POWER[RS.RELICS[id].tier];
     return Math.round(s);
   };
   // Threat of a season on a 1–5 star scale (enemy HP multiplier of the year).
@@ -62,8 +78,9 @@
     return Math.max(1, Math.min(5, Math.ceil(Math.log2(h + 1))));
   };
 
+  // About a quarter less XP per level than round 2: level-ups keep coming.
   RS.xpToNext = function (level) {
-    return Math.floor(6 + level * 5 + Math.max(0, level - 12) * 6 + Math.max(0, level - 30) * 14 + Math.max(0, level - 50) * 30);
+    return Math.floor(5 + level * 4 + Math.max(0, level - 12) * 4 + Math.max(0, level - 30) * 10 + Math.max(0, level - 50) * 22);
   };
 
   let COACH_CARDS = null;
@@ -71,6 +88,8 @@
     if (!COACH_CARDS) {
       COACH_CARDS = {};
       for (const ck of Object.keys(RS.COACHES)) for (const c of RS.COACHES[ck].cards) COACH_CARDS[c.id] = c;
+      // story-event lessons with a lasting effect are kept like coach cards
+      for (const ev of Object.values(RS.EVENTS || {})) for (const c of ev.cards) if (c.mods) COACH_CARDS[c.id] = c;
     }
     return COACH_CARDS[id] || null;
   };
@@ -78,9 +97,10 @@
   // Derive runtime stats from build (passives + coach cards) and meta upgrades.
   RS.computeStats = function (build, metaUpgrades) {
     const a = { dmg: 0, cd: 0, area: 0, projSpeed: 0, moveSpeed: 0, hp: 0, magnet: 0, crit: 0, dur: 0, regen: 0,
-      armor: 0, xp: 0, gold: 0, teamDmg: 0, teamCd: 0, bossDmg: 0, revive: 0, reroll: 0 };
+      armor: 0, xp: 0, gold: 0, teamDmg: 0, teamCd: 0, bossDmg: 0, revive: 0, reroll: 0, luck: 0 };
     const add = (mods, times) => { for (const k in mods) if (k in a) a[k] += mods[k] * times; };
     for (const id in build.passives) if (RS.PASSIVES[id]) add(RS.PASSIVES[id].mods, build.passives[id]);
+    for (const id in build.relics || {}) if (RS.RELICS[id] && RS.RELICS[id].mods) add(RS.RELICS[id].mods, 1);
     for (const cid of build.coachCards) { const c = RS.coachCard(cid); if (c) add(c.mods, 1); }
     if (metaUpgrades) for (const id in metaUpgrades) if (RS.META[id]) add(RS.META[id].mods, metaUpgrades[id]);
     // squad: role buffs (pitch full, bench weak) and the partnership of the two on the pitch
@@ -88,13 +108,14 @@
     for (const m of build.bench || []) add(RS.ROLE_BUFF[RS.TEAMMATES[m.id].role].mods, RS.BENCH_FACTOR);
     const pair = RS.pairSynergy(build);
     if (pair) add(pair.mods, 1);
+    if (RS.smallBody(build)) add(RS.SMALL_BODY, 1);
     const hero = (RS.HEROES && RS.HEROES[build.hero]) || { moveMul: 1 };
     return {
       dmg: 1 + a.dmg, cd: Math.max(0.45, 1 + a.cd), area: 1 + a.area, projSpeed: 1 + a.projSpeed,
-      move: 78 * hero.moveMul * (1 + a.moveSpeed), maxHp: Math.round(100 + a.hp + (build.bonusHp || 0)), magnet: 30 * (1 + a.magnet),
+      move: RS.BASE_MOVE * hero.moveMul * (1 + a.moveSpeed), maxHp: Math.round(100 + a.hp + (build.bonusHp || 0)), magnet: 38 * (1 + a.magnet),
       crit: Math.min(0.9, 0.05 + a.crit), dur: 1 + a.dur, regen: a.regen, armor: a.armor, xp: 1 + a.xp,
       gold: 1 + a.gold, teamDmg: 1 + a.teamDmg, teamCd: Math.max(0.5, 1 + a.teamCd), bossDmg: 1 + a.bossDmg,
-      revive: a.revive, reroll: a.reroll + (build.bonusReroll || 0), armor: Math.round(a.armor)
+      revive: a.revive, reroll: a.reroll + (build.bonusReroll || 0), armor: Math.round(a.armor), luck: a.luck
     };
   };
 
@@ -193,7 +214,7 @@
   };
   RS.mateLine = function (id) {
     const m = RS.TEAMMATES[id], r = RS.ROLES[m.role];
-    return r.name + ': ' + r.desc + ' · 팀 효과 ' + RS.ROLE_BUFF[m.role].text;
+    return r.name + ': ' + r.desc.replace(/\{hero\}/g, RS.HEROES[RS.HERO].short) + ' · 팀 효과 ' + RS.ROLE_BUFF[m.role].text;
   };
   // What signing this player would do to the partnership (shown on recruit cards).
   RS.synergyHint = function (build, id) {
@@ -223,6 +244,10 @@
         return Object.assign(c, { name: m.name, icon: '📈', desc: RS.mateLine(c.id), tag: '동료 Lv.' + (cur + 1) }); }
       case 'gold': return Object.assign(c, { name: '스폰서 보너스', icon: '💰', desc: '코인 +30', tag: '보너스' });
       case 'heal': return Object.assign(c, { name: '에그타르트', icon: '🥧', desc: '체력 40% 회복', tag: '보너스' });
+      case 'relic': { const r = RS.RELICS[c.id];
+        return Object.assign(c, { name: r.name, icon: r.icon, desc: r.desc, tag: RS.TIERS[r.tier].name, tier: r.tier, hint: '특수 아이템 · 커리어 내내 유지' }); }
+      case 'gamble': { const g = RS.GAMBLES[c.id];
+        return Object.assign(c, { name: g.name, icon: g.icon, desc: g.desc, tag: '도박', hint: '결과는 고르는 순간 정해진다' }); }
     }
     return c;
   }
@@ -239,7 +264,7 @@
     }
     for (const id of build.skillOrder) if (build.skills[id] < RS.SKILL_MAX) pool.push({ kind: 'skillUp', id, w: 3 });
     if (build.skillOrder.length < RS.MAX_SKILLS) {
-      for (const id in RS.SKILLS) if (!build.skills[id] && RS.skillFor(id, hero)) pool.push({ kind: 'skill', id, w: 1.7 });
+      for (const id in RS.SKILLS) if (!build.skills[id] && RS.skillFor(id, hero) && !RS.SKILLS[id].gift) pool.push({ kind: 'skill', id, w: 1.7 });
     }
     for (const id of build.passiveOrder) if (build.passives[id] < RS.PASSIVE_MAX) pool.push({ kind: 'passiveUp', id, w: 2 });
     for (const id in RS.PASSIVES) if (RS.canTakePassive(build, id) && RS.passiveFor(id, hero)) {
@@ -264,6 +289,49 @@
     return out.map((c) => describe(c, build));
   };
 
+  // ---------------------------------------------------------------- 특수 카드 (graded items, gambles)
+  RS.relicPool = (build, tier) => Object.keys(RS.RELICS).filter((id) => RS.RELICS[id].tier === tier && !build.relics[id] && RS.relicFor(id, build.hero));
+  RS.relicsLeft = (build) => Object.keys(RS.RELICS).some((id) => !build.relics[id] && RS.relicFor(id, build.hero));
+  // One item the build lacks. The grade comes from `odds` ({tier: p}, summing to 1); an exhausted grade falls to
+  // the nearest grade that still has items — upward first when `up` (paid draws never come back empty),
+  // downward only otherwise (free rolls). Returns a described card or null.
+  RS.drawRelic = function (build, rng, odds, up) {
+    const tiers = Object.keys(odds);
+    let r = rng(), tier = tiers[tiers.length - 1];
+    for (const t of tiers) { if (r < odds[t]) { tier = t; break; } r -= odds[t]; }
+    let pool = RS.relicPool(build, tier);
+    if (!pool.length) {
+      const i = RS.TIER_ORDER.indexOf(tier);
+      const lower = RS.TIER_ORDER.slice(0, i).reverse(), higher = RS.TIER_ORDER.slice(i + 1);
+      for (const t of up ? higher.concat(lower) : lower) { pool = RS.relicPool(build, t); if (pool.length) break; }
+    }
+    if (!pool.length) return null;
+    return describe({ kind: 'relic', id: pool[Math.floor(rng() * pool.length)] }, build);
+  };
+  // A gamble card among those that make sense now (올인 needs coins from this match).
+  RS.gambleCard = function (build, rng, coins) {
+    const ids = Object.keys(RS.GAMBLES).filter((id) => !RS.GAMBLES[id].needCoins || (coins || 0) >= RS.GAMBLES[id].needCoins);
+    return describe({ kind: 'gamble', id: ids[Math.floor(rng() * ids.length)] }, build);
+  };
+  // The 4th card of a level-up: a graded item (odds × (1 + luck)), a gamble card, or null (a normal card).
+  RS.rollSpecial = function (build, rng, luck, coins) {
+    const L = 1 + (luck || 0), r = rng();
+    let acc = 0;
+    for (const t of ['super', 'ultra', 'hidden', 'rare']) {
+      acc += RS.SPECIAL_ODDS[t] * L;
+      if (r < acc) return RS.drawRelic(build, rng, { [t]: 1 }, false);
+    }
+    return r < acc + RS.SPECIAL_ODDS.gamble ? RS.gambleCard(build, rng, coins) : null;
+  };
+  // Level-up hand: four cards; the 4th is replaced by a special card when one is rolled.
+  RS.LEVEL_CARDS = 4;
+  RS.levelChoices = function (build, rng, yearIdx, luck, coins) {
+    const out = RS.makeChoices(build, rng, yearIdx, RS.LEVEL_CARDS);
+    const sp = RS.rollSpecial(build, rng, luck, coins);
+    if (sp) { if (out.length >= RS.LEVEL_CARDS) out[RS.LEVEL_CARDS - 1] = sp; else out.push(sp); }
+    return out;
+  };
+
   // Applies a choice to the build. Returns false if it could not apply.
   RS.applyChoice = function (build, c) {
     switch (c.kind) {
@@ -286,6 +354,10 @@
       case 'mate': return !!RS.addMate(build, c.id);
       case 'mateUp': return RS.levelMate(build, c.id, 1);
       case 'gold': case 'heal': return true;
+      case 'relic':
+        if (!RS.RELICS[c.id] || build.relics[c.id]) return false;
+        build.relics[c.id] = 1; build.relicOrder.push(c.id); return true;
+      case 'gamble': return !!RS.GAMBLES[c.id]; // the World rolls the outcome
     }
     return false;
   };
@@ -309,6 +381,7 @@
       this.yearIdx = opt.yearIdx || 0;
       this.yearDef = RS.YEARS[this.yearIdx];
       this.tune = RS.yearTuning(this.yearIdx);
+      this.lvl = RS.tuneIdx(this.yearIdx); // difficulty index: youth seasons play like the debut year
       this.era = RS.ERAS[this.yearDef.era];
       this.seed = opt.seed != null ? opt.seed : (Date.now() & 0x7fffffff);
       this.rng = RS.makeRng(this.seed);
@@ -325,6 +398,7 @@
       this.player = { x: 0, y: 0, vx: 0, vy: 0, r: 7, hp: 100, iframe: 0, dirx: 1, diry: 0, face: 1, moving: false,
         dash: null, jump: 0, animT: 0, revived: false, hurtT: 0, kickT: 0, dustT: 0, slideCd: 0 };
       this.hero = opt.hero || (opt.build && opt.build.hero) || 'ronaldo';
+      this.small = RS.smallBody(this.build); // drawn with the short kid body
       this.enemies = []; this.enemyPool = [];
       this.projs = []; this.projPool = [];
       this.eprojs = [];
@@ -343,6 +417,10 @@
       this.spawnAcc = 0;
       this.rescue = null; this.recruitedThisRun = [];
       this.wstate = {};
+      // coin shop at level-ups: this match's coins first, then the wallet (walletSpent is settled by finishYear)
+      this.wallet = Math.max(0, Math.floor(opt.wallet || 0)); this.walletSpent = 0; this.coinsSpent = 0;
+      this.zones = []; this.relicT = {}; this._boomBudget = 0;
+      this.diceUsed = false; this.drawUsed = false; this.lastDraw = null; this.lastGamble = null;
       this.debug = { godMode: false };
       this.recalc();
       this.player.hp = this.stats.maxHp;
@@ -357,6 +435,20 @@
       this.stats = RS.computeStats(this.build, this.metaUp);
       if (prevMax != null && this.stats.maxHp > prevMax) this.player.hp += this.stats.maxHp - prevMax;
       this.player.hp = Math.min(this.player.hp, this.stats.maxHp);
+      // The final stays a duel. 메시/날두 hit harder by exactly the toughness the graded items added (max HP + a
+      // minute of regen: the final crowd plus the duel), and their side keeps the hero's pace: bullets, dashes and
+      // walking speed up by how much faster than the duel's tuned pace (RS.FINAL_PACE × the hero's base speed) the
+      // hero runs, so a fast build cannot simply outrun the patterns. Telegraph and cooldown times stay, so the
+      // reaction windows are unchanged. Season bosses do not scale: there the items are meant to feel overpowered.
+      this.finalScale = 1; this.finalPace = 1;
+      if (this.yearDef.final) {
+        const hero = RS.HEROES[this.build.hero] || { moveMul: 1 };
+        this.finalPace = Math.max(1, this.stats.move / (RS.BASE_MOVE * hero.moveMul * RS.FINAL_PACE));
+      }
+      if (this.yearDef.final && this.build.relicOrder.length) {
+        const s0 = RS.computeStats(Object.assign({}, this.build, { relics: {}, relicOrder: [] }), this.metaUp);
+        this.finalScale = Math.max(1, (this.stats.maxHp + 60 * this.stats.regen) / (s0.maxHp + 60 * s0.regen));
+      }
     }
     emit(type, data) { this.events.push(Object.assign({ type }, data || {})); }
     later(t, fn) { this.timers.push({ t, fn }); }
@@ -374,7 +466,7 @@
     spawnRadius() { return Math.hypot(this.view.w / 2, this.view.h / 2) + 24; }
 
     makeSchedule() {
-      const T = this.stageTime, idx = this.yearIdx;
+      const T = this.stageTime, idx = this.lvl;
       const s = [];
       s.push({ t: T * 0.22, kind: 'rescue' });
       // mini-boss waves (the debut year gets two late ones so a newcomer can learn the controls first)
@@ -397,6 +489,7 @@
       if (this.phase !== 'play') { this.updateFx(dt); return; }
       this.frame++;
       this.t += dt;
+      this._boomBudget = 6; // 폭발 슈팅 chains: at most this many blasts start per step
       const p = this.player;
       if (this.bossSpawned && this.boss && this.boss.alive) this.bossT += dt;
       if (Math.floor(this.t) !== this._lastSec) { // damage per second over the last 20 s (boss HP scaling)
@@ -419,9 +512,11 @@
       for (const e of this.enemies) if (e.alive) this.grid.insert(e);
 
       this.updateWeapons(dt);
+      this.updateRelics(dt);
       this.updateMates(dt);
       this.updateProjs(dt);
       this.updateRings(dt);
+      this.updateZones(dt);
       this.updateEnemies(dt);
       this.updateEProjs(dt);
       this.updatePickups(dt);
@@ -434,8 +529,17 @@
     }
 
     // ------------------------------------------------------------ spawning
+    // Formation waves keep the crowd bounded: the farthest ordinary enemies leave the pitch first (no drops).
+    makeRoom(n) {
+      let over = this.enemies.length + n - (this.tune.maxAlive + 40);
+      if (over <= 0) return;
+      const p = this.player, d2 = (e) => (e.x - p.x) ** 2 + (e.y - p.y) ** 2;
+      const cand = this.enemies.filter((e) => e.alive && !e.boss && !e.mini && !e.elite).sort((a, b) => d2(b) - d2(a));
+      for (let i = 0; i < cand.length && over > 0; i++, over--) cand[i].alive = false;
+    }
+
     runScheduled(kind) {
-      const idx = this.yearIdx;
+      const idx = this.lvl;
       if (kind === 'rescue') this.spawnRescue();
       else if (kind === 'elite') {
         const type = idx >= 3 ? 'tank' : 'grunt';
@@ -444,6 +548,7 @@
         this.emit('elite');
       } else if (kind === 'circle') {
         const n = 14 + Math.min(26, idx);
+        this.makeRoom(n);
         const R = this.spawnRadius() * 0.85;
         for (let i = 0; i < n; i++) {
           const a = (i / n) * TAU;
@@ -452,6 +557,7 @@
         this.emit('banner', { text: '포위 진형!' });
       } else if (kind === 'press') {
         const n = 8 + Math.min(12, Math.floor(idx / 2));
+        this.makeRoom(n);
         const a = this.rng() * TAU;
         const R = this.spawnRadius();
         const cx = this.player.x + Math.cos(a) * R, cy = this.player.y + Math.sin(a) * R;
@@ -465,6 +571,7 @@
         this.emit('banner', { text: '기자단 돌격!' });
       } else if (kind === 'mini') {
         const n = this.tune.minis;
+        this.makeRoom(n);
         const base = this.rng() * TAU, R = this.spawnRadius() * 0.9;
         for (let i = 0; i < n; i++) {
           const a = base + i * (TAU / n);
@@ -501,7 +608,8 @@
       const tu = this.tune;
       const k = this.ramp(); // later in the stage: tougher, faster, and drawn with a darker tint
       e.uid = UID++; e.type = type; e.sprite = def.sprite; e.x = x; e.y = y; e.alive = true;
-      e.r = def.r; e.speed = def.speed * tu.speedMul * (1 + tu.rampSpeed * k) * (0.9 + this.rng() * 0.2);
+      e.pace = def.pace || 'normal'; // fast and slow enemies keep their pace all stage; normal ones speed up
+      e.r = def.r; e.speed = def.speed * tu.speedMul * (1 + (e.pace === 'normal' ? tu.rampSpeed * k : 0)) * (0.9 + this.rng() * 0.2);
       e.maxHp = e.hp = Math.round(def.hp * tu.hpMul * (1 + tu.rampHp * k));
       e.dmg = Math.round(def.dmg * tu.dmgMul * (1 + tu.rampDmg * k));
       e.tier = k >= 2 / 3 ? 2 : k >= 1 / 3 ? 1 : 0;
@@ -510,9 +618,9 @@
       e.invuln = false; e.tele = null; e.lineVx = 0; e.lineVy = 0; e.life = 0; e.dHit = -9; e.face = 1; e.charging = false; e.orbT = 0;
       e.anim = this.rng() * 10; e.minion = !!opt.minion;
       e.mini = !!def.mini; e.name = def.name;
-      if (e.elite) { e.maxHp = e.hp = e.hp * 9; e.r = Math.round(e.r * 1.5); e.dmg = Math.round(e.dmg * 1.4); e.xp *= 12; e.speed *= 1.1; }
+      if (e.elite) { e.maxHp = e.hp = e.hp * 9; e.r = Math.round(e.r * 1.5); e.dmg = Math.round(e.dmg * 1.4); e.xp *= 12; e.speed *= RS.ELITE_SPEED; e.pace = 'slow'; }
       if (e.mini) { // 준보스: scales with the year, acts like a small boss (telegraphed charge / slam)
-        e.maxHp = e.hp = Math.round(e.hp * (1 + 0.25 * this.yearIdx));
+        e.maxHp = e.hp = Math.round(e.hp * (1 + 0.25 * this.lvl));
         e.ai = { kind: 'mini', cool: 1.6 + this.rng(), act: null, acts: def.acts, n: 0 };
       }
       this.enemies.push(e);
@@ -685,13 +793,13 @@
     hurtPlayer(dmg, src) {
       const p = this.player;
       if (p.iframe > 0 || p.dash || this.debug.godMode || this.phase !== 'play') return;
-      const d = Math.max(1, Math.round(dmg - this.stats.armor));
+      const d = Math.max(1, Math.round(dmg * (this.bossSpawned ? this.finalScale : 1) - this.stats.armor));
       p.hp -= d;
       this.dmgTaken += d;
       this.hits++;
       if (this.bossSpawned) this.bossDmgTaken += d;
       if (p.hp < this.minHp) this.minHp = p.hp;
-      p.iframe = 0.45;
+      p.iframe = RS.IFRAMES;
       p.hurtT = 0.2;
       this.emit('hurt', { dmg: d });
     }
@@ -755,9 +863,9 @@
       const b = this.build, st = this.stats;
       for (const id of b.skillOrder) {
         const ws = this.wstate[id] || (this.wstate[id] = { timer: 0.3 + this.rng() * 0.5, tick: 0 });
-        const evo = !!b.evolved[id];
+        const evo = !!b.evolved[id], use = RS.skillUse(id);
         const s = RS.skillStats(id, b.skills[id], b.evolved[id]); // the variant name picks the evolution path
-        if (id === 'bicycle' && evo) { // permanent tornado aura
+        if (s.aura) { // permanent tornado aura (바이시클 킥 / 엘라스티코 evolved)
           ws.tick -= dt;
           ws.angle = (ws.angle || 0) + dt * 9;
           if (ws.tick <= 0) {
@@ -766,11 +874,12 @@
           }
           continue;
         }
-        if (id === 'stepover') { this.updateStepover(ws, s, evo, dt); continue; }
-        if (id === 'orbit') { this.updateOrbit(ws, s, dt); continue; }
+        if (use === 'stepover') { this.updateStepover(ws, s, evo, dt); continue; }
+        if (use === 'orbit') { this.updateOrbit(ws, s, dt); continue; }
+        if (use === 'trail') { this.updateTrail(ws, s, dt); continue; }
         ws.timer -= dt;
         if (ws.timer > 0) continue;
-        const fired = this.fire(id, s, evo);
+        const fired = this.fire(use, s, evo, id);
         ws.timer = fired ? s.cd * st.cd : 0.2;
       }
     }
@@ -806,9 +915,55 @@
       }
     }
 
-    fire(id, s, evo) {
+    // 불꽃 질주: drops a burning patch behind the feet while running (evolved: also while standing). A patch is not
+    // stacked on top of the last one; that one just keeps burning longer.
+    updateTrail(ws, s, dt) {
       const p = this.player, st = this.stats;
-      switch (id) {
+      ws.timer -= dt;
+      if (ws.timer > 0 || (!p.moving && !s.still)) return;
+      ws.timer = s.cd;
+      const x = p.x - p.dirx * 4, y = p.y + 5, r = s.radius * st.area;
+      const last = this.zones[this.zones.length - 1];
+      if (last && (last.x - x) ** 2 + (last.y - y) ** 2 < (last.r * 0.7) ** 2) { last.t = Math.min(last.t, last.life * 0.3); return; }
+      if (this.zones.length >= 70) this.zones.shift();
+      this.zones.push({ x, y, r, t: 0, life: s.life * st.dur, tick: s.tick, tickT: 0, dmg: s.dmg, evo: !!s.still, seed: this.rng() * 6.28 });
+    }
+    updateZones(dt) {
+      for (const z of this.zones) {
+        z.t += dt;
+        if (z.t >= z.life) continue;
+        z.tickT -= dt;
+        if (z.tickT > 0) continue;
+        z.tickT = z.tick;
+        this.grid.query(z.x, z.y, z.r + 16, this._q);
+        for (const e of this._q) {
+          if (!e.alive) continue;
+          const rr = z.r + e.r;
+          if ((e.x - z.x) ** 2 + (e.y - z.y) ** 2 < rr * rr) this.damageEnemy(e, z.dmg, { dot: true });
+        }
+      }
+      if (this.zones.length && this.frame % 10 === 0) this.zones = this.zones.filter((z) => z.t < z.life);
+    }
+
+    // use = runtime behaviour (RS.skillUse), id = the move itself (its own ball look and 메시's variants).
+    fire(use, s, evo, id) {
+      const p = this.player, st = this.stats;
+      const def = RS.SKILLS[id || use];
+      const ball = (n, e) => def.proj ? def.proj[evo ? 1 : 0] : evo ? e : n;
+      switch (use) {
+        case 'rabona': { // curling boomerangs: out to `range`, then home to 날두 (piercing both ways)
+          const tg = this.nearestEnemies(s.count, 220, this._tg || (this._tg = []));
+          if (!tg.length) return false;
+          for (let i = 0; i < s.count; i++) {
+            const e = tg[i % tg.length];
+            const a = evo ? this.t * 1.7 + i * TAU / s.count : Math.atan2(e.y - p.y, e.x - p.x) + (i >= tg.length ? (i - tg.length + 1) * 0.5 : 0);
+            this.spawnProj(evo ? 'rabona2' : 'rabona', p.x, p.y, a, s.speed * st.projSpeed,
+              { dmg: s.dmg, pierce: 999, r: s.r, life: 5, boomer: s.range * st.area, curve: (i % 2 ? -1 : 1) * 1.6, knock: 40 });
+          }
+          p.kickT = 0.2;
+          this.emit('sfx', { name: 'curl' });
+          return true;
+        }
         case 'kick': {
           const tg = this.nearestEnemies(s.count, 220, this._tg || (this._tg = []));
           if (!tg.length) return false;
@@ -816,7 +971,7 @@
             const e = tg[i % tg.length];
             const spread = i >= tg.length ? (i - tg.length + 1) * 0.25 * (i % 2 ? 1 : -1) : 0;
             const a = Math.atan2(e.y - p.y, e.x - p.x) + spread;
-            this.spawnProj(evo ? 'golden' : 'ball', p.x, p.y, a, s.speed * st.projSpeed, { dmg: s.dmg, pierce: s.pierce, bounce: s.bounce, r: s.r, life: 1.5 });
+            this.spawnProj(ball('ball', 'golden'), p.x, p.y, a, s.speed * st.projSpeed, { dmg: s.dmg, pierce: s.pierce, bounce: s.bounce, r: s.r, life: 1.5 });
             if (i === 0 && Math.abs(Math.cos(a)) > 0.2) p.face = Math.cos(a) > 0 ? 1 : -1;
           }
           p.kickT = 0.2;
@@ -830,7 +985,7 @@
           const base = Math.atan2(e.y - p.y, e.x - p.x);
           for (let i = 0; i < s.count; i++) {
             const a = base + (i - (s.count - 1) / 2) * 0.16;
-            this.spawnProj(evo ? 'cannon' : 'knuckle', p.x, p.y, a, s.speed * st.projSpeed, { dmg: s.dmg, pierce: s.pierce, r: s.r, life: 1.6, wobble: evo ? 0 : 1, knock: evo ? 60 : 30 });
+            this.spawnProj(ball('knuckle', 'cannon'), p.x, p.y, a, s.speed * st.projSpeed, { dmg: s.dmg, pierce: s.pierce, r: s.r, life: 1.6, wobble: evo || def.straight ? 0 : 1, knock: evo ? 60 : 30 });
           }
           this.emit('sfx', { name: 'shoot' });
           return true;
@@ -849,8 +1004,8 @@
         case 'bicycle': {
           if (!this.nearestEnemies(1, s.radius * st.area + 30, this._tg || (this._tg = [])).length) return false;
           const R = s.radius * st.area;
-          this.shock(p.x, p.y, R, s.dmg, { knock: 70, silentFx: true });
-          this.addFx('swing', p.x, p.y, { r: R, dur: 0.35, follow: true });
+          this.shock(p.x, p.y, R, s.dmg, { knock: 70, silentFx: true, stun: s.stun || 0 });
+          this.addFx('swing', p.x, p.y, { r: R, dur: 0.35, follow: true, gold: id === 'elastico' });
           this.emit('sfx', { name: 'swish' });
           return true;
         }
@@ -874,8 +1029,36 @@
           this.rings.push({ x: p.x, y: p.y, r: 0, maxR: s.radius * st.area, t: 0, dur: 0.45, dmg: s.dmg,
             stun: s.stun * st.dur, knock: s.knock || 30, hits: new Set(), evo });
           if (s.heal) p.hp = Math.min(st.maxHp, p.hp + s.heal);
-          this.emit('sfx', { name: 'siu' });
-          this.emit('shout');
+          if (id === 'bobo') { // 메시: a glare and one line, not a SIUU
+            this.addFx('martial', p.x, p.y, { dur: 0.8, ch: evo ? '저리 가!' : '뭘 봐?', n: 1, follow: true });
+            this.emit('sfx', { name: 'bobo' });
+          } else { this.emit('sfx', { name: 'siu' }); this.emit('shout'); }
+          return true;
+        }
+        case 'curler': { // 감아차기: leaves wide of the target and bends back in on it (homing)
+          const tg = this.nearestEnemies(s.count, 240, this._tg || (this._tg = []));
+          if (!tg.length) return false;
+          for (let i = 0; i < s.count; i++) {
+            const e = tg[i % tg.length];
+            const a = Math.atan2(e.y - p.y, e.x - p.x) + (i % 2 ? -0.9 : 0.9);
+            this.spawnProj(ball('curler', 'golden'), p.x, p.y, a, s.speed * st.projSpeed,
+              { dmg: s.dmg, pierce: s.pierce, r: s.r, life: 1.8, home: s.home, target: e, critBonus: s.critBonus || 0, knock: 30 });
+          }
+          p.kickT = 0.2;
+          this.emit('sfx', { name: 'curl' });
+          return true;
+        }
+        case 'chip': { // 칩슛: lobbed over the crowd onto the toughest enemies in range (the boss first)
+          const tg = this.nearestEnemies(8, 230, this._mt || (this._mt = []));
+          if (!tg.length) return false;
+          const R = s.radius * st.area;
+          tg.slice().sort((a, b) => b.hp - a.hp).slice(0, s.count).forEach((e, i) => {
+            const x = e.x, y = e.y, delay = 0.45 + i * 0.12;
+            this.addFx('meteor', x, y, { dur: delay, white: !evo });
+            this.later(delay, () => { this.shock(x, y, R, s.dmg, { knock: 60, color: evo ? '#ffd84a' : '#ffffff' }); this.emit('sfx', { name: 'thud' }); });
+          });
+          p.kickT = 0.2;
+          this.emit('sfx', { name: 'curl' });
           return true;
         }
       }
@@ -928,6 +1111,7 @@
       pr.speed = speed; pr.r = o.r || 3; pr.dmg = o.dmg || 1; pr.pierce = o.pierce || 0; pr.bounce = o.bounce || 0;
       pr.life = o.life || 1.5; pr.t = 0; pr.curve = o.curve || 0; pr.wobble = o.wobble || 0; pr.knock = o.knock || 25;
       pr.critBonus = o.critBonus || 0; pr.team = !!o.team; pr.alive = true; pr.target = o.target || null;
+      pr.boomer = o.boomer || 0; pr.back = false; pr.trav = 0; pr.home = o.home || 0;
       pr.hits.clear();
       this.projs.push(pr);
       return pr;
@@ -944,9 +1128,30 @@
           pr.x += dx / d * 260 * dt; pr.y += dy / d * 260 * dt;
           continue;
         }
+        if (pr.boomer) { // 라보나: curls out, then flies home; enemies on the way back are hit again
+          if (!pr.back) {
+            pr.trav += pr.speed * dt;
+            if (pr.trav >= pr.boomer) { pr.back = true; pr.curve = 0; pr.hits.clear(); }
+          } else {
+            const dx = p.x - pr.x, dy = p.y - pr.y, d = Math.hypot(dx, dy) || 1;
+            if (d < 10) { pr.alive = false; continue; }
+            pr.vx = dx / d * pr.speed * 1.15; pr.vy = dy / d * pr.speed * 1.15;
+          }
+        }
         if (pr.curve) {
           const c = Math.cos(pr.curve * dt), s = Math.sin(pr.curve * dt);
           const vx = pr.vx * c - pr.vy * s; pr.vy = pr.vx * s + pr.vy * c; pr.vx = vx;
+        }
+        if (pr.home) { // 감아차기: turns toward its target at `home` rad/s; a fallen target is replaced
+          if (!pr.target || !pr.target.alive) pr.target = this.nearestFrom(pr.x, pr.y, 200, pr.hits);
+          const tg = pr.target;
+          if (tg) {
+            const cur = Math.atan2(pr.vy, pr.vx);
+            let d = Math.atan2(tg.y - pr.y, tg.x - pr.x) - cur;
+            d = Math.atan2(Math.sin(d), Math.cos(d));
+            const a = cur + Math.max(-pr.home * dt, Math.min(pr.home * dt, d));
+            pr.vx = Math.cos(a) * pr.speed; pr.vy = Math.sin(a) * pr.speed;
+          }
         }
         pr.x += pr.vx * dt; pr.y += pr.vy * dt;
         if (pr.wobble) { const w = Math.sin(pr.t * 28) * 40 * dt; const n = pr.speed || 1; pr.x += -pr.vy / n * w; pr.y += pr.vx / n * w; }
@@ -999,6 +1204,7 @@
       if (!e.alive) return 0;
       o = o || {};
       if (e.invuln) { this.addText(e.x, e.y - e.r, 0, false); return 0; }
+      if (this.build.relics.adrenaline && this.player.hp < this.stats.maxHp * 0.5) base *= 1.6; // 아드레날린
       const res = RS.calcDamage(base, this.stats, { team: o.team, boss: e.boss, critBonus: o.critBonus }, this.rng());
       e.hp -= res.dmg;
       this.dmgDealt += res.dmg;
@@ -1011,9 +1217,9 @@
       if (o.stun && !e.boss) e.stun = Math.max(e.stun, o.stun * (e.elite || e.mini ? 0.5 : 1)); // bosses are stun-immune
       // damage numbers only where they matter (crits, bosses, 준보스, elites) — plain hits show the spark only
       if (res.crit || e.boss || e.mini || e.elite) this.addText(e.x, e.y - e.r, res.dmg, res.crit);
-      // impact spark: a few shards flying away from the hit direction (crits bigger and golden)
-      if (this.fx.length < 120) this.addFx('hit', e.x, e.y - 2, { dur: res.crit ? 0.3 : 0.2, kx: o.kx || 0, ky: o.ky || 0, crit: res.crit, seed: this.rng() * 6.28 });
-      if (res.crit) { this.emit('sfx', { name: 'crit' }); if (e.boss) this.emit('shake', { k: 0.08 }); }
+      // impact spark: a few shards flying away from the hit direction (crits bigger and golden); burns stay quiet
+      if (!o.dot && this.fx.length < 120) this.addFx('hit', e.x, e.y - 2, { dur: res.crit ? 0.3 : 0.2, kx: o.kx || 0, ky: o.ky || 0, crit: res.crit, seed: this.rng() * 6.28 });
+      if (res.crit && !o.dot) { this.emit('sfx', { name: 'crit' }); if (e.boss) this.emit('shake', { k: 0.08 }); }
       if (e.hp <= 0) this.killEnemy(e);
       return res.dmg;
     }
@@ -1025,7 +1231,7 @@
       if (e.boss) {
         this.addFx('boom', e.x, e.y, { r: 60, dur: 0.8 });
         // the season ends here, so the loot is banked directly instead of dropped (coins scale with the year)
-        this.bossCoins = 30 + 6 * this.yearIdx;
+        this.bossCoins = 30 + 6 * this.lvl;
         this.coinsPicked += this.bossCoins;
         for (let i = 0; i < 12; i++) this.dropPickup('coin', e.x + (this.rng() - 0.5) * 50, e.y + (this.rng() - 0.5) * 50, 0);
         if (this.yearDef.final) {
@@ -1040,6 +1246,11 @@
       }
       if (this.pickups.length < 420) this.dropPickup('gem', e.x, e.y, xpv);
       else this.mergeGem(xpv);
+      if (this.build.relics.bomb && this._boomBudget > 0) { // 폭발 슈팅: the fallen enemy blows up (chains)
+        this._boomBudget--;
+        const x = e.x, y = e.y, R = 26 * this.stats.area, dmg = 8 + 0.8 * this.build.level;
+        this.later(0.08, () => this.shock(x, y, R, dmg, { knock: 60, color: '#ff8a3a' }));
+      }
       if (e.elite) this.dropPickup('chest', e.x, e.y, 1);
       if (e.mini) { // 준보스 reward: coins, a heal, sometimes a chest
         for (let i = 0; i < 4; i++) this.dropPickup('coin', e.x + (this.rng() - 0.5) * 24, e.y + (this.rng() - 0.5) * 24, 2);
@@ -1250,7 +1461,7 @@
         }
         // contact damage (a charging 준보스 hits harder and wider)
         const cr = e.r + p.r - 2 + (e.charging ? 4 : 0);
-        if (d2 < cr * cr) this.hurtPlayer(e.charging ? Math.round(e.dmg * 1.5) : e.dmg, e);
+        if (d2 < cr * cr) this.hurtPlayer(e.charging ? Math.round(e.dmg * 1.25) : e.dmg, e);
         // recycle stragglers in front of the player
         if (!e.boss && !e.lineVx && !e.lineVy && d2 > recycle2) {
           let a = this.rng() * TAU;
@@ -1262,6 +1473,7 @@
 
     enemyShot(kind, x, y, a, speed, dmg, r, curve, o) {
       if (this.eprojs.length > 300) return null;
+      speed *= this.finalPace; // 1 outside the final
       const ep = { kind, x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, speed, r: r || 3, dmg, life: 5,
         curve: curve || 0, alive: true, t: 0, home: 0, turn: 0, wait: 0 };
       if (o) Object.assign(ep, o);
@@ -1344,7 +1556,7 @@
       if (e.bossDmgIn && e.calibrated < RS.BOSS_CALIBRATE_AT.length && this.t - e.firstHitT >= RS.BOSS_CALIBRATE_AT[e.calibrated]) { e.calibrated++; this.calibrateBoss(e); }
       if (ai.act) { this.runBossAct(e, ai.act, dt, dx, dy, d); return; }
       // movement between attacks
-      const sp = e.speed;
+      const sp = e.speed * this.finalPace;
       if (ai.keep) {
         const want = d > ai.keep + 20 ? 1 : d < ai.keep - 20 ? -1 : 0;
         if (this.rng() < dt * 0.4) ai.strafe = -ai.strafe;
@@ -1400,7 +1612,7 @@
               a.stage = 1; e.tele = null;
               this.addFx('shock', a.spot.x, a.spot.y, { r: 34, dur: 0.35, color: '#ff8a5c' });
               this.emit('sfx', { name: 'thud' });
-              if ((p.x - a.spot.x) ** 2 + (p.y - a.spot.y) ** 2 < (34 + p.r) ** 2) this.hurtPlayer(Math.round(e.dmg * 1.3), e);
+              if ((p.x - a.spot.x) ** 2 + (p.y - a.spot.y) ** 2 < (34 + p.r) ** 2) this.hurtPlayer(Math.round(e.dmg * 1.1), e);
             }
           } else if (a.t >= 0.5) { ai.act = null; ai.cool = 2.6 + this.rng(); }
         }
@@ -1441,7 +1653,7 @@
         case 'dash': case 'cut': case 'dribble': case 'dribble3': {
           const chain = a.kind === 'dribble3' ? 3 : 1;
           const tele = a.kind === 'dash' ? 0.8 : a.kind === 'cut' ? 0.75 : a.kind === 'dribble' ? 0.65 : 0.5;
-          const speed = a.kind === 'dash' ? 300 : a.kind === 'cut' ? 330 : a.kind === 'dribble' ? 380 : 430;
+          const speed = (a.kind === 'dash' ? 300 : a.kind === 'cut' ? 330 : a.kind === 'dribble' ? 380 : 430) * this.finalPace;
           const dur = 0.75;
           if (a.stage === 0) {
             if (a.dir == null) this.emit('sfx', { name: 'warn' });
@@ -1474,7 +1686,7 @@
           const waves = a.kind === 'volley' ? 1 : 2;
           const n = Math.max(3, Math.round((a.kind === 'fan' ? 5 : a.kind === 'volley' ? 7 : 9) * k));
           const spread = a.kind === 'fan' ? 0.8 : 1.15;
-          const speed = a.kind === 'fan' ? 120 + 2 * this.yearIdx : 170;
+          const speed = a.kind === 'fan' ? 120 + 2 * this.lvl : 170;
           if (a.t >= 0.35 + a.n * 0.45 && a.n < waves) {
             const off = (a.n % 2) * (spread / (n - 1)) * 0.5;
             const tp = this.predict(0.5, 70);
@@ -1503,7 +1715,7 @@
             for (let i = 0; i < n; i++) {
               const side = i % 2 ? 1 : -1;
               const kk = 0.7 + 0.25 * Math.floor(i / 2);
-              this.enemyShot(ball, e.x, e.y, aim + side * kk, isMessi ? 165 : 125 + 1.5 * this.yearIdx, pdmg, 3, -side * kk * 1.1,
+              this.enemyShot(ball, e.x, e.y, aim + side * kk, isMessi ? 165 : 125 + 1.5 * this.lvl, pdmg, 3, -side * kk * 1.1,
                 { home: isMessi ? (rage ? 1.1 : 0.9) : 0.6, turn: isMessi ? 3.0 : 2.0, life: 4 });
             }
             a.n = 1;
@@ -1526,7 +1738,7 @@
           // 강슛: a red aim line tracks where the player is heading, locks for a moment, then a very fast shot.
           // Running straight gets you hit; changing direction after the lock dodges it.
           const tele = 0.9, lock = 0.16;
-          const speed = 380 + 5 * this.yearIdx;
+          const speed = 380 + 5 * this.lvl;
           if (a.stage === 0) {
             if (a.dir == null) this.emit('sfx', { name: 'warn' });
             if (a.dir == null || a.t < tele - lock) {
@@ -1554,7 +1766,8 @@
         }
         case 'wall': { // 수비벽: a line of defenders rises between the boss and the player and walks at him
           if (a.n === 0 && a.t >= 0.4) {
-            const n = 5 + Math.min(4, Math.floor(this.yearIdx / 5));
+            const n = 5 + Math.min(4, Math.floor(this.lvl / 5));
+            this.makeRoom(n);
             const mx = e.x + dx * 0.45, my = e.y + dy * 0.45;
             const px = -dy / d, py = dx / d;
             for (let i = 0; i < n; i++) {
@@ -1581,7 +1794,8 @@
         }
         case 'summon': {
           if (a.n === 0 && a.t >= 0.5) {
-            const n = isMessi ? 4 : 6 + Math.min(6, Math.floor(this.yearIdx / 3));
+            const n = isMessi ? 4 : 6 + Math.min(6, Math.floor(this.lvl / 3));
+            this.makeRoom(n);
             for (let i = 0; i < n; i++) {
               const ang = i / n * TAU;
               this.spawnEnemy(fin ? fin.minion : 'grunt', e.x + Math.cos(ang) * 30, e.y + Math.sin(ang) * 30, { minion: true });
@@ -1629,7 +1843,7 @@
               if (((i - gap + n) % n) < gapW) continue;
               const ang = i / n * TAU;
               const x = p.x + Math.cos(ang) * R, y = p.y + Math.sin(ang) * R;
-              this.enemyShot(ball, x, y, ang + Math.PI, isMessi ? 95 : 62 + this.yearIdx, pdmg, 3, 0, { wait: 0.7, life: 3.4 });
+              this.enemyShot(ball, x, y, ang + Math.PI, isMessi ? 95 : 62 + this.lvl, pdmg, 3, 0, { wait: 0.7, life: 3.4 });
             }
             a.n = 1;
             this.emit('sfx', { name: 'warn' });
@@ -1685,9 +1899,16 @@
     // ------------------------------------------------------------ level-up / chest
     openLevelUp() {
       this.phase = 'levelup';
-      this.choices = RS.makeChoices(this.build, this.rng, this.yearIdx, 3);
+      this.diceUsed = false; this.drawUsed = false; this.lastDraw = null;
+      this.deal();
       this.addFx('levelburst', this.player.x, this.player.y, { dur: 0.7, follow: true });
       this.emit('levelup', { level: this.build.level });
+    }
+    // A new four-card hand (the 4th may be a graded item or a gamble).
+    deal() {
+      this.choices = RS.levelChoices(this.build, this.rng, this.yearIdx, this.stats.luck, this.coinsPicked);
+      const sp = this.choices.find((c) => c.kind === 'relic' || c.kind === 'gamble');
+      if (sp) this.emit('special', { tier: sp.tier || 'gamble' });
     }
 
     choose(i) {
@@ -1704,13 +1925,77 @@
     reroll() {
       if (this.phase !== 'levelup' || this.rerolls <= 0) return false;
       this.rerolls--;
-      this.choices = RS.makeChoices(this.build, this.rng, this.yearIdx, 3);
+      this.deal();
       return true;
+    }
+    // 행운의 주사위: one free reroll on every level-up screen.
+    rollDice() {
+      if (this.phase !== 'levelup' || !this.build.relics.dice || this.diceUsed) return false;
+      this.diceUsed = true;
+      this.deal();
+      return true;
+    }
+
+    // ------------------------------------------------------------ coin shop (every level-up screen)
+    purse() { return Math.max(0, Math.floor(this.coinsPicked + this.wallet - this.walletSpent)); }
+    spend(n) {
+      if (this.purse() < n) return false;
+      const fromRun = Math.min(Math.floor(this.coinsPicked), n);
+      this.coinsPicked -= fromRun;
+      this.walletSpent += n - fromRun;
+      this.coinsSpent += n;
+      return true;
+    }
+    coinReroll() {
+      if (this.phase !== 'levelup' || !this.spend(RS.COIN_REROLL)) return false;
+      this.deal();
+      return true;
+    }
+    // One grade draw per level-up: the item is applied at once and the hand stays to pick from.
+    coinDraw(id) {
+      const d = RS.COIN_DRAWS.find((x) => x.id === id);
+      if (!d || this.phase !== 'levelup' || this.drawUsed || this.purse() < d.cost) return null;
+      const c = RS.drawRelic(this.build, this.rng, d.odds, true);
+      if (!c) return null;
+      this.spend(d.cost);
+      this.drawUsed = true;
+      this.applyChoiceRuntime(c);
+      this.lastDraw = c;
+      this.choices = this.choices.filter((x) => !(x.kind === 'relic' && this.build.relics[x.id])); // already owned now
+      return c;
+    }
+
+    // 도박 카드: roll the printed odds now and apply the outcome.
+    resolveGamble(c) {
+      const g = RS.GAMBLES[c.id];
+      let r = this.rng(), out = g.outcomes[g.outcomes.length - 1];
+      for (const o of g.outcomes) { if (r < o.p) { out = o; break; } r -= o.p; }
+      const res = { id: c.id, win: !!out.win, text: out.text, relic: null };
+      if (out.levels) { this.build.level += out.levels; this.levelQueue += out.levels; }
+      if (out.relic) {
+        const rc = RS.drawRelic(this.build, this.rng, out.relic, true);
+        if (rc) { this.applyChoiceRuntime(rc); res.relic = rc.id; } else { this.coinsPicked += 50; res.text += ' (아이템 대신 코인 +50)'; }
+      }
+      if (out.hpHalf) this.player.hp = Math.max(1, Math.round(this.player.hp / 2));
+      if (out.coinMul != null) this.coinsPicked = Math.round(this.coinsPicked * out.coinMul);
+      this.lastGamble = res;
+      this.emit('gamble', res);
+      return res;
     }
 
     applyChoiceRuntime(c) {
       const ok = RS.applyChoice(this.build, c);
       if (!ok) return false;
+      if (c.kind === 'relic') {
+        this.recalc();
+        const r = RS.RELICS[c.id];
+        if (r.fx === 'fullheal') this.player.hp = this.stats.maxHp;
+        this.addFx('levelburst', this.player.x, this.player.y, { dur: 0.9, follow: true, tier: r.tier });
+        this.emit('relic', { id: c.id, tier: r.tier });
+        if (r.tier === 'ultra' || r.tier === 'super') this.emit('siuu');
+        return true;
+      }
+      if (c.kind === 'gamble') this.resolveGamble(c);
       if (c.kind === 'gold') this.coinsPicked += 30;
       if (c.kind === 'heal') this.player.hp = Math.min(this.stats.maxHp, this.player.hp + this.stats.maxHp * 0.4);
       if (c.kind === 'mate' && this.build.teammates.some((m) => m.id === c.id)) this.spawnMateRuntime(this.build.teammates.find((m) => m.id === c.id));
@@ -1734,7 +2019,11 @@
           if (this.applyChoiceRuntime(c)) res.push(c);
         }
       }
-      const coins = 10 + this.yearIdx * 2;
+      if (this.rng() < 0.12 && RS.relicsLeft(this.build)) { // sometimes a graded item sits in the chest
+        const rc = RS.drawRelic(this.build, this.rng, { rare: 0.8, hidden: 0.17, ultra: 0.03 }, false);
+        if (rc && this.applyChoiceRuntime(rc)) res.push(rc);
+      }
+      const coins = 10 + this.lvl * 2;
       this.coinsPicked += coins;
       this.chestResult = { items: res, coins };
       this.phase = 'chest';
@@ -1745,6 +2034,113 @@
       if (this.phase !== 'chest') return;
       this.chestResult = null;
       this.phase = 'play';
+    }
+
+    // ------------------------------------------------------------ 특수 카드 runtime effects
+    updateRelics(dt) {
+      const R = this.build.relics, T = this.relicT, p = this.player, st = this.stats;
+      if (R.whistle) { // 추가시간 휘슬: everything but the boss freezes
+        T.whistle = (T.whistle == null ? 4 : T.whistle) - dt;
+        if (T.whistle <= 0) {
+          T.whistle = 12;
+          for (const e of this.enemies) if (e.alive && !e.boss) e.stun = Math.max(e.stun, e.mini || e.elite ? 1 : 2);
+          this.addFx('whistle', p.x, p.y, { dur: 0.7, r: 150, follow: true });
+          this.emit('sfx', { name: 'whistle' });
+        }
+      }
+      if (R.honaldo) {
+        T.honaldo = (T.honaldo == null ? 1 : T.honaldo) - dt;
+        if (T.honaldo <= 0) T.honaldo = this.honaldo() ? 3 * st.cd : 0.3;
+      }
+      if (R.meteor) {
+        T.meteor = (T.meteor == null ? 2 : T.meteor) - dt;
+        if (T.meteor <= 0) T.meteor = this.meteorShower() ? 4 * st.cd : 0.5;
+      }
+      if (R.messia) {
+        T.messia = (T.messia == null ? 1 : T.messia) - dt;
+        if (T.messia <= 0) T.messia = this.messia() ? 3 * st.cd : 0.3;
+      }
+    }
+    // 메시아: 드리블 돌파 (메!) → 감아차기 연사 (시!) → 기적의 일격 (아!). Damage grows with the level. False = no target.
+    messia() {
+      const p = this.player, st = this.stats;
+      const tg = this.nearestEnemies(1, 140, this._tg || (this._tg = []))[0];
+      if (!tg) return false;
+      const base = 30 + 2.5 * this.build.level;
+      if (!p.dash) {
+        const n = Math.hypot(tg.x - p.x, tg.y - p.y) || 1, dur = 0.18;
+        p.dash = { dx: (tg.x - p.x) / n, dy: (tg.y - p.y) / n, t: 0, dur, speed: 70 / dur, dmg: base, hits: new Set(), burst: 0, sx: p.x, sy: p.y };
+        p.iframe = Math.max(p.iframe, dur + 0.04);
+      }
+      this.addFx('martial', p.x, p.y, { dur: 0.7, ch: '메!', n: 0, follow: true });
+      this.emit('sfx', { name: 'dash' });
+      this.later(0.24, () => {
+        const ts = this.nearestEnemies(5, 220, this._mt || (this._mt = []));
+        for (let i = 0; i < 5; i++) {
+          const e = ts.length ? ts[i % ts.length] : null;
+          const a = (e ? Math.atan2(e.y - p.y, e.x - p.x) : i * TAU / 5) + (i % 2 ? -0.9 : 0.9);
+          this.spawnProj('golden', p.x, p.y, a, 230 * st.projSpeed, { dmg: base * 0.8, pierce: 2, r: 4, life: 1.6, home: 6, target: e, knock: 40 });
+        }
+        this.addFx('martial', p.x, p.y, { dur: 0.7, ch: '시!', n: 1, follow: true });
+        this.emit('sfx', { name: 'curl' });
+      });
+      this.later(0.55, () => {
+        const bs = this.boss;
+        const t2 = bs && bs.alive && (bs.x - p.x) ** 2 + (bs.y - p.y) ** 2 < 180 * 180 ? bs : this.nearestEnemies(1, 180, this._tg)[0];
+        const x = t2 ? t2.x : p.x + p.face * 30, y = t2 ? t2.y : p.y;
+        this.shock(x, y, 52 * st.area, base * 1.8, { knock: 140, stun: 1.2, color: '#9fe0ff' });
+        this.addFx('boom', x, y, { r: 52 * st.area, dur: 0.5 });
+        p.hp = Math.min(st.maxHp, p.hp + 6);
+        this.addFx('martial', p.x, p.y, { dur: 0.8, ch: '아!', n: 2, follow: true });
+        this.emit('shake', { k: 0.18 });
+        this.emit('sfx', { name: 'thud' });
+      });
+      return true;
+    }
+    // 호날도: 정권 (호!) → 회오리 발차기 (날!) → 내려찍기 (도!). Damage grows with the level. False = no target.
+    honaldo() {
+      const p = this.player, st = this.stats;
+      const tg = this.nearestEnemies(1, 130, this._tg || (this._tg = []))[0];
+      if (!tg) return false;
+      const base = 30 + 2.5 * this.build.level;
+      const a = Math.atan2(tg.y - p.y, tg.x - p.x);
+      if (Math.abs(Math.cos(a)) > 0.2) p.face = Math.cos(a) > 0 ? 1 : -1;
+      p.kickT = 0.3;
+      this.shock(p.x + Math.cos(a) * 24, p.y + Math.sin(a) * 24, 34 * st.area, base, { knock: 200, color: '#ffd84a' });
+      this.addFx('martial', p.x, p.y, { dur: 0.7, ch: '호!', n: 0, follow: true });
+      this.emit('sfx', { name: 'kick' });
+      this.later(0.22, () => {
+        const R = 80 * st.area;
+        this.shock(p.x, p.y, R, base * 1.2, { knock: 240, silentFx: true });
+        this.addFx('swing', p.x, p.y, { r: R, dur: 0.4, follow: true, gold: true });
+        this.addFx('martial', p.x, p.y, { dur: 0.7, ch: '날!', n: 1, follow: true });
+        this.emit('sfx', { name: 'swish' });
+      });
+      this.later(0.5, () => {
+        const bs = this.boss;
+        const t2 = bs && bs.alive && (bs.x - p.x) ** 2 + (bs.y - p.y) ** 2 < 160 * 160 ? bs : this.nearestEnemies(1, 160, this._tg)[0];
+        const x = t2 ? t2.x : p.x + p.face * 30, y = t2 ? t2.y : p.y;
+        p.jump = 0.35;
+        this.shock(x, y, 48 * st.area, base * 1.8, { knock: 140, stun: 1.2, color: '#ff7a3a' });
+        this.addFx('boom', x, y, { r: 48 * st.area, dur: 0.5 });
+        this.addFx('martial', p.x, p.y, { dur: 0.8, ch: '도!', n: 2, follow: true });
+        this.emit('shake', { k: 0.18 });
+        this.emit('sfx', { name: 'thud' });
+      });
+      return true;
+    }
+    // 별똥별 슛: golden balls fall on up to eight nearby enemies, one after another.
+    meteorShower() {
+      const tg = this.nearestEnemies(8, 240, this._mt || (this._mt = []));
+      if (!tg.length) return false;
+      const dmg = 20 + 1.6 * this.build.level, R = 22 * this.stats.area;
+      tg.forEach((e, i) => {
+        const x = e.x, y = e.y, delay = 0.35 + i * 0.07;
+        this.addFx('meteor', x, y, { dur: delay });
+        this.later(delay, () => { this.shock(x, y, R, dmg, { knock: 70, color: '#ffd84a' }); if (i % 3 === 0) this.emit('sfx', { name: 'thud' }); });
+      });
+      this.emit('sfx', { name: 'curl' });
+      return true;
     }
 
     // ------------------------------------------------------------ fx / cleanup
@@ -1772,7 +2168,7 @@
     power() { return RS.powerScore(this.build); }
     result() {
       const cleared = this.phase === 'clear' || this.phase === 'victory';
-      const base = this.coinsPicked + this.kills / 8 + (cleared ? 40 + 8 * this.yearIdx : 0);
+      const base = this.coinsPicked + this.kills / 8 + (cleared ? 40 + 8 * this.lvl : 0);
       return { cleared, kills: this.kills, time: this.t, level: this.build.level, coins: Math.round(base * this.stats.gold), recruited: this.recruitedThisRun.slice() };
     }
   }
@@ -1833,9 +2229,11 @@
   };
 
   // Strong default bot. Picks: evolution > passive that unlocks an evolution path > skill upgrade > ...
+  // Graded items rank by grade (히든 and up beat even an evolution); the bot never gambles.
   RS.botChoose = function (choices, build) {
-    const pr = { evolve: 0, skillUp: 2, mate: 3, skill: 4, passive: 5, passiveUp: 6, mateUp: 7, heal: 8, gold: 9 };
-    const score = (c) => (c.kind === 'passive' && build && RS.isPairPassive(build, c.id) ? 1 : pr[c.kind]);
+    const pr = { evolve: 0, skillUp: 2, mate: 3, skill: 4, passive: 5, passiveUp: 6, mateUp: 7, heal: 8, gold: 9, gamble: 10 };
+    const tierScore = { super: -3, ultra: -2, hidden: -1, rare: 1.5 };
+    const score = (c) => (c.kind === 'relic' ? tierScore[c.tier] : c.kind === 'passive' && build && RS.isPairPassive(build, c.id) ? 1 : pr[c.kind]);
     let bi = 0;
     for (let i = 1; i < choices.length; i++) if (score(choices[i]) < score(choices[bi])) bi = i;
     return bi;

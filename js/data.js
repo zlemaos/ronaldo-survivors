@@ -70,7 +70,7 @@
       evo: { dmg: 110, cd: 1.25, count: 2, pierce: 999, speed: 360, r: 8 }
     },
     header: {
-      name: '헤딩 점프', icon: '🦘', passive: 'jump', evoName: '2.56m 슈퍼 헤더', evoIcon: '🚀',
+      name: '헤딩 점프', icon: '🦘', passive: 'jump', hero: 'ronaldo', evoName: '2.56m 슈퍼 헤더', evoIcon: '🚀',
       desc: '뛰어올라 착지할 때 주변에 충격파.',
       evoDesc: '하늘 높이 솟구쳐 두 번의 거대 충격파.',
       ups: ['', '범위 증가', '피해 증가', '쿨타임 감소', '범위·피해 증가', '피해 크게 증가'],
@@ -85,7 +85,7 @@
       evo: { dmg: 75, cd: 1.7, radius: 85, double: true }
     },
     bicycle: {
-      name: '바이시클 킥', icon: '🌀', passive: 'flex', evoName: '오버헤드 토네이도', evoIcon: '🌪️',
+      name: '바이시클 킥', icon: '🌀', passive: 'flex', hero: 'ronaldo', evoName: '오버헤드 토네이도', evoIcon: '🌪️',
       desc: '몸을 날려 360도 주변을 걷어찬다.',
       evoDesc: '멈추지 않는 회오리 킥이 주변을 계속 깎는다.',
       ups: ['', '피해 증가', '범위 증가', '쿨타임 감소', '피해·범위 증가', '피해 크게 증가'],
@@ -100,7 +100,7 @@
       evo: { dmg: 22, cd: 0.3, radius: 58, aura: true }
     },
     stepover: {
-      name: '스텝오버', icon: '💨', passive: 'speed', evoName: '환상 스텝오버', evoIcon: '👻',
+      name: '스텝오버', icon: '💨', passive: 'speed', hero: 'ronaldo', evoName: '환상 스텝오버', evoIcon: '👻',
       desc: '적이 붙으면 자동 대시. 대시 중 무적, 지나간 적에게 피해.',
       evoDesc: '더 자주, 더 멀리. 출발점에 잔상이 폭발한다.',
       ups: ['', '대시 거리 증가', '피해 증가', '쿨타임 감소', '피해·거리 증가', '쿨타임 크게 감소'],
@@ -115,7 +115,7 @@
       evo: { dmg: 60, cd: 1.5, dist: 90, burst: 44 }
     },
     scissors: {
-      name: '시저스 킥', icon: '✂️', passive: 'finisher', evoName: '더블 시저스', evoIcon: '⚔️',
+      name: '시저스 킥', icon: '✂️', passive: 'finisher', hero: 'ronaldo', evoName: '더블 시저스', evoIcon: '⚔️',
       desc: '공을 X자로 교차해 찬다.',
       evoDesc: '6방향 교차 슛이 깊게 관통하고, 치명타 확률 증가.',
       ups: ['', '피해 증가', '방향 +2', '관통 +1', '피해 증가, 쿨타임 감소', '방향 +2'],
@@ -163,6 +163,146 @@
         count: { name: '8발롱도르공', icon: '🟡', desc: '황금 공 8개가 쉴 새 없이 돈다.', stats: { dmg: 30, cd: 0.3, count: 8, size: 1.6, speed: 4.4, radius: 44 } },
         size: { name: '8발롱도르', icon: '🌕', desc: '하나의 거대한 공(8배)이 모든 것을 쓸어버린다.', stats: { dmg: 46, cd: 0.32, count: 1, size: 8, speed: 2.6, radius: 46, knock: 90 } }
       }
+    },
+    // 날두: a curling boomerang ball, out and back, piercing both ways (catching it = 볼 트래핑).
+    rabona: {
+      name: '라보나 킥', icon: '🪃', passive: 'trap', hero: 'ronaldo', evoName: '라보나 부메랑 폭풍', evoIcon: '🌪️',
+      desc: '휘어 나갔다 되돌아오는 공. 오갈 때 모두 꿰뚫는다.',
+      evoDesc: '커다란 부메랑 공 4개가 사방을 휘젓고 돌아온다.',
+      ups: ['', '피해 증가', '공 +1', '사거리 증가', '공 +1, 피해 증가', '피해 크게 증가, 공이 커진다'],
+      lv: [
+        { dmg: 12, cd: 2.3, count: 1, range: 95, speed: 210, r: 4 },
+        { dmg: 15, cd: 2.2, count: 1, range: 100, speed: 215, r: 4 },
+        { dmg: 15, cd: 2.2, count: 2, range: 104, speed: 220, r: 4 },
+        { dmg: 18, cd: 2.0, count: 2, range: 120, speed: 230, r: 4 },
+        { dmg: 22, cd: 1.9, count: 3, range: 124, speed: 235, r: 4 },
+        { dmg: 28, cd: 1.75, count: 3, range: 130, speed: 240, r: 5 }
+      ],
+      evo: { dmg: 46, cd: 1.35, count: 4, range: 150, speed: 260, r: 7 }
+    },
+    // 날두: running leaves burning turf; enemies standing in it burn (rewards moving, like the game).
+    trail: {
+      name: '불꽃 질주', icon: '🔥', passive: 'fitness', hero: 'ronaldo', evoName: '지옥의 레드카펫', evoIcon: '☄️',
+      desc: '달린 자리에 불타는 잔디를 남긴다. 밟은 적이 탄다.',
+      evoDesc: '넓고 오래 타는 불길. 멈춰 서도 발밑이 불탄다.',
+      ups: ['', '피해 증가', '불길이 넓어진다', '더 오래 탄다', '피해·범위 증가', '피해 크게 증가'],
+      lv: [
+        { dmg: 4, cd: 0.24, radius: 10, life: 1.6, tick: 0.4 },
+        { dmg: 6, cd: 0.24, radius: 10, life: 1.6, tick: 0.4 },
+        { dmg: 6, cd: 0.22, radius: 13, life: 1.7, tick: 0.4 },
+        { dmg: 7, cd: 0.22, radius: 13, life: 2.2, tick: 0.38 },
+        { dmg: 9, cd: 0.2, radius: 15, life: 2.3, tick: 0.36 },
+        { dmg: 12, cd: 0.2, radius: 16, life: 2.4, tick: 0.34 }
+      ],
+      evo: { dmg: 18, cd: 0.15, radius: 20, life: 2.8, tick: 0.3, still: true }
+    },
+    // ---- 메시 only: his own moves. `use` names the runtime behaviour a move shares with a 날두 move (own name,
+    // numbers and evolution); proj = [normal, evolved] ball look. A hero never sees the other hero's moves.
+    tiki: {
+      name: '티키타카', icon: '🔁', passive: 'leftfoot', hero: 'messi', use: 'kick', proj: ['tiki', 'golden'], evoName: '티키타카 오케스트라', evoIcon: '🎼',
+      desc: '짧은 패스가 적과 적 사이를 튕기며 이어진다.',
+      evoDesc: '황금 패스가 멈추지 않고 적 사이를 누빈다.',
+      ups: ['', '패스가 1번 더 이어진다', '패스 +1', '이어지는 횟수 +1, 피해 증가', '피해 증가, 관통 +1', '피해 크게 증가, 2번 더 이어진다'],
+      lv: [
+        { dmg: 8, cd: 1.0, count: 1, pierce: 0, bounce: 1, speed: 230, r: 3 },
+        { dmg: 9, cd: 0.95, count: 1, pierce: 0, bounce: 2, speed: 235, r: 3 },
+        { dmg: 9, cd: 0.95, count: 2, pierce: 0, bounce: 2, speed: 240, r: 3 },
+        { dmg: 11, cd: 0.9, count: 2, pierce: 0, bounce: 3, speed: 245, r: 3 },
+        { dmg: 14, cd: 0.85, count: 2, pierce: 1, bounce: 3, speed: 250, r: 3 },
+        { dmg: 18, cd: 0.78, count: 2, pierce: 1, bounce: 5, speed: 260, r: 4 }
+      ],
+      evo: { dmg: 30, cd: 0.62, count: 3, pierce: 2, bounce: 7, speed: 280, r: 5 }
+    },
+    curler: {
+      name: '왼발 감아차기', icon: '🌙', passive: 'curve', hero: 'messi', evoName: '탑코너 감아차기', evoIcon: '🎯',
+      desc: '크게 휘어 나갔다가 적을 따라 꺾여 들어가는 왼발 슛.',
+      evoDesc: '세 갈래 감아차기가 적을 꿰뚫고, 치명타가 잘 터진다.',
+      ups: ['', '피해 증가', '슛 +1', '관통 +1', '피해 증가, 쿨타임 감소', '슛 +1'],
+      lv: [
+        { dmg: 13, cd: 1.5, count: 1, pierce: 0, speed: 200, r: 3, home: 4.5 },
+        { dmg: 16, cd: 1.45, count: 1, pierce: 0, speed: 205, r: 3, home: 4.5 },
+        { dmg: 16, cd: 1.45, count: 2, pierce: 0, speed: 210, r: 3, home: 5 },
+        { dmg: 18, cd: 1.4, count: 2, pierce: 1, speed: 215, r: 3, home: 5 },
+        { dmg: 22, cd: 1.25, count: 2, pierce: 1, speed: 220, r: 3, home: 5.5 },
+        { dmg: 24, cd: 1.2, count: 3, pierce: 1, speed: 225, r: 3, home: 5.5 }
+      ],
+      evo: { dmg: 46, cd: 0.9, count: 3, pierce: 3, speed: 245, r: 4, home: 6.5, critBonus: 0.2 }
+    },
+    solo: {
+      name: '원더골 드리블', icon: '⚡', passive: 'lowcenter', hero: 'messi', use: 'stepover', evoName: '여섯 명 제치기', evoIcon: '🌟',
+      desc: '적이 붙으면 낮은 자세로 제치고 나간다. 돌파 중 무적, 지나간 적에게 피해.',
+      evoDesc: '더 자주, 더 멀리 돌파한다. 제친 자리에 잔상이 폭발한다.',
+      ups: ['', '돌파 거리 증가', '피해 증가', '쿨타임 감소', '피해·거리 증가', '쿨타임 크게 감소'],
+      lv: [
+        { dmg: 14, cd: 3.6, dist: 52 },
+        { dmg: 15, cd: 3.4, dist: 60 },
+        { dmg: 20, cd: 3.2, dist: 62 },
+        { dmg: 22, cd: 2.8, dist: 64 },
+        { dmg: 28, cd: 2.7, dist: 72 },
+        { dmg: 32, cd: 2.2, dist: 76 }
+      ],
+      evo: { dmg: 56, cd: 1.3, dist: 92, burst: 44 }
+    },
+    bobo: {
+      name: '뭘 봐, 바보야?', icon: '😠', passive: 'grit', hero: 'messi', use: 'siuu', evoName: '저리 가!', evoIcon: '👉',
+      desc: '노려보며 한마디. 주변 적이 얼어붙는다(기절).',
+      evoDesc: '경기장이 얼어붙는 한마디. 적을 밀어내고 체력을 회복한다.',
+      ups: ['', '범위 증가', '기절 시간 증가', '피해 증가', '쿨타임 감소', '범위·기절 크게 증가'],
+      lv: [
+        { dmg: 8, cd: 7.0, radius: 60, stun: 0.8 },
+        { dmg: 9, cd: 6.8, radius: 70, stun: 0.9 },
+        { dmg: 10, cd: 6.5, radius: 72, stun: 1.2 },
+        { dmg: 15, cd: 6.2, radius: 76, stun: 1.25 },
+        { dmg: 16, cd: 5.2, radius: 80, stun: 1.3 },
+        { dmg: 20, cd: 5.0, radius: 96, stun: 1.6 }
+      ],
+      evo: { dmg: 50, cd: 4.0, radius: 150, stun: 2.4, knock: 220, heal: 4 }
+    },
+    killpass: {
+      name: '킬 패스', icon: '🗡️', passive: 'vision', hero: 'messi', use: 'knuckle', proj: ['knuckle', 'shot'], straight: true, evoName: '라인 브레이커', evoIcon: '📏',
+      desc: '수비 라인을 꿰뚫고 곧게 뻗는 스루패스.',
+      evoDesc: '거대한 패스가 모든 수비를 꿰뚫는다.',
+      ups: ['', '피해 증가', '관통 +1', '패스 +1', '관통 +1, 피해 증가', '피해 크게 증가'],
+      lv: [
+        { dmg: 22, cd: 2.2, count: 1, pierce: 3, speed: 320, r: 4 },
+        { dmg: 27, cd: 2.0, count: 1, pierce: 3, speed: 325, r: 4 },
+        { dmg: 30, cd: 1.9, count: 1, pierce: 4, speed: 330, r: 4 },
+        { dmg: 33, cd: 1.8, count: 2, pierce: 4, speed: 335, r: 4 },
+        { dmg: 38, cd: 1.65, count: 2, pierce: 5, speed: 340, r: 4 },
+        { dmg: 46, cd: 1.5, count: 2, pierce: 6, speed: 350, r: 4 }
+      ],
+      evo: { dmg: 110, cd: 1.25, count: 2, pierce: 999, speed: 360, r: 8 }
+    },
+    chip: {
+      name: '칩슛', icon: '🪶', passive: 'calm', hero: 'messi', evoName: '칩슛 폭격', evoIcon: '☄️',
+      desc: '수비 머리 위로 공을 띄워 가장 센 적(보스 우선) 위에 떨어뜨린다.',
+      evoDesc: '황금 칩슛 세 개가 한꺼번에 떨어져 크게 터진다.',
+      ups: ['', '피해 증가', '범위 증가', '칩슛 +1', '피해·범위 증가', '쿨타임 감소, 피해 증가'],
+      lv: [
+        { dmg: 20, cd: 2.6, count: 1, radius: 24 },
+        { dmg: 25, cd: 2.5, count: 1, radius: 25 },
+        { dmg: 26, cd: 2.4, count: 1, radius: 30 },
+        { dmg: 28, cd: 2.3, count: 2, radius: 30 },
+        { dmg: 34, cd: 2.2, count: 2, radius: 34 },
+        { dmg: 42, cd: 1.9, count: 2, radius: 36 }
+      ],
+      evo: { dmg: 70, cd: 1.6, count: 3, radius: 46 }
+    },
+    // gift: never dealt at a level-up; 딩요's tutoring (RS.EVENTS.dingyo) teaches it.
+    elastico: {
+      name: '엘라스티코', icon: '🪄', passive: 'samba', hero: 'messi', use: 'bicycle', gift: true, evoName: '딩요의 마법', evoIcon: '✨',
+      desc: '딩요에게 배운 고무줄 페인트. 주변 적을 휘감아 걷어내고 잠깐 얼린다.',
+      evoDesc: '마법 같은 페인트가 쉬지 않고 주변을 휘감는다.',
+      ups: ['', '피해 증가', '범위 증가', '쿨타임 감소', '피해·범위 증가', '피해 크게 증가'],
+      lv: [
+        { dmg: 14, cd: 2.6, radius: 34, stun: 0.3 },
+        { dmg: 18, cd: 2.5, radius: 35, stun: 0.3 },
+        { dmg: 19, cd: 2.4, radius: 40, stun: 0.35 },
+        { dmg: 21, cd: 2.0, radius: 41, stun: 0.35 },
+        { dmg: 26, cd: 1.9, radius: 45, stun: 0.4 },
+        { dmg: 32, cd: 1.7, radius: 48, stun: 0.45 }
+      ],
+      evo: { dmg: 22, cd: 0.3, radius: 58, aura: true }
     }
   };
   RS.SKILL_MAX = 6;
@@ -181,9 +321,80 @@
     trap: { name: '볼 트래핑', icon: '🧲', desc: '아이템 흡수 범위 +30%', mods: { magnet: 0.30 } },
     recovery: { name: '회복 루틴', icon: '💤', desc: '초당 체력 +0.25', mods: { regen: 0.25 } },
     icebath: { name: '얼음 목욕', icon: '🧊', desc: '받는 피해 -1', mods: { armor: 1 } },
-    ballon: { name: '발롱도르 수집', icon: '🏆', desc: '공격력 +6%, 범위 +6%', mods: { dmg: 0.06, area: 0.06 }, hero: 'messi' }
+    ballon: { name: '발롱도르 수집', icon: '🏆', desc: '공격력 +6%, 범위 +6%', mods: { dmg: 0.06, area: 0.06 }, hero: 'messi' },
+    // 메시's own training. A passive paired only with the other hero's moves is never offered (RS.passiveFor).
+    leftfoot: { name: '왼발 장인', icon: '🦶', desc: '공격력 +10%', mods: { dmg: 0.10 } },
+    curve: { name: '감아차기 감각', icon: '🌙', desc: '치명타 확률 +6%', mods: { crit: 0.06 } },
+    lowcenter: { name: '낮은 무게중심', icon: '⬇️', desc: '이동속도 +8%', mods: { moveSpeed: 0.08 } },
+    grit: { name: '승부욕', icon: '💢', desc: '최대 체력 +20', mods: { hp: 20 } },
+    vision: { name: '넓은 시야', icon: '👁️', desc: '투사체 속도 +10%, 지속 +5%', mods: { projSpeed: 0.10, dur: 0.05 } },
+    calm: { name: '침착함', icon: '😌', desc: '공격 범위 +10%', mods: { area: 0.10 } },
+    samba: { name: '삼바 리듬', icon: '💃', desc: '쿨타임 -7%', mods: { cd: -0.07 } }
   };
   RS.PASSIVE_MAX = 5;
+
+  // ---------------------------------------------------------------- 특수 카드: graded items ("개사기" grades)
+  // A level-up sometimes deals a 4th card of a grade: 레어 < 히든 < 초히든 < 슈퍼히든, or a gamble card.
+  // Each item is owned once and kept for the career. mods use the RS.computeStats keys; fx names a runtime
+  // effect in game.js (World.updateRelics, damageEnemy, killEnemy, the dice reroll).
+  RS.TIERS = {
+    rare: { name: '레어', color: '#4aa8ff' },
+    hidden: { name: '히든', color: '#b65cff' },
+    ultra: { name: '초히든', color: '#ff4a4a' },
+    super: { name: '슈퍼히든', color: '#ffd84a' }
+  };
+  RS.TIER_ORDER = ['rare', 'hidden', 'ultra', 'super'];
+  RS.TIER_POWER = { rare: 12, hidden: 25, ultra: 45, super: 80 }; // 전투력 points per item
+  // chance per level-up that the 4th card is of that grade (relic odds × (1 + luck)), else maybe a gamble card
+  RS.SPECIAL_ODDS = { super: 0.007, ultra: 0.02, hidden: 0.06, rare: 0.16, gamble: 0.12 };
+  RS.RELICS = {
+    dice: { tier: 'rare', icon: '🎲', name: '행운의 주사위', desc: '선택지가 나올 때마다 1번 무료로 다시 굴린다', fx: 'dice' },
+    ion: { tier: 'rare', icon: '🥤', name: '이온 음료', desc: '이동속도 +10%, 초당 체력 +0.4', mods: { moveSpeed: 0.10, regen: 0.4 } },
+    armband: { tier: 'rare', icon: '🎗️', name: '주장 완장', desc: '동료 공격력 +35%, 동료 쿨타임 -15%', mods: { teamDmg: 0.35, teamCd: -0.15 } },
+    contract: { tier: 'rare', icon: '📈', name: '연봉 협상', desc: '코인 획득 +40%', mods: { gold: 0.4 } },
+    clover: { tier: 'rare', icon: '🍀', name: '네잎클로버', desc: '특수 카드 등장 확률 +50%', mods: { luck: 0.5 } },
+    spikes: { tier: 'rare', icon: '👟', name: '스파이크 축구화', desc: '공격력 +12%, 치명타 +5%', mods: { dmg: 0.12, crit: 0.05 } },
+    lunchbox: { tier: 'rare', icon: '🍱', name: '에그타르트 도시락', desc: '최대 체력 +25, 먹는 즉시 체력 완전 회복', mods: { hp: 25 }, fx: 'fullheal', hero: 'ronaldo' },
+    mate: { tier: 'rare', icon: '🧉', name: '마테차 보온병', desc: '최대 체력 +25, 마시는 즉시 체력 완전 회복', mods: { hp: 25 }, fx: 'fullheal', hero: 'messi' },
+    shinpad: { tier: 'rare', icon: '🦵', name: '정강이 보호대', desc: '받는 피해 -1, 최대 체력 +10', mods: { armor: 1, hp: 10 } },
+    adrenaline: { tier: 'hidden', icon: '⚡', name: '아드레날린', desc: '체력이 절반 이하면 공격력 +60%', fx: 'adrenaline' },
+    goldboot: { tier: 'hidden', icon: '🥇', name: '골든 부트', desc: '공격력 +25%', mods: { dmg: 0.25 } },
+    heart: { tier: 'hidden', icon: '🫀', name: '강철 심장', desc: '쿨타임 -12%, 이동속도 +6%', mods: { cd: -0.12, moveSpeed: 0.06 } },
+    blackhole: { tier: 'hidden', icon: '🌀', name: '블랙홀 트래핑', desc: '흡수 범위 +120%, 경험치 +15%', mods: { magnet: 1.2, xp: 0.15 } },
+    bomb: { tier: 'hidden', icon: '💥', name: '폭발 슈팅', desc: '쓰러진 적이 폭발해 주변 적까지 쓸어버린다', fx: 'bomb' },
+    sniper: { tier: 'hidden', icon: '🎯', name: '저격수의 눈', desc: '치명타 +15%, 보스에게 주는 피해 +15%', mods: { crit: 0.15, bossDmg: 0.15 } },
+    whistle: { tier: 'ultra', icon: '⏱️', name: '추가시간 휘슬', desc: '12초마다 휘슬! 보스를 뺀 모든 적이 2초간 멈춘다', fx: 'whistle' },
+    legend: { tier: 'ultra', icon: '🧬', name: '레전드 DNA', desc: '공격력 +40%, 치명타 +10%, 범위 +15%', mods: { dmg: 0.4, crit: 0.1, area: 0.15 } },
+    crowd: { tier: 'ultra', icon: '🏟️', name: '홈 관중의 함성', desc: '최대 체력 +40, 초당 체력 +1.5, 받는 피해 -2', mods: { hp: 40, regen: 1.5, armor: 2 } },
+    overdrive: { tier: 'ultra', icon: '⏩', name: '오버드라이브', desc: '쿨타임 -25%, 투사체 속도 +25%', mods: { cd: -0.25, projSpeed: 0.25 } },
+    honaldo: { tier: 'super', icon: '🥋', name: '호날도', desc: '전설의 무술. 3초마다 정권 → 회오리 발차기 → 내려찍기 3연타 (호! 날! 도!)', fx: 'honaldo', hero: 'ronaldo' },
+    messia: { tier: 'super', icon: '✨', name: '메시아', desc: '구세주의 기적. 3초마다 드리블 돌파 → 감아차기 연사 → 기적의 일격 3연타 (메! 시! 아!)', fx: 'messia', hero: 'messi' },
+    meteor: { tier: 'super', icon: '🌠', name: '별똥별 슛', desc: '4초마다 하늘에서 황금 공 8개가 적에게 쏟아진다', fx: 'meteor' },
+    goat: { tier: 'super', icon: '🐐', name: 'GOAT', desc: '공격력 +50%, 쿨타임 -15%, 최대 체력 +60, 이동속도 +12%, 받는 피해 -2', mods: { dmg: 0.5, cd: -0.15, hp: 60, moveSpeed: 0.12, armor: 2 } }
+  };
+  // 도박 카드: rolled when picked; the odds are printed on the card. Outcome keys: levels (extra level-ups),
+  // relic (grade odds), hpHalf, coinMul (this match's coins), text (result line). needCoins: shown only with coins.
+  RS.GAMBLES = {
+    coin: { icon: '🪙', name: '동전 던지기', desc: '앞면(50%): 레벨 +2 · 뒷면(50%): 꽝',
+      outcomes: [{ p: 0.5, win: true, levels: 2, text: '앞면! 레벨 +2' }, { p: 0.5, text: '뒷면… 꽝!' }] },
+    roll: { icon: '🎲', name: '주사위 한 판', desc: '4~6(50%): 히든 아이템 · 1~3(50%): 체력 절반',
+      outcomes: [{ p: 0.5, win: true, relic: { hidden: 1 }, text: '주사위 6! 히든 아이템' }, { p: 0.5, hpHalf: true, text: '주사위 1… 체력 절반' }] },
+    slot: { icon: '🎰', name: '슬롯머신', desc: '5% 슈퍼히든 · 15% 초히든 · 30% 레어 · 50% 꽝',
+      outcomes: [{ p: 0.05, win: true, relic: { super: 1 }, text: '777 잭팟!! 슈퍼히든' }, { p: 0.15, win: true, relic: { ultra: 1 }, text: '초히든 당첨!' },
+        { p: 0.3, win: true, relic: { rare: 1 }, text: '레어 당첨' }, { p: 0.5, text: '꽝! 다음 기회에' }] },
+    allin: { icon: '💰', name: '올인 베팅', desc: '이번 경기 코인 전부: 45% 3배 · 55% 전부 잃음', needCoins: 10,
+      outcomes: [{ p: 0.45, win: true, coinMul: 3, text: '대박! 코인 3배' }, { p: 0.55, coinMul: 0, text: '쪽박… 코인 전부 잃음' }] },
+    devil: { icon: '😈', name: '악마의 계약', desc: '60%: 초히든 아이템 · 40%: 체력 절반',
+      outcomes: [{ p: 0.6, win: true, relic: { ultra: 1 }, text: '계약 성립! 초히든 아이템' }, { p: 0.4, hpHalf: true, text: '악마가 웃는다… 체력 절반' }] }
+  };
+  // Coin shop on every level-up screen: paid rerolls any number of times, one grade draw per level-up.
+  // Coins come from this match first, then the wallet (훈련장 money).
+  RS.COIN_REROLL = 8;
+  RS.COIN_DRAWS = [
+    { id: 'rare', icon: '💎', name: '레어 이상', cost: 25, odds: { rare: 0.72, hidden: 0.2, ultra: 0.06, super: 0.02 } },
+    { id: 'hidden', icon: '🔮', name: '히든 이상', cost: 70, odds: { hidden: 0.7, ultra: 0.22, super: 0.08 } },
+    { id: 'ultra', icon: '👑', name: '초히든 이상', cost: 160, odds: { ultra: 0.8, super: 0.2 } }
+  ];
 
   // ---------------------------------------------------------------- Eras (clubs) — parody names, no logos
   // kit.pattern: hoops | stripes | trim | sash
@@ -230,7 +441,19 @@
       theme: { g1: '#2f6f33', g2: '#2a662e', line: '#dff0da', edge: '#163a19', night: true },
       foe: ['#8cc8f0', '#f4f4f4']
     },
-    // ---- 메시 career eras
+    // ---- 메시 career eras (youth first)
+    rosario: {
+      club: '로사리오 붉은검정 유스', short: '로사리오',
+      kit: { main: '#d0202a', alt: '#151515', shorts: '#151515', socks: '#d0202a', pattern: 'stripes' },
+      theme: { g1: '#5c9a44', g2: '#54903e', line: '#eef6e6', edge: '#7a6a48', night: false },
+      foe: ['#3a7ad0', '#f0f0f0']
+    },
+    masia: {
+      club: '라 마시아 유스', short: '라 마시아',
+      kit: { main: '#a50044', alt: '#004d98', shorts: '#004d98', socks: '#004d98', pattern: 'stripes' },
+      theme: { g1: '#4a9a42', g2: '#43903c', line: '#eaf5e4', edge: '#2c6a2b', night: false },
+      foe: ['#f0f0f0', '#2a2a2a']
+    },
     barcelona: {
       club: '바르셀로나 청홍군단', short: '바르셀로나',
       kit: { main: '#a50044', alt: '#004d98', shorts: '#004d98', socks: '#004d98', pattern: 'stripes' },
@@ -327,7 +550,22 @@
       { id: 'mt_cap', name: '주장 완장', icon: '©️', desc: '동료 공격력 +15%, 받는 피해 -1', mods: { teamDmg: 0.15, armor: 1 } },
       { id: 'mt_boss', name: '결승전 집중', icon: '🎯', desc: '보스에게 주는 피해 +20%', mods: { bossDmg: 0.20 } }
     ] },
-    // ---- 메시 career coaches
+    // ---- 메시 career coaches (youth first)
+    grandma: { name: '할머니', tag: '첫 번째 팬', look: { hair: '#e6e6e6', suit: '#7a4a6a' }, cards: [
+      { id: 'gm_cheer', name: '할머니의 응원', icon: '👵', desc: '초당 체력 +0.4', mods: { regen: 0.4 } },
+      { id: 'gm_older', name: '형들 틈에서', icon: '👦', desc: '경험치 +12%', mods: { xp: 0.12 } },
+      { id: 'gm_sky', name: '하늘을 가리키며', icon: '☝️', desc: '공격력 +8%', mods: { dmg: 0.08 } }
+    ] },
+    machine: { name: '머신 감독', tag: '87년생 머신의 사령탑', look: { hair: '#5a4a3a', suit: '#d0202a' }, cards: [
+      { id: 'mh_machine', name: '87년생 머신', icon: '⚙️', desc: '동료 공격력 +12%', mods: { teamDmg: 0.12 } },
+      { id: 'mh_juggle', name: '공 리프팅 묘기', icon: '🤹', desc: '공격 범위 +8%', mods: { area: 0.08 } },
+      { id: 'mh_quick', name: '작은 발놀림', icon: '👟', desc: '이동속도 +6%', mods: { moveSpeed: 0.06 } }
+    ] },
+    napkin: { name: '냅킨 단장', tag: '냅킨에 계약서를 쓴 남자', look: { hair: '#c0c0c0', suit: '#004d98' }, cards: [
+      { id: 'nk_napkin', name: '냅킨 계약서', icon: '🧻', desc: '코인 획득 +20%', mods: { gold: 0.20 } },
+      { id: 'nk_masia', name: '라 마시아 기숙사', icon: '🏠', desc: '경험치 +10%, 최대 체력 +10', mods: { xp: 0.10, hp: 10 } },
+      { id: 'nk_cure', name: '치료비 지원', icon: '🏥', desc: '받는 피해 -1', mods: { armor: 1 } }
+    ] },
     rijkaard: { name: '레이카르 감독', tag: '첫 스승, 자유 축구', look: { hair: '#1a1a1a', suit: '#2b2b3a' }, cards: [
       { id: 'rk_free', name: '자유 축구', icon: '🕊️', desc: '공격력 +8%', mods: { dmg: 0.08 } },
       { id: 'rk_wing', name: '오른쪽 윙 배치', icon: '🏃', desc: '이동속도 +6%', mods: { moveSpeed: 0.06 } },
@@ -389,10 +627,11 @@
   // ---------------------------------------------------------------- Teammates (parody nicknames)
   // role: defender | keeper | winger | mid | striker. era: where they can be found (rescue markers prefer the current era).
   RS.ROLES = {
-    defender: { name: '수비수', desc: '날두 주위를 돌며 부딪힌 적을 밀쳐낸다.' },
+    // {hero} = the playing hero's short name (RS.mateLine)
+    defender: { name: '수비수', desc: '{hero} 주위를 돌며 부딪힌 적을 밀쳐낸다.' },
     keeper: { name: '골키퍼', desc: '날아오는 공·카드를 막아낸다.' },
     winger: { name: '윙어', desc: '적 진영을 일직선으로 돌파한다.' },
-    mid: { name: '미드필더', desc: '날두에게 패스, 날두가 강슛으로 마무리.' },
+    mid: { name: '미드필더', desc: '{hero}에게 패스, {hero}가 강슛으로 마무리.' },
     striker: { name: '스트라이커', desc: '가까운 적에게 추가 슛을 쏜다.' }
   };
   RS.TEAMMATES = {
@@ -431,7 +670,14 @@
     dias: { name: '철벽 디아스', role: 'defender', era: 'national', hair: '#111111', skin: '#c99a73' },
     brunopt: { name: '대표팀 브루노', role: 'mid', era: 'national', hair: '#3a2a1a', skin: '#e3b48c' },
     leaozinho: { name: '번개 레앙', role: 'striker', era: 'national', hair: '#111111', skin: '#6a4430' },
-    // ---- 메시 career teammates
+    // ---- 메시 career teammates (youth first)
+    alleypal: { name: '골목 단짝', role: 'mid', era: 'rosario', hair: '#2a1a10', skin: '#e8b892' },
+    tinykeeper: { name: '87년생 꼬마 골키퍼', role: 'keeper', era: 'rosario', hair: '#1a1a1a', skin: '#e0ac84' },
+    alleyback: { name: '골목대장 수비수', role: 'defender', era: 'rosario', hair: '#3a2a1a', skin: '#c99a73' },
+    cescino: { name: '꼬마 파브레', role: 'mid', era: 'masia', hair: '#2a1a10', skin: '#e8b892' },
+    piquechu: { name: '장신 피케츄', role: 'defender', era: 'masia', hair: '#3a2a1a', skin: '#f0c8a2' },
+    youthcap: { name: '유스 주장 바스키', role: 'striker', era: 'masia', hair: '#1a1a1a', skin: '#e0ac84' },
+    dingyo: { name: '삼바 마법사 딩요', role: 'winger', era: 'barcelona', hair: '#111111', skin: '#8a5a3a', style: 'long' }, // style: fixed haircut
     iniestar: { name: '돈 안드레스', role: 'mid', era: 'barcelona', hair: '#3a3a3a', skin: '#f0c8a2' },
     xavino: { name: '패스 머신 샤비노', role: 'mid', era: 'barcelona', hair: '#2a1a10', skin: '#e8b892' },
     puyolion: { name: '사자머리 푸욜', role: 'defender', era: 'barcelona', hair: '#4a3020', skin: '#e0ac84' },
@@ -457,18 +703,24 @@
   };
 
   // ---------------------------------------------------------------- Enemies
+  // pace: fast = small, fragile and quick (speed streaks) · slow = big and heavy (slow stomping walk, no speed
+  // ramp inside the stage). Unmarked = normal pace. Elites (1.5x size) also walk slowly.
   RS.ENEMIES = {
-    grunt: { name: '수비수', hp: 8, speed: 40, dmg: 6, r: 6, xp: 1, sprite: 'grunt' },
-    runner: { name: '태클러', hp: 6, speed: 66, dmg: 5, r: 5, xp: 1, sprite: 'runner' },
-    tank: { name: '거구 센터백', hp: 48, speed: 27, dmg: 12, r: 10, xp: 4, sprite: 'tank' },
-    ref: { name: '심판', hp: 18, speed: 34, dmg: 6, r: 6, xp: 2, sprite: 'ref', ranged: true },
-    press: { name: '기자', hp: 9, speed: 95, dmg: 5, r: 5, xp: 1, sprite: 'press', line: true },
-    minimessi: { name: '꼬마 메시', hp: 30, speed: 70, dmg: 8, r: 5, xp: 2, sprite: 'minimessi' },
-    miniron: { name: '꼬마 날두', hp: 32, speed: 64, dmg: 8, r: 5, xp: 2, sprite: 'miniron' },
-    // mini-bosses (준보스): big, drawn at 1.5x with an HP bar, telegraphed charge / slam, chest drops
-    brute: { name: '거구 주장', hp: 150, speed: 30, dmg: 14, r: 13, xp: 14, sprite: 'tank', mini: true, acts: ['charge', 'slam'] },
-    enforcer: { name: '집행관 미드필더', hp: 95, speed: 46, dmg: 12, r: 10, xp: 10, sprite: 'grunt', mini: true, acts: ['charge', 'charge', 'slam'] }
+    grunt: { name: '수비수', hp: 8, speed: 40, dmg: 5, r: 6, xp: 1, sprite: 'grunt' },
+    runner: { name: '태클러', hp: 5, speed: 70, dmg: 4, r: 5, xp: 1, sprite: 'runner', pace: 'fast' },
+    tank: { name: '거구 센터백', hp: 48, speed: 18, dmg: 11, r: 10, xp: 5, sprite: 'tank', pace: 'slow' },
+    ref: { name: '심판', hp: 18, speed: 32, dmg: 6, r: 6, xp: 2, sprite: 'ref', ranged: true },
+    press: { name: '기자', hp: 9, speed: 95, dmg: 5, r: 5, xp: 1, sprite: 'press', line: true, pace: 'fast' },
+    minimessi: { name: '꼬마 메시', hp: 30, speed: 70, dmg: 8, r: 5, xp: 2, sprite: 'minimessi', pace: 'fast' },
+    miniron: { name: '꼬마 날두', hp: 32, speed: 64, dmg: 8, r: 5, xp: 2, sprite: 'miniron', pace: 'fast' },
+    // mini-bosses (준보스): big and slow, drawn at 1.5x with an HP bar, telegraphed charge / slam, chest drops
+    brute: { name: '거구 주장', hp: 150, speed: 20, dmg: 13, r: 13, xp: 16, sprite: 'tank', mini: true, pace: 'slow', acts: ['charge', 'slam'] },
+    enforcer: { name: '집행관 미드필더', hp: 95, speed: 30, dmg: 11, r: 10, xp: 12, sprite: 'grunt', mini: true, pace: 'slow', acts: ['charge', 'charge', 'slam'] }
   };
+  RS.ELITE_SPEED = 0.75; // elites are 1.5x the size: they walk slower
+  RS.BASE_MOVE = 78; // hero walking speed before bonuses (× the hero's moveMul)
+  RS.FINAL_PACE = 1.2; // the final duel's patterns are tuned for a hero running at this × base speed (see World.recalc)
+  RS.IFRAMES = 0.55; // seconds of invulnerability after a hit (crowds can hit at most this often)
   RS.MINI_TYPES = ['brute', 'enforcer'];
   // manual slide (슬라이딩 버튼): invulnerable dash with a gradient trail; cooldown per hero
   RS.SLIDE = { speed: 420, dur: 0.28, dmg: 12, cd: { ronaldo: 5, messi: 3 } }; // 메시: quicker feet, shorter cooldown
@@ -544,10 +796,15 @@
     Y(2025, 'riyadh', 'desert', '네이션스리그 두 번째 우승', 'maestro', '무적함대 지휘자', '네이션스리그 결승에서 무적함대를 꺾고 두 번째 우승.'),
     Y(2026, 'national', 'marti', '마지막 월드컵 — 최종 결전', 'messi', '메시', '마지막 월드컵. 20년을 함께 달려온 영원한 라이벌, 메시와의 최종 결전.', { final: true })
   ];
-  // 메시 career: debut at 17 in 2004 → the last World Cup against 날두.
+  // 메시 career: youth in 로사리오 (youth: true, they play like the debut year — see RS.tuneIdx), the growth-hormone
+  // choice (= difficulty), 라 마시아, debut at 17 in 2004 with 딩요's tutoring → the last World Cup against 날두.
+  // event: a story choice shown once before that season (RS.EVENTS).
   RS.YEARS_MESSI = [
-    Y(2004, 'barcelona', 'rijkaard', '17세 프로 데뷔', 'keeper', '더비 상대 수문장', '바르셀로나에서 17세에 데뷔. 첫 더비, 골문엔 베테랑 수문장이 버티고 있다.'),
-    Y(2005, 'barcelona', 'rijkaard', '첫 리그 우승, 청소년 월드컵 우승', 'tackler', '네덜란드 U-20 수비대장', '첫 리그 우승과 청소년 월드컵 우승. 결승에서 맞선 네덜란드 수비대장이 다시 온다.'),
+    Y(1995, 'rosario', 'grandma', '로사리오의 꼬마', 'giant', '동네 형님 센터백', '할머니 손을 잡고 처음 나간 동네 경기. 덩치 큰 형들 틈에서도 공을 뺏기지 않는 꼬마가 있었다.', { youth: true }),
+    Y(1998, 'rosario', 'machine', '성장호르몬 결핍 진단', 'tackler', '87년생 라이벌 수비대장', '열한 살, 키가 자라지 않는 병을 진단받았다. 매일 밤 주사를 맞을 것인가, 작은 몸 그대로 버틸 것인가.', { youth: true, event: 'hgh' }),
+    Y(2001, 'masia', 'napkin', '냅킨 계약서, 라 마시아', 'referee', '입단 테스트 심사위원', '냅킨에 쓴 계약서 한 장으로 바다를 건너 바르셀로나 유스 기숙사에 들어갔다. 마지막 관문은 입단 테스트.', { youth: true }),
+    Y(2004, 'barcelona', 'rijkaard', '17세 프로 데뷔, 딩요의 튜터링', 'keeper', '더비 상대 수문장', '1군 데뷔. 팀의 슈퍼스타 딩요가 꼬마를 맡아 직접 가르친다. 첫 더비, 골문엔 베테랑 수문장이 버티고 있다.', { event: 'dingyo' }),
+    Y(2005, 'barcelona', 'rijkaard', '프로 첫 골, 청소년 월드컵 우승', 'tackler', '네덜란드 U-20 수비대장', '딩요가 띄워 준 공을 칩슛으로 넣은 프로 첫 골, 딩요의 목말 세리머니. 청소년 월드컵 결승의 네덜란드 수비대장이 다시 온다.'),
     Y(2006, 'barcelona', 'rijkaard', '유럽 정상, 부상으로 결승 결장', 'giant', '파리 결승의 런던 거인', '유럽 정상에 섰지만 부상으로 결승을 벤치에서 봤다. 그날 런던 팀의 거인 센터백과 싸운다.'),
     Y(2007, 'barcelona', 'rijkaard', '마라도나 재현 골', 'maestro', '헤타페 중원 지휘자', '하프라인부터 여섯 명을 제친 마라도나 재현 골. 그 경기 상대 지휘자가 복수를 노린다.'),
     Y(2008, 'barcelona', 'pep', '베이징 올림픽 금메달', 'striker', '나이지리아 폭격기', '베이징 올림픽 결승. 나이지리아의 폭격기를 꺾고 금메달.'),
@@ -573,7 +830,40 @@
   // Playable heroes. selectHero() points RS.YEARS / DEBUT / BIRTH at the chosen career (one career at a time).
   RS.HEROES = {
     ronaldo: { name: '호날두', short: '날두', moveMul: 1, startSkill: 'kick', years: RS.YEARS, debut: 2002, birth: 1985, desc: '투사체 공격 · 슬라이딩 5초', rival: '메시' },
-    messi: { name: '메시', short: '메시', moveMul: 1.22, startSkill: 'orbit', years: RS.YEARS_MESSI, debut: 2004, birth: 1987, desc: '빠른 발 · 회전하는 발롱도르 공 · 슬라이딩 3초', rival: '호날두' }
+    messi: { name: '메시', short: '메시', moveMul: 1.22, startSkill: 'orbit', years: RS.YEARS_MESSI, debut: 2004, birth: 1987, desc: '유소년부터 · 빠른 발 · 회전하는 공 · 성장호르몬 선택이 난이도', rival: '호날두' }
+  };
+
+  // ---------------------------------------------------------------- Story events (메시's career)
+  // Shown once before that season (career years, not replays). Card keys: hgh (growth hormone: true = normal,
+  // false = 하드 모드), skill (teaches a move when a slot is free, else `alt` is offered), mods (kept for the career
+  // like a coach card), result (toast). mate: joins the squad when there is room, whatever the pick.
+  // Before the treatment (and for the whole career without it) 메시 plays in a small body: RS.SMALL_BODY.
+  RS.SMALL_BODY = { hp: -30, dmg: -0.2 };
+  RS.EVENTS = {
+    hgh: {
+      title: '성장호르몬 주사', who: '키가 자라지 않는 병 · 한 달 치료비가 아버지 월급만큼',
+      story: '의사는 매일 밤 다리에 성장호르몬 주사를 놓아야 키가 자란다고 했다. 주사를 맞으면 몸이 커지고 강해진다. 맞지 않으면 끝까지 작은 몸으로 싸운다. 이 선택이 커리어의 난이도다.',
+      cards: [
+        { id: 'hgh_yes', icon: '💉', name: '주사를 맞는다', tag: '일반 모드', hgh: true, result: '💉 몸이 자랐다! 작은 몸의 약점이 사라졌다',
+          desc: '몸이 자라 강해진다: 작은 몸의 약점(최대 체력 -30, 공격력 -20%)이 바로 사라진다.' },
+        { id: 'hgh_no', icon: '🔥', name: '주사 없이 버틴다', tag: '하드 모드', hgh: false, result: '🔥 하드 모드: 작은 몸 그대로 간다',
+          desc: '커리어 끝까지 작은 몸: 최대 체력 -30, 공격력 -20%. 되돌릴 수 없다.' }
+      ]
+    },
+    dingyo: {
+      title: '딩요의 튜터링', who: '삼바 마법사 딩요 · 바르셀로나의 슈퍼스타', mate: 'dingyo',
+      story: '팀의 슈퍼스타 딩요가 열일곱 살 꼬마를 맡았다. 훈련이 끝나면 따로 남아 자기 기술을 하나씩 가르쳐 준다. 무엇부터 배울까?',
+      cards: [
+        { id: 'dy_elastico', icon: '🪄', name: '엘라스티코 전수', tag: '새 스킬', skill: 'elastico', result: '🪄 엘라스티코를 배웠다!',
+          desc: '딩요의 고무줄 페인트를 배운다. 이 튜터링에서만 얻는 스킬.',
+          alt: { id: 'dy_touch', icon: '✨', name: '마법의 볼 터치', tag: '스킬 강화', skillsUp: 1, result: '✨ 모든 스킬 Lv.+1',
+            desc: '스킬 칸이 가득 차 있어 대신 볼 터치를 배운다: 보유 스킬 전부 Lv.+1.' } },
+        { id: 'dy_nolook', icon: '😎', name: '노룩 패스 수업', tag: '영구 효과', mods: { teamDmg: 0.2, teamCd: -0.1 }, result: '😎 노룩 패스를 배웠다!',
+          desc: '동료 공격력 +20%, 동료 쿨타임 -10%' },
+        { id: 'dy_joy', icon: '😁', name: '즐기는 축구', tag: '영구 효과', mods: { xp: 0.15, regen: 0.3 }, result: '😁 축구를 즐기는 법을 배웠다!',
+          desc: '경험치 +15%, 초당 체력 +0.3' }
+      ]
+    }
   };
   RS.YEARS_RONALDO = RS.YEARS;
   RS.HERO = 'ronaldo';
@@ -588,22 +878,31 @@
   RS.DEBUT_YEAR = 2002;
   RS.BIRTH_YEAR = 1985;
 
-  // Per-year tuning derived from index so new years need no extra numbers.
-  RS.yearTuning = function (idx) {
-    const y = RS.YEARS[idx];
-    const gentle = idx === 0 ? 0.32 : idx === 1 ? 0.75 : 1; // first two years: phone newcomers
+  // Difficulty index of a season: youth seasons play like the debut year, pro seasons count from the debut, so
+  // both heroes' pro careers share one curve.
+  RS.tuneIdx = function (yearIdx) {
+    if (RS.YEARS[yearIdx].youth) return 0;
+    let k = yearIdx;
+    for (let i = 0; i < yearIdx; i++) if (RS.YEARS[i].youth) k--;
+    return k;
+  };
+
+  // Per-year tuning derived from the difficulty index so new years need no extra numbers.
+  RS.yearTuning = function (yearIdx) {
+    const y = RS.YEARS[yearIdx], idx = RS.tuneIdx(yearIdx);
+    const gentle = [0.32, 0.6, 0.75, 0.88][idx] || 1; // first seasons: phone newcomers (2003-05 used to spike)
     const t = {
       hpMul: 1 + 0.55 * idx + 0.03 * idx * idx,
-      dmgMul: (1 + 0.1 * idx) * gentle,
+      dmgMul: (1 + 0.08 * idx) * gentle,
       speedMul: 1 + 0.008 * idx,
       spawnRate: (2.3 + 0.18 * idx) * (idx === 0 ? 0.5 : 1),
       maxAlive: Math.min(420, 150 + 12 * idx),
       duration: 60, // one minute per season, then the boss
       // inside a stage enemies visibly toughen: by the end they have this much more HP / damage / speed
-      rampHp: 0.35, rampDmg: 0.2 * gentle, rampSpeed: 0.1,
+      rampHp: 0.35, rampDmg: 0.12 * gentle, rampSpeed: 0.1, // speed ramp: normal-pace enemies only
       xpMul: 1 + 0.16 * idx,
       bossHpMul: 1 + 0.55 * idx + 0.03 * idx * idx,
-      bossDmgMul: (1 + 0.12 * idx) * gentle,
+      bossDmgMul: y.final ? 1 + 0.12 * idx : (1 + 0.1 * idx) * gentle, // the final duel keeps its bite
       bossCool: idx === 0 ? 1.2 : 1,
       bossDensity: Math.min(0.85, 0.7 + 0.04 * idx), // fewer bullets on screen: readable fights
       minis: 1 + Math.floor(idx / 10), // mini-bosses per wave (4 waves a stage; 2 in the debut year)
@@ -618,14 +917,16 @@
 
   // ---------------------------------------------------------------- Meta progression (permanent, bought between runs)
   // cost: coins per level (array) or ballon cost. 발롱도르 come from real Ballon d'Or years and beating 메시.
+  // Cheap first steps and more of them: something is affordable after almost every match.
   RS.META = {
-    might: { name: '근력 훈련', icon: '🏋️', desc: '공격력 +5%', max: 5, cost: [80, 160, 280, 450, 700], mods: { dmg: 0.05 } },
-    vitality: { name: '심폐 지구력', icon: '❤️', desc: '최대 체력 +10', max: 5, cost: [60, 120, 220, 360, 550], mods: { hp: 10 } },
-    swift: { name: '스프린트', icon: '👟', desc: '이동속도 +4%', max: 3, cost: [100, 250, 500], mods: { moveSpeed: 0.04 } },
-    magnetM: { name: '시야', icon: '🧲', desc: '흡수 범위 +15%', max: 3, cost: [70, 160, 320], mods: { magnet: 0.15 } },
-    growth: { name: '전술 이해', icon: '📘', desc: '경험치 +6%', max: 5, cost: [90, 180, 320, 500, 750], mods: { xp: 0.06 } },
-    greed: { name: '스폰서 계약', icon: '💰', desc: '코인 획득 +10%', max: 5, cost: [60, 140, 260, 420, 650], mods: { gold: 0.10 } },
-    cooldown: { name: '회복 훈련', icon: '⏳', desc: '쿨타임 -3%', max: 3, cost: [150, 350, 700], mods: { cd: -0.03 } },
+    might: { name: '근력 훈련', icon: '🏋️', desc: '공격력 +5%', max: 10, cost: [40, 70, 110, 160, 220, 290, 370, 460, 560, 680], mods: { dmg: 0.05 } },
+    vitality: { name: '심폐 지구력', icon: '❤️', desc: '최대 체력 +10', max: 10, cost: [30, 55, 90, 130, 180, 240, 310, 390, 480, 580], mods: { hp: 10 } },
+    swift: { name: '스프린트', icon: '👟', desc: '이동속도 +4%', max: 5, cost: [50, 110, 190, 290, 420], mods: { moveSpeed: 0.04 } },
+    magnetM: { name: '시야', icon: '🧲', desc: '흡수 범위 +15%', max: 6, cost: [35, 70, 120, 180, 260, 350], mods: { magnet: 0.15 } },
+    growth: { name: '전술 이해', icon: '📘', desc: '경험치 +6%', max: 10, cost: [40, 70, 110, 160, 220, 290, 370, 460, 560, 680], mods: { xp: 0.06 } },
+    greed: { name: '스폰서 계약', icon: '💰', desc: '코인 획득 +10%', max: 10, cost: [30, 55, 90, 130, 180, 240, 310, 390, 480, 580], mods: { gold: 0.10 } },
+    cooldown: { name: '회복 훈련', icon: '⏳', desc: '쿨타임 -3%', max: 6, cost: [70, 140, 230, 340, 470, 620], mods: { cd: -0.03 } },
+    luck: { name: '행운 부적', icon: '🍀', desc: '특수 카드 확률 +10%', max: 5, cost: [60, 120, 200, 300, 420], mods: { luck: 0.1 } },
     revive: { name: '불사조 정신', icon: '🔥', desc: '연도마다 1회 부활', max: 1, ballon: [2], mods: { revive: 1 } },
     reroll: { name: '전술 보드', icon: '🔁', desc: '레벨업 리롤 +1', max: 3, ballon: [1, 1, 1], mods: { reroll: 1 } }
   };

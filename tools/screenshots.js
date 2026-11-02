@@ -11,6 +11,7 @@ async function setup(page, opts) {
     const save = RS.newSave();
     const rng = RS.makeRng(4);
     for (let i = 0; i < o.year; i++) {
+      if (RS.needsEvent(save, i)) RS.applyEvent(save, i, RS.eventChoices(save, i)[0]);
       RS.applyCoach(save, i, RS.coachChoices(save, i, rng)[0], rng);
       RS.autoTransfers(save, i, rng);
       const w = RS.startYear(save, i, { seed: i });
