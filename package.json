@@ -1,0 +1,13 @@
+{
+  "name": "ronaldo-survivors",
+  "version": "1.0.0",
+  "private": true,
+  "description": "호날두 서바이버즈 — 도트 뱀서라이크 (비공식 팬 패러디). Static files, no build step.",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "sim": "node tools/sim.js",
+    "icons": "node tools/make-icons.js",
+    "screenshots": "node tools/screenshots.js"
+  },
+  "license": "UNLICENSED"
+}

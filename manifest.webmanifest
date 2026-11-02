@@ -1,0 +1,17 @@
+{
+  "name": "호날두 서바이버즈 (비공식 팬 패러디)",
+  "short_name": "날두 서바이버즈",
+  "description": "데뷔부터 연도별로 진화하는 도트 뱀서라이크. 비공식 팬 패러디.",
+  "lang": "ko",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b1d12",
+  "theme_color": "#0b1d12",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1d12">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="호날두 서바이버즈">
+  <meta name="description" content="호날두 서바이버즈 — 데뷔부터 연도별로 진화하는 도트 뱀서라이크. 비공식 팬 패러디.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <title>호날두 서바이버즈</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="game" aria-label="게임 화면"></canvas>
+
+  <!-- In-game HUD -->
+  <div id="hud" class="hidden">
+    <div class="xpbar"><div id="xpfill"></div><span id="hud-level">Lv.1</span></div>
+    <div class="hud-row">
+      <div class="hud-left">
+        <div id="hud-year">2002 · 17세</div>
+        <div class="hud-small"><span id="hud-kills">0</span> 처치 · <span id="hud-coins">0</span> 코인</div>
+      </div>
+      <div id="hud-time">0:00</div>
+      <div class="hud-right">
+        <button id="btn-mute-hud" class="icon-btn" aria-label="소리 켜기/끄기">🔊</button>
+        <button id="btn-pause" class="icon-btn" aria-label="일시정지">⏸</button>
+      </div>
+    </div>
+    <div id="bossbar" class="hidden"><div class="bossname" id="boss-name">보스</div><div class="bossbar-bg"><div id="boss-fill"></div></div></div>
+    <div id="banner" class="hidden"></div>
+  </div>
+
+  <!-- Overlays during play -->
+  <div id="levelup" class="overlay hidden">
+    <div class="panel">
+      <h2 class="glow">레벨 업!</h2>
+      <div id="lv-cards" class="cards"></div>
+      <button id="btn-reroll" class="btn small">🔁 다시 뽑기 (<span id="reroll-n">0</span>)</button>
+    </div>
+  </div>
+  <div id="chest" class="overlay hidden">
+    <div class="panel">
+      <div class="chest-icon">🎁</div>
+      <h2 class="glow">보물 상자!</h2>
+      <div id="chest-items" class="cards"></div>
+      <button id="btn-chest-ok" class="btn primary">좋아!</button>
+    </div>
+  </div>
+  <div id="pause" class="overlay hidden">
+    <div class="panel">
+      <h2>일시정지</h2>
+      <div id="pause-build" class="build"></div>
+      <button id="btn-resume" class="btn primary">계속하기</button>
+      <button id="btn-pause-mute" class="btn">🔊 소리</button>
+      <button id="btn-quit" class="btn ghost">경기 포기하고 나가기</button>
+    </div>
+  </div>
+
+  <!-- Screens -->
+  <section id="title" class="screen hidden">
+    <div class="title-wrap">
+      <div class="parody">비공식 팬 패러디</div>
+      <h1 class="logo"><span>호날두</span><span>서바이버즈</span></h1>
+      <div id="title-sprite" class="title-sprite"></div>
+      <div id="title-progress" class="sub"></div>
+      <button id="btn-play" class="btn primary big">커리어 시작</button>
+      <div class="row">
+        <button id="btn-years" class="btn">📅 연도 선택</button>
+        <button id="btn-shop" class="btn">🛒 훈련장</button>
+      </div>
+      <div class="row">
+        <button id="btn-howto" class="btn ghost">❓ 방법</button>
+        <button id="btn-mute" class="btn ghost">🔊 소리</button>
+      </div>
+      <div class="wallet" id="title-wallet"></div>
+      <p class="fine">실제 구단·선수·감독과 무관한 비상업 팬 패러디입니다. 구단 로고 없음.</p>
+    </div>
+  </section>
+
+  <section id="howto" class="screen hidden">
+    <div class="panel scroll">
+      <h2>플레이 방법</h2>
+      <ul class="howto">
+        <li>👆 화면 아무 곳이나 누르고 끌면 이동. PC는 WASD·방향키.</li>
+        <li>⚽ 공격은 자동! 날두가 가장 가까운 적에게 공을 찬다.</li>
+        <li>💎 적이 떨군 공을 주워 레벨 업 → 카드 3장 중 1장 선택.</li>
+        <li>🌟 스킬 최대 레벨 + 짝 패시브 = 진화! (상자에서도 진화)</li>
+        <li>🤝 필드의 <b class="cyan">!</b> 동료 위에 잠시 서 있으면 합류.</li>
+        <li>👔 시즌마다 감독 카드 1장. 효과는 커리어 내내 누적.</li>
+        <li>🏆 시즌 보스를 쓰러뜨리면 다음 해로. 2026년 최종 보스는 메시.</li>
+        <li>💰 코인·발롱도르로 훈련장에서 영구 강화.</li>
+      </ul>
+      <button class="btn primary" data-back>확인</button>
+    </div>
+  </section>
+
+  <section id="years" class="screen hidden">
+    <div class="screen-head"><button class="btn small" data-back>← 뒤로</button><h2>커리어 연도</h2></div>
+    <div id="year-list" class="year-list"></div>
+  </section>
+
+  <section id="shop" class="screen hidden">
+    <div class="screen-head"><button class="btn small" data-back>← 뒤로</button><h2>훈련장</h2></div>
+    <div class="wallet" id="shop-wallet"></div>
+    <div id="shop-list" class="shop-list"></div>
+  </section>
+
+  <section id="coach" class="screen hidden">
+    <div class="panel">
+      <div class="coach-head">
+        <div id="coach-sprite"></div>
+        <div>
+          <div class="sub" id="coach-season">2003 시즌을 앞두고</div>
+          <h2 id="coach-name">감독</h2>
+          <div class="tag" id="coach-tag"></div>
+        </div>
+      </div>
+      <p class="sub">감독의 전술 카드를 하나 고르세요. 효과는 커리어 내내 유지됩니다.</p>
+      <div id="coach-cards" class="cards"></div>
+    </div>
+  </section>
+
+  <section id="intro" class="screen hidden">
+    <div class="panel">
+      <div class="year-big" id="intro-year">2002</div>
+      <div class="sub" id="intro-club"></div>
+      <h2 id="intro-title"></h2>
+      <div id="intro-evo" class="intro-evo"></div>
+      <div id="intro-squad" class="build"></div>
+      <div class="sub" id="intro-boss"></div>
+      <button id="btn-kickoff" class="btn primary big">킥오프!</button>
+      <button class="btn ghost small" data-home>메뉴로</button>
+    </div>
+  </section>
+
+  <section id="result" class="screen hidden">
+    <div class="panel">
+      <h2 id="res-title" class="glow">시즌 클리어!</h2>
+      <div id="res-sub" class="sub"></div>
+      <div id="res-stats" class="stats"></div>
+      <button id="btn-res-next" class="btn primary big">다음 시즌</button>
+      <button id="btn-res-retry" class="btn">재도전</button>
+      <button id="btn-res-menu" class="btn ghost">메뉴</button>
+    </div>
+  </section>
+
+  <section id="victory" class="screen hidden">
+    <div class="confetti" id="confetti"></div>
+    <div class="panel">
+      <div class="parody">2026 최종 결전</div>
+      <h1 class="win-title">메시를 꺾었다!</h1>
+      <div class="siuu-big">SIUUUU!</div>
+      <div id="win-sprites" class="win-sprites"></div>
+      <div id="win-stats" class="stats"></div>
+      <button id="btn-win-new" class="btn primary big">새 커리어 (n회차)</button>
+      <button id="btn-win-menu" class="btn">메뉴</button>
+    </div>
+  </section>
+
+  <div id="tap-hint" class="hidden">화면을 눌러 이동</div>
+
+  <script src="js/core.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/career.js"></script>
+  <script src="js/sprites.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,167 @@
+/* 호날두 서바이버즈 — career flow, saves and meta shop (no DOM). */
+(function (RS) {
+  'use strict';
+
+  RS.SAVE_KEY = 'ronaldo-survivors.save.v1';
+
+  RS.newSave = function () {
+    return {
+      version: 1,
+      career: {
+        yearIdx: 0, // next year to play
+        cleared: [], // cleared[idx] = true
+        coachDone: -1, // coach card for year idx picked when coachDone >= idx
+        build: RS.newBuild(),
+        snapshots: {}, // idx -> build at the start of that year (after the coach pick)
+        finished: false,
+        laps: 0
+      },
+      meta: { coins: 0, ballons: 0, upgrades: {}, ballonYears: [], muted: false, totalKills: 0, wins: 0 }
+    };
+  };
+
+  // Load with defaults filled in; never throws.
+  RS.loadSave = function (storage) {
+    const d = RS.newSave();
+    let raw = null;
+    try { raw = storage.get(RS.SAVE_KEY); } catch (e) { raw = null; }
+    if (!raw) return d;
+    let s;
+    try { s = JSON.parse(raw); } catch (e) { return d; }
+    if (!s || typeof s !== 'object') return d;
+    s.career = Object.assign(d.career, s.career || {});
+    s.meta = Object.assign(d.meta, s.meta || {});
+    s.version = 1;
+    s.career.build = RS.normalizeBuild(s.career.build);
+    for (const k of Object.keys(s.career.snapshots || {})) s.career.snapshots[k] = RS.normalizeBuild(s.career.snapshots[k]);
+    s.career.yearIdx = Math.max(0, Math.min(RS.YEARS.length - 1, s.career.yearIdx | 0));
+    for (const k of Object.keys(s.meta.upgrades)) if (!RS.META[k]) delete s.meta.upgrades[k];
+    return s;
+  };
+
+  RS.writeSave = function (storage, save) {
+    try { storage.set(RS.SAVE_KEY, JSON.stringify(save)); return true; } catch (e) { return false; }
+  };
+
+  RS.yearAge = (idx) => RS.YEARS[idx].year - RS.BIRTH_YEAR;
+
+  // Can this year be played? Cleared years can be replayed; the current year can be played.
+  RS.canPlay = function (save, idx) {
+    const c = save.career;
+    if (idx < 0 || idx >= RS.YEARS.length) return false;
+    return idx <= c.yearIdx || !!c.cleared[idx];
+  };
+  RS.isReplay = (save, idx) => idx !== save.career.yearIdx || save.career.finished;
+  RS.needsCoach = (save, idx) => !RS.isReplay(save, idx) && save.career.coachDone < idx;
+
+  // Coach cards for year idx: 2 coach cards + 1 extra (recruit or train) when possible.
+  RS.coachChoices = function (save, idx, rng) {
+    const yd = RS.YEARS[idx];
+    const coach = RS.COACHES[yd.coach];
+    const b = save.career.build;
+    const pool = coach.cards.filter((c) => !b.coachCards.includes(c.id));
+    const out = [];
+    while (out.length < 2 && pool.length) out.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+    const canRecruit = b.teammates.length < RS.MAX_MATES && RS.mateCandidates(b, idx, false).length > 0;
+    const canTrain = b.teammates.some((m) => m.lv < RS.MATE_MAX_LV);
+    if (canRecruit && (!canTrain || rng() < 0.6)) out.push(RS.COACH_EXTRA.recruit);
+    else if (canTrain) out.push(RS.COACH_EXTRA.train);
+    while (out.length < 3 && pool.length) out.push(pool.splice(0, 1)[0]);
+    if (out.length < 3) {
+      // all coach cards already taken: generic fallback
+      out.push({ id: 'rest', name: '휴식', icon: '🛌', desc: '코인 +40' });
+    }
+    return out.slice(0, 3);
+  };
+
+  // Apply a coach card to the career build; returns info about what happened.
+  RS.applyCoach = function (save, idx, card, rng) {
+    const c = save.career;
+    const info = { card: card.id };
+    if (card.id === 'recruit') {
+      let cands = RS.mateCandidates(c.build, idx, true);
+      if (!cands.length) cands = RS.mateCandidates(c.build, idx, false);
+      if (cands.length) { const id = cands[Math.floor(rng() * cands.length)]; RS.addMate(c.build, id); info.mate = id; }
+    } else if (card.id === 'train') {
+      for (const m of c.build.teammates) RS.levelMate(c.build, m.id, 1);
+    } else if (card.id === 'rest') {
+      save.meta.coins += 40;
+    } else if (RS.coachCard(card.id) && !c.build.coachCards.includes(card.id)) {
+      c.build.coachCards.push(card.id);
+    }
+    c.coachDone = idx;
+    c.snapshots[idx] = RS.cloneBuild(c.build);
+    return info;
+  };
+
+  // Build used to start year idx. Career year: current career build. Replay: snapshot from that year.
+  RS.buildForYear = function (save, idx) {
+    const c = save.career;
+    if (!RS.isReplay(save, idx)) return RS.cloneBuild(c.build);
+    return RS.cloneBuild(c.snapshots[idx] || c.build);
+  };
+
+  RS.startYear = function (save, idx, opt) {
+    opt = opt || {};
+    return new RS.World({ yearIdx: idx, build: RS.buildForYear(save, idx), meta: save.meta, seed: opt.seed, view: opt.view });
+  };
+
+  // Called when a year ends (clear, victory or death). Returns summary for the UI.
+  RS.finishYear = function (save, world) {
+    const idx = world.yearIdx;
+    const res = world.result();
+    const replay = RS.isReplay(save, idx);
+    const out = { idx, replay, cleared: res.cleared, coins: res.coins, kills: res.kills, ballon: 0, finished: false, level: res.level };
+    save.meta.coins += res.coins;
+    save.meta.totalKills += res.kills;
+    if (res.cleared) {
+      const yd = RS.YEARS[idx];
+      if (yd.ballon && !save.meta.ballonYears.includes(yd.year)) {
+        save.meta.ballonYears.push(yd.year);
+        save.meta.ballons += 1;
+        out.ballon = 1;
+      }
+      if (yd.final) {
+        save.meta.wins += 1;
+        save.meta.ballons += 1;
+        out.ballon += 1;
+      }
+      if (!replay) {
+        const c = save.career;
+        c.cleared[idx] = true;
+        c.build = world.exportBuild();
+        if (yd.final) { c.finished = true; out.finished = true; }
+        else c.yearIdx = idx + 1;
+      } else {
+        save.career.cleared[idx] = true;
+      }
+    }
+    return out;
+  };
+
+  // New career lap after beating 메시 (meta upgrades are kept).
+  RS.newCareer = function (save) {
+    const laps = save.career.laps + (save.career.finished ? 1 : 0);
+    save.career = RS.newSave().career;
+    save.career.laps = laps;
+  };
+
+  // ---------------------------------------------------------------- shop
+  RS.metaCost = function (id, lv) {
+    const m = RS.META[id];
+    if (lv >= m.max) return null;
+    if (m.ballon) return { ballons: m.ballon[lv] };
+    return { coins: m.cost[lv] };
+  };
+  RS.buyMeta = function (save, id) {
+    const m = RS.META[id];
+    if (!m) return false;
+    const lv = save.meta.upgrades[id] || 0;
+    const cost = RS.metaCost(id, lv);
+    if (!cost) return false;
+    if (cost.coins != null) { if (save.meta.coins < cost.coins) return false; save.meta.coins -= cost.coins; }
+    if (cost.ballons != null) { if (save.meta.ballons < cost.ballons) return false; save.meta.ballons -= cost.ballons; }
+    save.meta.upgrades[id] = lv + 1;
+    return true;
+  };
+})(globalThis.RS = globalThis.RS || {});
