@@ -33,6 +33,9 @@
   };
   RS.relicFor = (id, hero) => { const h = RS.RELICS[id].hero; return !h || h === (hero || 'ronaldo'); };
   RS.skillUse = (id) => RS.SKILLS[id].use || id; // runtime behaviour of a move
+  // Look of 메시's orbiting balls (Renderer.drawOrbs): a plain white ball, golden from the skill's goldLv, the
+  // 발롱도르 trophy ball once evolved.
+  RS.orbitLook = (b) => (b.evolved.orbit ? 'ballon' : (b.skills.orbit || 0) >= RS.SKILLS.orbit.goldLv ? 'gold' : 'white');
   // 메시 plays in a small body until the growth-hormone treatment (for the whole career without it: 하드 모드).
   RS.smallBody = (b) => !!b && b.hero === 'messi' && b.hgh !== true;
   RS.hardMode = (b) => !!b && b.hero === 'messi' && b.hgh === false;
@@ -262,7 +265,7 @@
       if (evos) for (const v in evos) out.push({ kind: 'evolve', id, variant: v }); // the player picks the path
       else out.push({ kind: 'evolve', id });
     }
-    for (const id of build.skillOrder) if (build.skills[id] < RS.SKILL_MAX) pool.push({ kind: 'skillUp', id, w: 3 });
+    for (const id of build.skillOrder) if (build.skills[id] < RS.SKILL_MAX) pool.push({ kind: 'skillUp', id, w: 3 * (RS.SKILLS[id].upW || 1) });
     if (build.skillOrder.length < RS.MAX_SKILLS) {
       for (const id in RS.SKILLS) if (!build.skills[id] && RS.skillFor(id, hero) && !RS.SKILLS[id].gift) pool.push({ kind: 'skill', id, w: 1.7 });
     }

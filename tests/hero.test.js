@@ -222,6 +222,45 @@ test('orbit evolves two ways: 8 balls (8발롱도르공) or one ball 8× (8발�
   RS.selectHero('ronaldo');
 });
 
+test('메시\'s ball looks white at Lv.1-2, golden from Lv.3, the 발롱도르 once evolved', () => {
+  const b = RS.newBuild('messi');
+  assert.equal(RS.orbitLook(b), 'white');
+  b.skills.orbit = 2;
+  assert.equal(RS.orbitLook(b), 'white');
+  b.skills.orbit = 3;
+  assert.equal(RS.orbitLook(b), 'gold');
+  b.skills.orbit = RS.SKILL_MAX;
+  RS.applyChoice(b, { kind: 'passive', id: 'ballon' });
+  assert.ok(RS.applyChoice(b, { kind: 'evolve', id: 'orbit', variant: 'count' }));
+  assert.equal(RS.orbitLook(b), 'ballon');
+});
+
+test('the ball upgrade turns up in most of 메시\'s first level-up hands (it stayed one ball too long)', () => {
+  RS.selectHero('messi');
+  const N = 400;
+  let shown = 0;
+  for (let s = 1; s <= N; s++) {
+    const hand = RS.levelChoices(RS.newBuild('messi'), RS.makeRng(s), 0, 0, 0);
+    if (hand.some((c) => c.kind === 'skillUp' && c.id === 'orbit')) shown++;
+  }
+  assert.ok(shown / N >= 0.6, 'ball upgrade in ' + shown + '/' + N + ' hands');
+  RS.selectHero('ronaldo');
+});
+
+test('약물 꽂기: 메시\'s 초히든 item raises every stat; a 하드 모드 body stays small', () => {
+  assert.equal(RS.RELICS.doping.tier, 'ultra');
+  assert.equal(RS.relicFor('doping', 'messi'), true);
+  assert.equal(RS.relicFor('doping', 'ronaldo'), false);
+  const b = RS.newBuild('messi');
+  b.hgh = false;
+  const before = RS.computeStats(b, {});
+  assert.ok(RS.applyChoice(b, { kind: 'relic', id: 'doping' }));
+  const after = RS.computeStats(b, {});
+  for (const k of ['dmg', 'maxHp', 'move', 'area', 'magnet', 'crit', 'armor']) assert.ok(after[k] > before[k], k + ' up');
+  assert.ok(after.cd < before.cd, 'cooldown down');
+  assert.equal(RS.smallBody(b), true);
+});
+
 test('switching hero parks the current career and restores it later; meta is shared', () => {
   const save = RS.newSave();
   save.meta.coins = 500;

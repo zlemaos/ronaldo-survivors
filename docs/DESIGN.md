@@ -199,16 +199,23 @@ invisible. This removes the power creep of the carried-over build: late bosses n
   make the growth-hormone choice, the player uses 🔄 처음부터 on the year screen (`RS.newCareer`: the active hero's
   career restarts; coins, 발롱도르 and 훈련장 upgrades stay).
 - Move speed ×1.22, slide cooldown 3 s (날두 5 s).
-- No projectiles: starts with `orbit` (발롱도르 공) — `count` golden balls circle at `radius`, each enemy touched takes
+- No projectiles: starts with `orbit` (회전 공) — `count` balls circle at `radius`, each enemy touched takes
   `dmg` every `cd` s (per-enemy timer `e.orbT`). Lv.1→6: 1→4 balls, size 1→2×. Evolution with the 발롱도르 수집 passive
   offers two cards: 8발롱도르공 (8 balls) or 8발롱도르 (one ball 8×, knockback). `build.evolved.orbit` stores the
   variant name; `RS.skillStats` reads `evos[variant].stats`.
-- Every move belongs to one hero (`skill.hero`). 메시's own: 발롱도르 공, 티키타카 (bouncing passes), 왼발 감아차기
+- The ball grows up with the skill (`RS.orbitLook`): a plain white ball at Lv.1-2, a golden ball from `goldLv` 3, the
+  발롱도르 trophy ball (polished gold, engraved seams, little stand, glow and twinkles) once evolved; a flash ring marks
+  the change mid-run. `RS.Sprites.orb` paints each look per pixel (lit sphere, 32-panel pattern spinning, cached frames).
+- `orbit.upW: 3`: its upgrade card is weighted ×3. It was offered in ~34% of first hands and ~43% of random pickers
+  still had one ball after 10 level-ups; now it is offered in ~69% and ~16% are still at one ball (test in
+  `hero.test.js`).
+- Every move belongs to one hero (`skill.hero`). 메시's own: 회전 공, 티키타카 (bouncing passes), 왼발 감아차기
   (homing curlers), 원더골 드리블 (auto dash), 뭘 봐, 바보야? (stun glare, no SIUU), 킬 패스 (straight piercing pass),
   칩슛 (lobs onto the toughest enemy, boss first) and 엘라스티코 (딩요's gift). `skill.use` reuses a 날두 runtime
   behaviour under 메시's own name, numbers, ball look (`skill.proj`) and evolution. Passives paired only with the other
   hero's moves are never offered (`RS.passiveFor`); 메시 has 7 of his own. Items: 호날도/에그타르트 are 날두's,
-  메시아 (메! 시! 아! combo)/마테차 are 메시's (`relic.hero`). 메시 celebrates with the crowd and ☝️, not SIUU.
+  메시아 (메! 시! 아! combo)/마테차/약물 꽂기 (초히든, all stats up; a 하드 모드 body stays small) are 메시's
+  (`relic.hero`). 메시 celebrates with the crowd and ☝️, not SIUU.
 
 ### Hero readability (round 3)
 - The hero sprite alone has a gold double outline (`paint` `opt.glow`), a pulsing gold ring + soft light pool under

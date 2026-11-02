@@ -173,21 +173,8 @@
       // player
       this.drawPlayer(L, w, camX, camY);
 
-      // 메시's orbiting golden balls (drawn under the projectiles, with a soft shadow)
-      if (w.orbs && w.orbs.length && w.build.skills.orbit) {
-        for (const o of w.orbs) {
-          const sx = o.x - camX, sy = o.y - camY;
-          if (sx < -40 || sy < -40 || sx > V.w + 40 || sy > V.h + 40) continue;
-          L.fillStyle = 'rgba(0,0,0,0.22)';
-          L.beginPath(); L.ellipse(Math.round(sx), Math.round(sy + o.r + 3), o.r * 0.9, o.r * 0.35, 0, 0, TAU); L.fill();
-          L.fillStyle = '#b07a10';
-          L.beginPath(); L.arc(Math.round(sx), Math.round(sy), o.r + 1, 0, TAU); L.fill();
-          L.fillStyle = '#ffd84a';
-          L.beginPath(); L.arc(Math.round(sx), Math.round(sy), o.r, 0, TAU); L.fill();
-          L.fillStyle = '#fff3b0';
-          L.beginPath(); L.arc(Math.round(sx - o.r * 0.3), Math.round(sy - o.r * 0.3), Math.max(1, o.r * 0.35), 0, TAU); L.fill();
-        }
-      }
+      // 메시's orbiting balls (under the projectiles)
+      if (w.orbs && w.orbs.length && w.build.skills.orbit) this.drawOrbs(L, w, camX, camY);
       // projectiles
       for (const pr of w.projs) {
         if (!pr.alive) continue;
@@ -247,6 +234,55 @@
       L.rect(X(-70), Yy(590), 140, 50);
       L.stroke();
       L.globalAlpha = 1;
+    }
+
+    // 메시's orbiting balls (RS.orbitLook): a white ball, golden from Lv.3, the 발롱도르 once evolved — each
+    // spinning over a ground shadow; the trophy glows and twinkles. A flash ring marks a look change mid-run.
+    drawOrbs(L, w, camX, camY) {
+      const S = RS.Sprites, V = this.view, look = RS.orbitLook(w.build), trophy = look === 'ballon';
+      if (this.orbWorld !== w) { this.orbWorld = w; this.orbLook = look; this.orbFlash = 0; }
+      else if (this.orbLook !== look) { this.orbLook = look; this.orbFlash = 1; }
+      const fl = this.orbFlash;
+      if (fl > 0) this.orbFlash = Math.max(0, fl - 1 / 45);
+      const spin = Math.floor(w.t * 18);
+      for (let i = 0; i < w.orbs.length; i++) {
+        const o = w.orbs[i];
+        const sx = Math.round(o.x - camX), sy = Math.round(o.y - camY);
+        if (sx < -50 || sy < -50 || sx > V.w + 50 || sy > V.h + 50) continue;
+        const d = Math.max(6, Math.round(o.r * 2));
+        const spr = S.orb(look, d, (spin + i * 3) % S.ORB_FRAMES);
+        L.fillStyle = 'rgba(0,0,0,0.22)';
+        L.beginPath(); L.ellipse(sx, sy + spr.foot, o.r * 0.9, Math.max(1, o.r * 0.3), 0, 0, TAU); L.fill();
+        if (trophy) {
+          const gl = S.orbGlow(d);
+          L.globalCompositeOperation = 'lighter';
+          L.globalAlpha = 0.55 + 0.25 * Math.sin(w.t * 5 + i);
+          L.drawImage(gl, sx - (gl.width >> 1), sy - (gl.height >> 1));
+          L.globalAlpha = 1; L.globalCompositeOperation = 'source-over';
+        }
+        L.drawImage(spr.c, sx - spr.cx, sy - spr.cy);
+        if (trophy) { // two twinkles per trophy
+          for (let k = 0; k < 2; k++) {
+            const ph = w.t * 2.6 + i * 1.7 + k * 3.1, s = Math.sin(ph);
+            if (s < 0.55) continue;
+            const a = i * 2.4 + k * 2.1 + Math.floor(ph / TAU) * 1.3;
+            const tx = Math.round(sx + Math.cos(a) * o.r * 0.95), ty = Math.round(sy + Math.sin(a) * o.r * 0.95);
+            const arm = d >= 24 ? 2 : 1;
+            L.globalAlpha = (s - 0.55) / 0.45;
+            L.fillStyle = '#fffbe0';
+            L.fillRect(tx - arm, ty, arm * 2 + 1, 1); L.fillRect(tx, ty - arm, 1, arm * 2 + 1);
+            L.globalAlpha = 1;
+          }
+        }
+        if (fl > 0) { // the ball just changed look: a white-hot flash and a widening ring
+          L.globalCompositeOperation = 'lighter'; L.globalAlpha = fl * 0.8;
+          L.drawImage(spr.c, sx - spr.cx, sy - spr.cy);
+          L.globalCompositeOperation = 'source-over'; L.globalAlpha = fl;
+          L.strokeStyle = trophy ? '#ffe27a' : '#ffffff'; L.lineWidth = 1;
+          L.beginPath(); L.arc(sx, sy, o.r + 2 + (1 - fl) * 12, 0, TAU); L.stroke();
+          L.globalAlpha = 1;
+        }
+      }
     }
 
     drawPlayer(L, w, camX, camY) {

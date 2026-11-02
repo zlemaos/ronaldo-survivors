@@ -200,6 +200,105 @@
   const cache = {};
   function get(key, build) { return cache[key] || (cache[key] = build()); }
 
+  // ---------------------------------------------------------------- 메시's orbiting ball (RS.orbitLook)
+  // Drawn per pixel: a lit sphere with the 32-panel ball pattern (12 pentagons, 20 hexagons) spinning about a
+  // pentagon axis, so ORB_FRAMES steps over 72° loop seamlessly. 'white': the plain ball (dark pentagons);
+  // 'gold': a golden ball; 'ballon': the 발롱도르 — polished gold mirroring a bright sky over a dark horizon,
+  // engraved seams, standing on a little trophy base. Ramps run dark → light; seam = steps darker on a seam.
+  const ORB_FRAMES = 10;
+  const ORB_LOOKS = {
+    white: { panel: ['#8f99a3', '#b4bcc4', '#d6dce1', '#eef1f3', '#ffffff'],
+      patch: ['#0c0d10', '#16181c', '#22252a', '#30343b', '#454b54'], line: '#4f5761', hi: '#ffffff', seam: 2 },
+    gold: { panel: ['#7a4c06', '#a26c0e', '#cc9419', '#eebc38', '#ffdb6e', '#fff1b8'],
+      patch: ['#5a3805', '#7a4c06', '#9a640c', '#b67c14', '#d49a1c'], line: '#3e2603', hi: '#fffbe8', seam: 2 },
+    ballon: { panel: ['#3e2503', '#5e3c06', '#86580c', '#b07a14', '#d69f22', '#f0c43c', '#ffe27a', '#fff6c8'],
+      line: '#2e1b02', hi: '#ffffff', seam: 3 }
+  };
+  const PENT_W = 0.0768; // pentagons are smaller than hexagons: their edge sits 16.5° from the centre, not 18.7°
+  const rgb = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  let ORB_GEO = null;
+  function orbGeo() {
+    if (ORB_GEO) return ORB_GEO;
+    const f = (1 + Math.sqrt(5)) / 2;
+    const n = (x, y, z) => { const l = Math.hypot(x, y, z); return [x / l, y / l, z / l]; };
+    const pent = [], hex = [];
+    for (const a of [-1, 1]) for (const b of [-1, 1]) {
+      pent.push(n(0, a, b * f), n(a, b * f, 0), n(b * f, 0, a)); // icosahedron vertices
+      hex.push(n(0, a * f, b / f), n(a * f, b / f, 0), n(b / f, 0, a * f)); // its face centres
+      for (const c of [-1, 1]) hex.push(n(a, b, c));
+    }
+    const lt = n(-0.45, -0.7, 0.55); // light from the upper left, towards the viewer
+    const pal = {};
+    for (const k in ORB_LOOKS) {
+      const v = ORB_LOOKS[k];
+      pal[k] = { panel: v.panel.map(rgb), patch: v.patch && v.patch.map(rgb), line: rgb(v.line), hi: rgb(v.hi), seam: v.seam };
+    }
+    ORB_GEO = { pent, hex, axis: n(1, f, 0), lt, hv: n(lt[0], lt[1], lt[2] + 1), pal };
+    return ORB_GEO;
+  }
+  // d = ball diameter in low-res px. Returns { c, cx, cy, foot }: the sphere centre in the canvas and the
+  // distance from it down to the sprite's bottom (where the ground shadow goes).
+  function orbSprite(look, d, frame) {
+    const G = orbGeo(), P = G.pal[look], A = G.axis, LT = G.lt, HV = G.hv;
+    const R = d / 2, trophy = look === 'ballon';
+    const standH = trophy ? Math.max(3, Math.round(d * 0.3)) : 0;
+    const W = d + 2, H = d + 2 + standH, cx = W / 2, cy = 1 + R;
+    const c = canvas(W, H), g = c.getContext('2d'), img = g.createImageData(W, H), px = img.data;
+    const th = -frame / ORB_FRAMES * Math.PI * 2 / 5, ct = Math.cos(th), st = Math.sin(th);
+    // a tiny white ball shows only smaller patches (true-size ones blot out an 8-px ball); else ≈1 px seam lines
+    const tiny = look === 'white' && d < 12, seamA = tiny ? 0 : 1.1 / R, pw = tiny ? 0.2 : PENT_W;
+    // trophy stand: a narrow neck under the ball flaring to a wide foot, with a dark band
+    const sTop = Math.floor(cy + R) - 1, sBot = H - 1, band = sTop + Math.round((sBot - sTop) * 0.6);
+    const neck = Math.max(2, d * 0.3), foot = Math.max(4, d * 0.64);
+    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+      const nx = (i + 0.5 - cx) / R, ny = (j + 0.5 - cy) / R, rr = nx * nx + ny * ny, r = Math.sqrt(rr) * R;
+      let col = null;
+      if (r <= R - 0.8) {
+        const nz = Math.sqrt(Math.max(0, 1 - rr));
+        // the pattern point: this surface normal turned back by the spin (Rodrigues' rotation about A)
+        const ad = (A[0] * nx + A[1] * ny + A[2] * nz) * (1 - ct);
+        const qx = nx * ct + (A[1] * nz - A[2] * ny) * st + A[0] * ad;
+        const qy = ny * ct + (A[2] * nx - A[0] * nz) * st + A[1] * ad;
+        const qz = nz * ct + (A[0] * ny - A[1] * nx) * st + A[2] * ad;
+        let p1 = -2, h1 = -2, h2 = -2;
+        for (const v of G.pent) { const t = v[0] * qx + v[1] * qy + v[2] * qz; if (t > p1) p1 = t; }
+        for (const v of G.hex) { const t = v[0] * qx + v[1] * qy + v[2] * qz; if (t > h1) { h2 = h1; h1 = t; } else if (t > h2) h2 = t; }
+        const a5 = Math.acos(Math.min(1, p1)) + pw, a6 = Math.acos(Math.min(1, h1)), a6b = Math.acos(Math.min(1, h2));
+        const isPent = a5 < a6;
+        const gap = isPent ? a6 - a5 : Math.min(a5, a6b) - a6; // twice the angle to the nearest seam
+        const seam = seamA > 0 && gap < seamA / Math.max(0.5, nz);
+        const diff = Math.max(0, nx * LT[0] + ny * LT[1] + nz * LT[2]);
+        const spec = Math.pow(Math.max(0, nx * HV[0] + ny * HV[1] + nz * HV[2]), 28);
+        let l;
+        if (trophy) { // polished metal: the reflected view ray sees a bright sky above a dark horizon
+          const ry = 2 * nz * ny;
+          const env = ry < -0.15 ? 0.8 + 0.2 * Math.min(1, -ry) : ry < 0.1 ? 0.2 : 0.42 + 0.25 * Math.min(1, ry);
+          l = 0.35 * diff + 0.65 * env;
+        } else l = 0.3 + 0.7 * diff + 0.12 * Math.max(0, nx + ny) * (1 - nz); // + a little bounce light, lower right
+        const ramp = isPent && P.patch ? P.patch : P.panel;
+        let k = Math.min(ramp.length - 1, Math.floor(l * ramp.length));
+        if (seam) k = Math.max(0, k - P.seam);
+        col = spec > 0.62 && !seam ? P.hi : ramp[k];
+      } else if (r <= R + 0.3) col = P.line;
+      else if (trophy && j >= sTop) {
+        const t = (j - sTop) / Math.max(1, sBot - sTop), hw = (neck + (foot - neck) * t * t) / 2;
+        const u = (i + 0.5 - cx) / hw;
+        if (Math.abs(u) <= 1) {
+          if (j === sBot || Math.abs(u) > 1 - 1 / hw) col = P.line;
+          else {
+            const ramp = P.panel;
+            let k = Math.min(ramp.length - 1, Math.max(0, Math.floor((0.66 - 0.36 * u - 0.12 * t) * ramp.length)));
+            if (d >= 12 && j === band) k = 1; else if (d >= 12 && j === band - 1) k = Math.min(ramp.length - 1, k + 2);
+            col = ramp[k];
+          }
+        }
+      }
+      if (col) { const o = (j * W + i) * 4; px[o] = col[0]; px[o + 1] = col[1]; px[o + 2] = col[2]; px[o + 3] = 255; }
+    }
+    g.putImageData(img, 0, 0);
+    return { c, cx: Math.floor(cx), cy: Math.floor(cy), foot: H - Math.floor(cy) };
+  }
+
   // ---------------------------------------------------------------- 날두 evolves by year
   // `yd` may be given explicitly (the 날두 boss in a 메시 career is drawn from his own last year).
   RS.ronaldoLook = function (yearIdx, yd) {
@@ -336,6 +435,19 @@
           case 'chest': rows = SMALL.chest; break;
         }
         return { n: paint(rows, p, {}), w: (rows[0].length + 2), h: rows.length + 2 };
+      });
+    },
+    ORB_FRAMES,
+    // 메시's orbiting ball: look 'white' | 'gold' | 'ballon', diameter in low-res px, spin frame
+    orb(look, d, frame) { return get('orb|' + look + '|' + d + '|' + frame, () => orbSprite(look, d, frame)); },
+    // soft gold halo behind the 발롱도르 (drawn additively)
+    orbGlow(d) {
+      return get('orbglow|' + d, () => {
+        const s = Math.ceil(d * 1.8) + 4, c = canvas(s, s), g = c.getContext('2d');
+        const gr = g.createRadialGradient(s / 2, s / 2, d * 0.25, s / 2, s / 2, s / 2);
+        gr.addColorStop(0, 'rgba(255,214,100,0.55)'); gr.addColorStop(1, 'rgba(255,190,60,0)');
+        g.fillStyle = gr; g.fillRect(0, 0, s, s);
+        return c;
       });
     },
     shadow() {

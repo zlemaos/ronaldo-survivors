@@ -144,12 +144,14 @@
       ],
       evo: { dmg: 50, cd: 4.0, radius: 150, stun: 2.4, knock: 220, heal: 4 }
     },
-    // 메시 only: golden balls circle him instead of projectiles. Two evolutions: 8 balls or one ball 8× the size.
+    // 메시 only: balls circle him instead of projectiles — a plain white ball, golden from Lv.goldLv, the 발롱도르
+    // trophy ball once evolved (RS.orbitLook). Two evolutions: 8 balls or one ball 8× the size.
+    // upW: his only weapon at the start, so its upgrade card comes up more often than other upgrades.
     orbit: {
-      name: '발롱도르 공', icon: '🏆', passive: 'ballon', hero: 'messi', evoName: '8발롱도르', evoIcon: '🌕',
-      desc: '황금 공이 메시 주위를 돌며 닿는 적을 때린다.',
-      evoDesc: '공 8개 또는 8배 크기의 공.',
-      ups: ['', '공 +1', '공이 커진다', '공 +1', '공 +1, 피해 증가', '공이 더 커진다, 피해 증가'],
+      name: '회전 공', icon: '⚽', passive: 'ballon', hero: 'messi', evoName: '8발롱도르', evoIcon: '🌕', goldLv: 3, upW: 3,
+      desc: '공이 메시 주위를 빙글빙글 돌며 닿는 적을 때린다. Lv3부터 황금 공, 진화하면 발롱도르.',
+      evoDesc: '발롱도르로 진화: 공 8개 또는 8배 크기의 공.',
+      ups: ['', '공 +1 (2개)', '황금 공으로 변신, 공이 커진다', '공 +1 (3개)', '공 +1 (4개), 피해 증가', '공이 더 커진다, 피해 증가'],
       lv: [
         { dmg: 9, cd: 0.4, count: 1, size: 1, speed: 3.4, radius: 34 },
         { dmg: 10, cd: 0.4, count: 2, size: 1, speed: 3.4, radius: 34 },
@@ -160,8 +162,8 @@
       ],
       evo: { dmg: 30, cd: 0.3, count: 8, size: 1.6, speed: 4.4, radius: 44 },
       evos: {
-        count: { name: '8발롱도르공', icon: '🟡', desc: '황금 공 8개가 쉴 새 없이 돈다.', stats: { dmg: 30, cd: 0.3, count: 8, size: 1.6, speed: 4.4, radius: 44 } },
-        size: { name: '8발롱도르', icon: '🌕', desc: '하나의 거대한 공(8배)이 모든 것을 쓸어버린다.', stats: { dmg: 46, cd: 0.32, count: 1, size: 8, speed: 2.6, radius: 46, knock: 90 } }
+        count: { name: '8발롱도르공', icon: '🟡', desc: '발롱도르 8개가 쉴 새 없이 돈다.', stats: { dmg: 30, cd: 0.3, count: 8, size: 1.6, speed: 4.4, radius: 44 } },
+        size: { name: '8발롱도르', icon: '🌕', desc: '거대한 발롱도르 하나(8배)가 모든 것을 쓸어버린다.', stats: { dmg: 46, cd: 0.32, count: 1, size: 8, speed: 2.6, radius: 46, knock: 90 } }
       }
     },
     // 날두: a curling boomerang ball, out and back, piercing both ways (catching it = 볼 트래핑).
@@ -367,6 +369,9 @@
     legend: { tier: 'ultra', icon: '🧬', name: '레전드 DNA', desc: '공격력 +40%, 치명타 +10%, 범위 +15%', mods: { dmg: 0.4, crit: 0.1, area: 0.15 } },
     crowd: { tier: 'ultra', icon: '🏟️', name: '홈 관중의 함성', desc: '최대 체력 +40, 초당 체력 +1.5, 받는 피해 -2', mods: { hp: 40, regen: 1.5, armor: 2 } },
     overdrive: { tier: 'ultra', icon: '⏩', name: '오버드라이브', desc: '쿨타임 -25%, 투사체 속도 +25%', mods: { cd: -0.25, projSpeed: 0.25 } },
+    // 메시 only (his growth-hormone story). Stats only: a 하드 모드 body stays small.
+    doping: { tier: 'ultra', icon: '💉', name: '약물 꽂기', desc: '성장호르몬 한 방 더! 올스탯 상승: 공격 +20%, 체력 +30, 이동 +8%, 쿨타임 -10%, 범위·흡수 +15%, 치명타 +5%, 받는 피해 -1',
+      mods: { dmg: 0.2, hp: 30, moveSpeed: 0.08, cd: -0.1, area: 0.15, magnet: 0.15, crit: 0.05, armor: 1 }, hero: 'messi' },
     honaldo: { tier: 'super', icon: '🥋', name: '호날도', desc: '전설의 무술. 3초마다 정권 → 회오리 발차기 → 내려찍기 3연타 (호! 날! 도!)', fx: 'honaldo', hero: 'ronaldo' },
     messia: { tier: 'super', icon: '✨', name: '메시아', desc: '구세주의 기적. 3초마다 드리블 돌파 → 감아차기 연사 → 기적의 일격 3연타 (메! 시! 아!)', fx: 'messia', hero: 'messi' },
     meteor: { tier: 'super', icon: '🌠', name: '별똥별 슛', desc: '4초마다 하늘에서 황금 공 8개가 적에게 쏟아진다', fx: 'meteor' },

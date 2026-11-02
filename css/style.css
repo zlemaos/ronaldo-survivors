@@ -121,7 +121,7 @@ h2 { font-size: 22px; }
   background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.2); }
 .card .tx { flex: 1; min-width: 0; }
 .card .nm { font-weight: 900; font-size: 17px; }
-.card .ds { font-size: 14px; color: #d6e2d4; margin-top: 2px; }
+.card .ds { font-size: 14px; color: #d6e2d4; margin-top: 2px; word-break: keep-all; overflow-wrap: anywhere; }
 .card .tg { display: inline-block; font-size: 11px; font-weight: 900; padding: 1px 7px; border-radius: 8px; background: #3a5a44; margin-left: 6px; vertical-align: 2px; }
 .card.k-evolve { border-color: var(--gold); background: linear-gradient(180deg, #5a4210, #2a1f08); box-shadow: 0 0 18px rgba(255,210,58,0.5); }
 .card.k-evolve .tg { background: var(--gold); color: #111; }
@@ -158,7 +158,7 @@ h2 { font-size: 22px; }
 .lv-purse { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-weight: 900; color: var(--gold); font-size: 14px; }
 .lv-purse .dim { font-size: 11px; color: var(--muted); font-weight: 700; }
 .lv-shop-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.btn.coin { display: flex; justify-content: space-between; align-items: center; gap: 6px; min-height: 40px; font-size: 13px; padding: 6px 10px; }
+.btn.coin { display: flex; justify-content: space-between; align-items: center; gap: 6px; min-height: 40px; font-size: 13px; padding: 6px 10px; word-break: keep-all; }
 .btn.coin .cc { color: var(--gold); font-weight: 900; white-space: nowrap; }
 .btn.coin.c-rare { border-color: rgba(74,168,255,0.75); }
 .btn.coin.c-hidden { border-color: rgba(182,92,255,0.8); }
