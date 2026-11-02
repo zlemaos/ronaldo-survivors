@@ -141,7 +141,7 @@ spawn rate `2.3 + 0.18i`/s (debut year ×0.55), stage length 60 s for every year
 Inside a stage enemies toughen with elapsed time (`rampHp` 0.35, `rampDmg` 0.2, `rampSpeed` 0.1 at the end) and carry a
 visible tier (0/1/2 by thirds of the minute: darker kit, red outline); banners mark the 2nd and 3rd wave. Spawning drops to
 30 % once the boss is out so the fight stays about the boss. `RS.powerScore(build)` is the HUD "⚔ 전투력" number and
-`RS.threatStars(idx)` the 1–5 ★ threat shown on the year intro.
+`RS.threatStars(idx)` the 1–5 ★ threat shown on the year intro (see Round 7).
 Enemy mix adds 태클러 (2003+), 거구 센터백 (2005+), 심판 (2007+, throws cards); 기자단 lines sweep across.
 
 ### Boss attacks (anti-kiting, all telegraphed)
@@ -216,6 +216,32 @@ invisible. This removes the power creep of the carried-over build: late bosses n
   hero's moves are never offered (`RS.passiveFor`); 메시 has 7 of his own. Items: 호날도/에그타르트 are 날두's,
   메시아 (메! 시! 아! combo)/마테차/약물 꽂기 (초히든, all stats up; a 하드 모드 body stays small) are 메시's
   (`relic.hero`). 메시 celebrates with the crowd and ☝️, not SIUU.
+
+### Round 7: 메시 plays like 메시, teammate OVR, the mid-career wall, 첼씨
+- 메시 never shoots or throws a ball himself: a projectile move names its `passer` (`xavino` 챠비, `iniestar`
+  니에미스타). `World.passerFor` uses that squad member when he is on the pitch, else a support runner who trails
+  메시 (`World.updatePassers`; drawn like a teammate with the ball at his feet, never hit) — the ball leaves from him.
+  No 날두 motions (header, jump, scissors, bicycle) for 메시; his dash moves use his own low dribble pose.
+- Old 메시 saves that still hold 날두 moves: `RS.normalizeBuild` swaps each for its `RS.MESSI_COUNTERPART`
+  (moves, passives and items; level and evolution kept).
+- Names are recognisable parody spellings: 챠비, 니에미스타, 네이마루, 피케츄, 뿌욜, 람빠드, 쩨흐, 드록빠, 꾸르뚜아,
+  부퐁, 판데르싸르, 음바뻬, 끌롭 …
+- Teammate OVR (`TEAMMATES[id].ovr`) → grade `RS.MATE_TIERS` (레전드 90+, 월드클래스 85+, 주전급 78+, else 유망주)
+  and power `RS.mateMul` = 1 + (OVR − pivot) × `MATE_OVR_STEP` 0.02 (pivot 80; 60 in youth seasons, so kids are
+  rated against kids). Transfer and swap cards show `RS.swapVerdict`: ▲/▼ OVR before → after and a position change.
+- Level-ups never run dry: special cards are rarer (`RS.SPECIAL_ODDS`), a coin draw costs +50 % per item owned
+  (`RS.drawCost`), an evolved move keeps growing with 각성 ★1–5 (`RS.STAR_STEP`: +12 % damage, −4 % cooldown per
+  star), and 개인 훈련 (`RS.DRILLS`, small uncapped boosts) fill a hand once moves, passives and teammates run out.
+- The wall: from pro season `RS.WALL.from` (5) every season adds enemy HP (linear + quadratic), damage, speed,
+  density, boss damage and poise (knockback/stun on them × 1 / (1 + poise × seasons)). 고난의 시즌 (`year.trial`
+  1–3, `RS.TRIAL` per level) are the hardest seasons of each life: 날두 2004▲▲ 2005▲ 2006▲ 2007▲▲ 2022▲▲▲,
+  메시 2010▲ 2012▲▲ 2014▲▲▲ (15 s 연장전 before the boss) 2016▲▲▲ 2020▲▲. Red edge in the year list, red pill on the
+  intro.
+- 첼씨 (`year.foe: 'chelsea'`, `RS.FOES`): the crowd wears royal blue (`RS.foeColors`) and the 버스 sweeps in three
+  times (two rows of heavy defenders marching straight across; break a gap or run around the end). 날두 2005·2007·2008,
+  메시 2012. Boss type `drogba` (드록빠: cannon shots, shoulder charge, header slam, 버스 wall, short rests, longer
+  fight) in 날두 2007 and 메시 2012.
+- `RS.threatStars` reads log10(enemy HP × damage) of the season, so the wall and the trials show; the final is ★5.
 
 ### Hero readability (round 3)
 - The hero sprite alone has a gold double outline (`paint` `opt.glow`), a pulsing gold ring + soft light pool under

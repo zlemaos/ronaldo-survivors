@@ -1,8 +1,11 @@
-/* 호날두 서바이버즈 — canvas renderer. Draws the world into a low-res canvas at integer scale (crisp pixels),
- * upscales once, then draws text overlays (damage numbers, joystick) in device pixels. Reads world state only. */
+/* 호날두 서바이버즈 — canvas renderer. Draws the world into a low-res canvas (HD = 2 canvas pixels per world
+ * pixel, so the HD people sprites show their half-pixel detail; everything else is drawn in world units through a
+ * 2× transform), upscales once, then draws text overlays (damage numbers, joystick) in device pixels.
+ * Reads world state only. */
 (function (RS) {
   'use strict';
   const TAU = Math.PI * 2;
+  const HD = 2; // low-res canvas pixels per world pixel
 
   class Renderer {
     constructor(canvas) {
@@ -27,7 +30,7 @@
       this.view.h = Math.ceil(devH / this.scale);
       this.canvas.width = devW; this.canvas.height = devH;
       this.canvas.style.width = cssW + 'px'; this.canvas.style.height = cssH + 'px';
-      this.low.width = this.view.w; this.low.height = this.view.h;
+      this.low.width = this.view.w * HD; this.low.height = this.view.h * HD;
       this.lctx.imageSmoothingEnabled = false;
       this.ctx.imageSmoothingEnabled = false;
     }
@@ -35,6 +38,7 @@
     // ------------------------------------------------------------------ frame
     render(w, ui) {
       const L = this.lctx, V = this.view, S = RS.Sprites;
+      L.setTransform(HD, 0, 0, HD, 0, 0);
       const p = w.player;
       if (this.shake > 0) this.shake = Math.max(0, this.shake - 1 / 60);
       const sh = this.shake > 0 ? Math.round((Math.random() - 0.5) * 6 * this.shake * 4) : 0;
@@ -105,7 +109,7 @@
         if (!spr) continue;
         // pace shows in the walk: heavy ones step slowly, quick ones scurry
         const fps = e.boss ? 8 : e.pace === 'slow' ? 4 : e.pace === 'fast' ? 13 : 8;
-        const fr = spr.frames[e.stun > 0 ? 0 : (Math.floor(e.anim * fps) % spr.frames.length)];
+        const fr = spr.frames[e.stun > 0 ? 0 : (Math.floor(e.anim * fps) % Math.min(4, spr.frames.length))]; // run cycle only (the 날두 boss also has poses)
         const img = e.flash > 0 ? (e.face < 0 ? fr.wf : fr.w) : (e.face < 0 ? fr.f : fr.n);
         const dx = Math.round(sx - spr.w / 2), dy = Math.round(sy - spr.h / 2);
         if (!e.boss && e.stun <= 0 && e.pace === 'fast') { // speed streaks behind the runner
@@ -140,7 +144,7 @@
             L.fillStyle = 'rgba(0,0,0,0.65)'; L.fillRect(Math.round(sx - bw / 2) - 1, by - 1, bw + 2, 5);
             L.fillStyle = e.charging ? '#ffd23a' : '#ff5a3a'; L.fillRect(Math.round(sx - bw / 2), by, Math.round(bw * ratio), 3);
           }
-        } else L.drawImage(img, dx, dy);
+        } else L.drawImage(img, dx, dy, spr.w, spr.h);
         if (near) L.globalAlpha = 1;
         if (e.stun > 0 && !e.boss) {
           L.fillStyle = '#ffe14a';
@@ -154,13 +158,22 @@
         }
       }
 
+      // 챠비 / 니에미스타 running beside 메시 to play his passes (frames 0-3 run, 4 kick)
+      for (const h of w.passers) {
+        const spr = S.mate(h.id, w.yearIdx);
+        const sx = h.x - camX, sy = h.y - camY;
+        L.drawImage(shd, Math.round(sx - 6), Math.round(sy + 7));
+        const fr = spr.frames[h.kickT > 0 ? 4 : h.moving ? Math.floor(h.anim * 10) % 4 : 0];
+        L.drawImage(h.face < 0 ? fr.f : fr.n, Math.round(sx - spr.w / 2), Math.round(sy - spr.h / 2), spr.w, spr.h);
+      }
+
       // teammates
       for (const m of w.mates) {
         const spr = S.mate(m.id, w.yearIdx);
         const sx = m.x - camX, sy = m.y - camY;
         L.drawImage(shd, Math.round(sx - 6), Math.round(sy + 7));
-        const fr = spr.frames[Math.floor(m.anim * 8) % spr.frames.length];
-        L.drawImage(m.face < 0 ? fr.f : fr.n, Math.round(sx - spr.w / 2), Math.round(sy - spr.h / 2));
+        const fr = spr.frames[m.kickT > 0 ? 4 : Math.floor(m.anim * 8) % 4];
+        L.drawImage(m.face < 0 ? fr.f : fr.n, Math.round(sx - spr.w / 2), Math.round(sy - spr.h / 2), spr.w, spr.h);
         if (m.role === 'keeper') {
           L.strokeStyle = 'rgba(80,255,150,' + (m.punch > 0 ? 0.7 : 0.18) + ')';
           L.lineWidth = 1; L.beginPath(); L.arc(Math.round(sx), Math.round(sy), RS.keeperRadius(m.ref.lv), 0, TAU); L.stroke();
@@ -288,9 +301,9 @@
     drawPlayer(L, w, camX, camY) {
       const p = w.player, S = RS.Sprites;
       const spr = S.hero(w.hero, w.yearIdx, 1, null, w.small);
-      // frames 0-3 run, 4 kick, 5 heading jump; running adds a 1-px bob
+      // frames 0-3 run, 4 kick, 5 날두's heading jump / 메시's dribble (his dashes); running adds a 1-px bob
       const step = Math.floor(p.animT * 10);
-      const fi = p.jump > 0 ? 5 : p.kickT > 0 ? 4 : p.moving ? step % 4 : 0;
+      const fi = p.jump > 0 || (w.hero === 'messi' && p.dash) ? 5 : p.kickT > 0 ? 4 : p.moving ? step % 4 : 0;
       const fr = spr.frames[fi];
       const bob = p.moving && fi < 4 && (step % 2) ? 1 : 0;
       const blink = p.iframe > 0 && !p.dash && Math.floor(w.t * 20) % 2 === 0;
@@ -317,7 +330,7 @@
       L.beginPath(); L.ellipse(sx, fy, 10 + pulse, 4.5 + pulse * 0.5, 0, 0, TAU); L.stroke();
       if (!blink) {
         const img = p.hurtT > 0 ? (p.face < 0 ? fr.wf : fr.w) : (p.face < 0 ? fr.f : fr.n);
-        L.drawImage(img, sx - (spr.w >> 1), sy - (spr.h >> 1));
+        L.drawImage(img, sx - (spr.w >> 1), sy - (spr.h >> 1), spr.w, spr.h);
       }
       // marker above the head: a gold chevron that bobs, so the hero is findable even inside a crowd
       const my = sy - (spr.h >> 1) - 6 + Math.round(Math.sin(w.t * 6) * 1.5);
@@ -343,7 +356,7 @@
         L.beginPath(); L.arc(sx, sy, 22, -Math.PI / 2, -Math.PI / 2 + TAU * (r.progress / r.need)); L.stroke();
       }
       const spr = S.mate(r.id, w.yearIdx);
-      L.drawImage(spr.frames[0].n, sx - (spr.w >> 1), sy - (spr.h >> 1));
+      L.drawImage(spr.frames[0].n, sx - (spr.w >> 1), sy - (spr.h >> 1), spr.w, spr.h);
       const by = Math.round(Math.sin(w.t * 6) * 2);
       L.fillStyle = '#ffe14a';
       L.fillRect(sx - 1, sy - (spr.h >> 1) - 9 + by, 3, 5);
@@ -408,6 +421,16 @@
             L.drawImage(it.n, sx + off - (it.w >> 1), Math.round(sy - h) - (it.h >> 1));
             break;
           }
+          case 'lob': { // 로빙 패스: the ball arcs from the passer (x0, y0) onto the target; its shadow runs along the ground
+            const gx = Math.round(f.x0 + (f.x - f.x0) * k - camX), gy = Math.round(f.y0 + (f.y - f.y0) * k - camY);
+            const h = Math.round(Math.sin(k * Math.PI) * 44), it = S.item(f.white ? 'ball' : 'golden');
+            L.fillStyle = 'rgba(0,0,0,0.25)';
+            L.beginPath(); L.ellipse(gx, gy + 2, 3, 1.5, 0, 0, TAU); L.fill();
+            L.fillStyle = (f.white ? 'rgba(255,255,255,' : 'rgba(255,215,80,') + (0.35 * k) + ')'; // landing spot
+            L.beginPath(); L.ellipse(sx, sy, 2 + 7 * k, 1 + 3 * k, 0, 0, TAU); L.fill();
+            L.drawImage(it.n, gx - (it.w >> 1), gy - h - (it.h >> 1));
+            break;
+          }
           case 'whistle': // 추가시간 휘슬: a white wave over the pitch
             L.strokeStyle = 'rgba(255,255,255,' + (0.9 * (1 - k)) + ')'; L.lineWidth = 2;
             L.beginPath(); L.arc(sx, sy, 10 + f.r * k, 0, TAU); L.stroke();
@@ -416,7 +439,7 @@
           case 'ghost': case 'mghost': case 'bghost': {
             const spr = f.kind === 'ghost' ? S.hero(w.hero, w.yearIdx, 1, null, w.small) : f.kind === 'mghost' ? S.mate(f.id, w.yearIdx) : S.boss(f.sprite, w.yearIdx);
             L.globalAlpha = 0.45 * (1 - k);
-            L.drawImage(f.face < 0 ? spr.frames[0].f : spr.frames[0].n, sx - (spr.w >> 1), sy - (spr.h >> 1));
+            L.drawImage(f.face < 0 ? spr.frames[0].f : spr.frames[0].n, sx - (spr.w >> 1), sy - (spr.h >> 1), spr.w, spr.h);
             L.globalAlpha = 1; break;
           }
           case 'poof': { // kill burst: shards fly out and fall, with a quick flash ring
@@ -534,9 +557,9 @@
         C.fillText(str, x, y);
         C.globalAlpha = 1;
       }
-      // SIUU shout text
+      // SIUU shout text (날두's; 메시's glare has its own line)
       for (const r of w.rings) {
-        if (r.t > 0.6) continue;
+        if (r.t > 0.6 || !r.shout) continue;
         const x = (w.player.x - camX) * s, y = (w.player.y - camY - 22 - r.t * 20) * s;
         C.font = '900 ' + Math.round(base * 1.6) + 'px system-ui, sans-serif';
         C.globalAlpha = 1 - r.t / 0.6;

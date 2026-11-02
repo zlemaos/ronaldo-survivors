@@ -99,11 +99,18 @@
         const b = document.createElement('button');
         const can = RS.canPlay(this.save, i);
         const cur = i === c.yearIdx && !c.finished;
-        b.className = 'year' + (cur ? ' cur' : '') + (!can ? ' lock' : '') + (y.final ? ' final' : '');
+        b.className = 'year' + (cur ? ' cur' : '') + (!can ? ' lock' : '') + (y.final ? ' final' : '') + (y.trial ? ' trial' : '');
         const st = c.cleared[i] ? '✅ 다시하기' : cur ? '▶ 플레이' : '🔒';
         b.innerHTML = '<div class="yy">' + y.year + '</div><div class="yi"><div class="yt"></div><div class="yc"></div></div><div class="ys">' + st + '</div>';
         b.querySelector('.yt').textContent = y.title;
-        b.querySelector('.yc').textContent = RS.yearAge(i) + '세 · ' + RS.ERAS[y.era].club + ' · 보스: ' + y.boss.name + (y.ballon ? ' · 🏆' : '');
+        b.querySelector('.yc').textContent = RS.yearAge(i) + '세 · ' + RS.ERAS[y.era].club + ' · 보스: ' + y.boss.name + (y.ballon ? ' · 🏆' : '') +
+          (y.foe ? ' · vs ' + RS.FOES[y.foe].name : '');
+        if (y.trial) { // the 고난 badge never wraps mid-word
+          const t = document.createElement('span');
+          t.className = 'trial-mark';
+          t.textContent = '🔥고난' + '▲'.repeat(y.trial);
+          b.querySelector('.yc').append(' · ', t);
+        }
         b.disabled = !can;
         b.onclick = () => { RS.Audio.sfx('click'); this.startYear(i); };
         list.appendChild(b);
@@ -187,14 +194,17 @@
       const nm = RS.TEAMMATES[id];
       const b = this.save.career.build;
       $('tr-club').textContent = yd.year + ' · ' + RS.ERAS[yd.era].club + ' 이적 시장 (' + (k + 1) + '/' + offers.length + ')';
-      $('tr-name').textContent = nm.name;
+      $('tr-name').textContent = nm.name + ' · ' + RS.mateBadge(id);
+      $('tr-name').className = 'mt-' + RS.mateTier(id).key;
       $('tr-role').textContent = RS.mateLine(id);
       const sp = $('tr-sprite'); sp.innerHTML = '';
       sp.appendChild(RS.Sprites.toCanvas(RS.Sprites.mate(id, idx), 0, 4));
       const cards = [];
-      if (b.teammates.length < RS.MAX_MATES) cards.push({ kind: 'recruit', icon: '🤝', name: '선발로 영입', desc: nm.name + ' Lv.1 합류', tag: '영입', hint: RS.synergyHint(b, id), out: null, take: true });
-      else if (b.bench.length < RS.MAX_BENCH) cards.push({ kind: 'recruit', icon: '🪑', name: '벤치로 영입', desc: nm.name + ' Lv.1 합류', tag: '벤치', hint: RS.synergyHint(b, id), out: null, take: true });
-      for (const m of RS.allMates(b)) cards.push({ kind: 'swap', icon: '🔄', name: RS.TEAMMATES[m.id].name + ' 방출', desc: RS.mateLine(m.id), tag: 'Lv.' + m.lv + ' 승계' + (b.bench.includes(m) ? ' · 벤치' : ' · 선발'), out: m.id, take: true });
+      if (b.teammates.length < RS.MAX_MATES) cards.push({ kind: 'recruit', icon: '🤝', name: '선발로 영입', desc: nm.name + ' Lv.1 합류', tag: RS.mateBadge(id), mtier: RS.mateTier(id).key, hint: RS.synergyHint(b, id), out: null, take: true });
+      else if (b.bench.length < RS.MAX_BENCH) cards.push({ kind: 'recruit', icon: '🪑', name: '벤치로 영입', desc: nm.name + ' Lv.1 합류', tag: RS.mateBadge(id), mtier: RS.mateTier(id).key, hint: RS.synergyHint(b, id), out: null, take: true });
+      // swaps: the newcomer inherits the level, so the verdict (OVR before → after) says whether it pays off
+      for (const m of RS.allMates(b)) cards.push({ kind: 'swap', icon: '🔄', name: RS.TEAMMATES[m.id].name + ' 방출', desc: RS.TEAMMATES[m.id].name + ' (' + RS.mateBadge(m.id) + ') 대신 ' + nm.name + ' · Lv.' + m.lv + ' 승계' + (b.bench.includes(m) ? ' · 벤치' : ' · 선발'),
+        tag: RS.mateBadge(m.id), mtier: RS.mateTier(m.id).key, hint: RS.swapVerdict(m.id, id), out: m.id, take: true });
       cards.push({ kind: 'keep', icon: '✋', name: '영입하지 않기', desc: '지금 스쿼드 그대로 간다.', tag: '유지', take: false });
       this.renderCards($('tr-cards'), cards, (i) => {
         const c = cards[i];
@@ -234,6 +244,14 @@
       $('intro-year').textContent = yd.year;
       $('intro-club').textContent = RS.yearAge(idx) + '세 · ' + RS.ERAS[yd.era].club + (replay ? ' · 다시하기 (커리어에 영향 없음)' : '') + (RS.hardMode(b0) ? ' · 🔥 하드 모드' : '');
       $('intro-title').textContent = yd.title;
+      // 고난의 시즌 / named foe: say up front that this one is harder and why
+      const tags = [];
+      if (yd.trial) tags.push('🔥 고난의 시즌 ' + '▲'.repeat(yd.trial) + ' · 적이 더 단단하고 아프다');
+      if (yd.foe) tags.push('🔵 상대 ' + RS.FOES[yd.foe].name + ' · 파란 버스 수비가 세 번 밀고 온다');
+      else if (yd.twist && yd.twist.wall) tags.push('🧱 철벽 수비가 두 번 밀고 온다 · 틈을 뚫거나 옆으로 돌아가라');
+      if (yd.twist && yd.twist.extra) tags.push('⏱ 연장전 ' + yd.twist.extra + '초 뒤에 보스 등장');
+      $('intro-trial').textContent = tags.join('\n');
+      $('intro-trial').classList.toggle('hidden', !tags.length);
       $('intro-story').textContent = yd.story || '';
       const evo = $('intro-evo'); evo.innerHTML = '';
       const hero = this.save.career.build.hero;
@@ -257,10 +275,11 @@
         $('intro-squad').innerHTML = this.buildChips(b);
         if (!RS.isReplay(this.save, idx)) this.bindSquad($('intro-squad'), drawSquad); // replays keep that year's squad
         else for (const el of $('intro-squad').querySelectorAll('.sqbtn')) el.remove();
-        $('intro-vs').innerHTML = '⚔ ' + RS.HEROES[b.hero].short + ' 전투력 <b>' + RS.powerScore(b) + '</b> &nbsp;vs&nbsp; 상대 위협도 <b>' + '★'.repeat(stars) + '☆'.repeat(5 - stars) + '</b>';
+        $('intro-vs').innerHTML = '⚔ ' + RS.HEROES[b.hero].short + ' 전투력 <b>' + RS.powerScore(b, yd.youth) + '</b> &nbsp;vs&nbsp; 상대 위협도 <b>' + '★'.repeat(stars) + '☆'.repeat(5 - stars) + '</b>';
       };
       drawSquad();
-      $('intro-boss').textContent = (yd.final ? '최종 보스: ' : '시즌 보스: ') + yd.boss.name + ' (' + RS.BOSS_TYPES[yd.boss.type].sig + ') · 1분 버티면 등장';
+      $('intro-boss').textContent = (yd.final ? '최종 보스: ' : '시즌 보스: ') + yd.boss.name + ' (' + RS.BOSS_TYPES[yd.boss.type].sig + ') · ' +
+        (yd.twist && yd.twist.extra ? '연장까지 ' + Math.round(RS.yearTuning(idx).duration) + '초' : '1분') + ' 버티면 등장';
       $('btn-kickoff').onclick = () => { RS.Audio.sfx('click'); this.play(idx); };
     },
 
@@ -268,11 +287,12 @@
       const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
       let h = '<span class="chip">Lv.' + b.level + '</span>';
       for (const id of b.skillOrder) {
-        const s = RS.SKILLS[id];
-        h += b.evolved[id] ? '<span class="chip evo">' + s.evoIcon + ' ' + esc(s.evoName) + '</span>'
+        const s = RS.SKILLS[id], v = s.evos && s.evos[b.evolved[id]], st = (b.stars && b.stars[id]) || 0;
+        h += b.evolved[id] ? '<span class="chip evo">' + (v ? v.icon : s.evoIcon) + ' ' + esc(v ? v.name : s.evoName) + (st ? ' ★' + st : '') + '</span>'
           : '<span class="chip">' + s.icon + ' ' + esc(s.name) + ' ' + b.skills[id] + '</span>';
       }
       for (const id of b.passiveOrder) h += '<span class="chip">' + RS.PASSIVES[id].icon + ' ' + b.passives[id] + '</span>';
+      for (const id in b.drills || {}) h += '<span class="chip">' + RS.DRILLS[id].icon + ' ' + esc(RS.DRILLS[id].name) + ' ×' + b.drills[id] + '</span>';
       for (const id of b.relicOrder || []) { const r = RS.RELICS[id]; h += '<span class="chip t-' + r.tier + '">' + r.icon + ' ' + esc(r.name) + '</span>'; }
       if (b.coachCards.length) h += '<span class="chip">👔 감독 카드 ' + b.coachCards.length + '</span>';
       return h + this.squadLines(b);
@@ -283,7 +303,7 @@
     squadLines(b) {
       const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
       if (!RS.allMates(b).length) return '<div class="squad"><div class="sq empty">동료 없음 — 필드의 ! 표시로 영입</div></div>';
-      const row = (m, onPitch) => '<div class="sq' + (onPitch ? '' : ' bench') + '"><b>' + esc(RS.TEAMMATES[m.id].name) + '</b> <span class="lv">Lv.' + m.lv + '</span>' +
+      const row = (m, onPitch) => '<div class="sq' + (onPitch ? '' : ' bench') + '"><b>' + esc(RS.TEAMMATES[m.id].name) + '</b> <span class="ovr mt-' + RS.mateTier(m.id).key + '">' + esc(RS.mateBadge(m.id)) + '</span> <span class="lv">Lv.' + m.lv + '</span>' +
         '<button class="sqbtn" data-sq="' + m.id + '">' + (onPitch ? '벤치로' : '선발로') + '</button>' +
         '<div class="rl">' + esc(RS.mateLine(m.id)) + (onPitch ? '' : ' (벤치: 1/3)') + '</div></div>';
       let h = '<div class="squad"><div class="sqh">선발 ' + b.teammates.length + '/' + RS.MAX_MATES + '</div>';
@@ -337,14 +357,18 @@
       const shownAt = performance.now();
       cards.forEach((c, i) => {
         const b = document.createElement('button');
-        b.className = 'card k-' + c.kind + (c.tier ? ' t-' + c.tier : '');
+        b.className = 'card k-' + c.kind + (c.tier ? ' t-' + c.tier : '') + (c.mtier ? ' mt-' + c.mtier : '');
         b.innerHTML = '<div class="ic"></div><div class="tx"><div class="nm"><span class="n"></span><span class="tg"></span></div><div class="ds"></div><div class="hn"></div></div>';
         b.querySelector('.ic').textContent = c.icon || '⚽';
         b.querySelector('.n').textContent = c.name;
         b.querySelector('.tg').textContent = c.tag || '';
         b.querySelector('.ds').textContent = c.desc || '';
         const hn = b.querySelector('.hn');
-        if (c.hint) { hn.textContent = c.hint; if (/필요|스킬 필요/.test(c.hint)) hn.classList.add('need'); } else hn.remove();
+        if (c.hint) {
+          hn.textContent = c.hint;
+          if (/필요|스킬 필요/.test(c.hint)) hn.classList.add('need');
+          if (c.hint[0] === '▲') hn.classList.add('up'); else if (c.hint[0] === '▼') hn.classList.add('down'); // transfer verdicts
+        } else hn.remove();
         b.onclick = () => {
           if (performance.now() - shownAt < 350) return; // guard against the joystick finger
           RS.Audio.sfx('click');
@@ -408,7 +432,7 @@
       };
       add('🔁 다시 뽑기', RS.COIN_REROLL, 'c-reroll', false, () => { if (w.coinReroll()) { RS.Audio.sfx('coin'); this.refreshLevelUp(); } });
       for (const d of RS.COIN_DRAWS) {
-        add(d.icon + ' ' + (left ? d.name : '모두 보유'), d.cost, 'c-' + d.id, w.drawUsed || !left, () => { if (w.coinDraw(d.id)) this.refreshLevelUp(); });
+        add(d.icon + ' ' + (left ? d.name : '모두 보유'), RS.drawCost(d, w.build), 'c-' + d.id, w.drawUsed || !left, () => { if (w.coinDraw(d.id)) this.refreshLevelUp(); });
       }
     },
 

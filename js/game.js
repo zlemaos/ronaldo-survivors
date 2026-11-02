@@ -17,6 +17,8 @@
       bench: [], // bench warmers [{id, lv}], at most MAX_BENCH (weak passive synergy)
       coachCards: [], // card ids, stack for the career
       relics: {}, relicOrder: [], // 특수 카드 items (id -> 1), kept for the career
+      stars: {}, // 각성 stars of evolved moves (id -> 1..STAR_MAX)
+      drills: {}, // 개인 훈련 cards taken (id -> count, no cap)
       bonusHp: 0, bonusReroll: 0, // boss rewards (permanent for the career)
       hgh: null, // 메시 growth hormone: null = not decided yet (small body), true = treated, false = 하드 모드
       hero
@@ -55,9 +57,66 @@
     while (b.teammates.length > RS.MAX_MATES) { const m = b.teammates.splice(RS.MAX_MATES, 1)[0]; if (b.bench.length < RS.MAX_BENCH) b.bench.push(m); }
     b.bench.length = Math.min(b.bench.length, RS.MAX_BENCH);
     if (!RS.HEROES || !RS.HEROES[b.hero]) b.hero = 'ronaldo';
+    if (b.hero === 'messi') RS.toMessiMoves(b);
+    for (const k of ['stars', 'drills']) if (!b[k] || typeof b[k] !== 'object') b[k] = {};
+    for (const id of Object.keys(b.stars)) if (!b.evolved[id] || !b.skills[id]) delete b.stars[id];
+    for (const id of Object.keys(b.drills)) if (!RS.DRILLS[id]) delete b.drills[id];
+    return b;
+  };
+  // Old 메시 saves can carry 날두's moves, passives or items: each becomes 메시's counterpart
+  // (RS.MESSI_COUNTERPART) with its level and evolution; when he already has that one, the next move of his own
+  // he lacks takes its place.
+  RS.toMessiMoves = function (b) {
+    const C = RS.MESSI_COUNTERPART, ron = (id) => RS.SKILLS[id].hero !== 'messi';
+    if (b.skillOrder.some(ron)) {
+      const spare = Object.keys(RS.SKILLS).filter((id) => !ron(id) && !b.skills[id]);
+      const skills = {}, evolved = {}, order = [];
+      for (const id of b.skillOrder) {
+        let to = id;
+        if (ron(id)) {
+          to = spare.includes(C.skills[id]) ? C.skills[id] : spare[0];
+          if (!to) continue;
+          spare.splice(spare.indexOf(to), 1);
+        }
+        skills[to] = b.skills[id]; order.push(to);
+        const ev = b.evolved[id], evos = RS.SKILLS[to].evos;
+        if (ev) evolved[to] = !evos ? true : evos[ev] ? ev : Object.keys(evos)[0];
+      }
+      b.skills = skills; b.skillOrder = order; b.evolved = evolved;
+    }
+    if (b.passiveOrder.some((id) => !RS.passiveFor(id, 'messi'))) {
+      const passives = {}, order = [];
+      for (const id of b.passiveOrder) {
+        const to = RS.passiveFor(id, 'messi') ? id : C.passives[id];
+        if (!to || !RS.PASSIVES[to]) continue;
+        if (passives[to]) passives[to] = Math.max(passives[to], b.passives[id]);
+        else { passives[to] = b.passives[id]; order.push(to); }
+      }
+      b.passives = passives; b.passiveOrder = order;
+    }
+    for (const id of b.relicOrder.slice()) {
+      if (RS.relicFor(id, 'messi')) continue;
+      const to = C.relics[id], i = b.relicOrder.indexOf(id);
+      delete b.relics[id];
+      if (to && !b.relics[to]) { b.relics[to] = 1; b.relicOrder[i] = to; } else b.relicOrder.splice(i, 1);
+    }
     return b;
   };
   RS.allMates = (b) => b.teammates.concat(b.bench);
+  // Teammate rating: OVR, its grade (RS.MATE_TIERS) and the power multiplier it gives (damage and team buff).
+  RS.mateOvr = (id) => (RS.TEAMMATES[id] && RS.TEAMMATES[id].ovr) || 75;
+  RS.mateMul = (id, youth) => 1 + (RS.mateOvr(id) - RS.MATE_OVR_PIVOT[youth ? 'youth' : 'pro']) * RS.MATE_OVR_STEP;
+  RS.mateTier = (id) => { const o = RS.mateOvr(id); return RS.MATE_TIERS.find((t) => o >= t.min); };
+  RS.mateBadge = (id) => 'OVR ' + RS.mateOvr(id) + ' ' + RS.mateTier(id).name;
+  RS.samePerson = (a, b) => (RS.TEAMMATES[a].same || a) === (RS.TEAMMATES[b].same || b);
+  // Transfer verdict: the newcomer inherits the level, so OVR (and the position) is the whole difference.
+  RS.swapVerdict = function (outId, newId) {
+    const a = RS.mateOvr(outId), n = RS.mateOvr(newId), d = n - a;
+    const ro = RS.TEAMMATES[outId].role, rn = RS.TEAMMATES[newId].role;
+    const pos = ro !== rn ? ' · 포지션 ' + RS.ROLES[ro].name + '→' + RS.ROLES[rn].name : '';
+    if (!d) return '= OVR ' + a + ' 같은 급' + pos;
+    return (d > 0 ? '▲' : '▼') + ' OVR ' + a + '→' + n + ' (' + (d > 0 ? '+' : '') + d + ') ' + (d > 0 ? '더 강해짐' : '약해짐') + pos;
+  };
   // Named partnership of the two on the pitch (null with fewer than two).
   RS.pairSynergy = function (b) {
     if (b.teammates.length < 2) return null;
@@ -67,18 +126,21 @@
   };
 
   // One number the player can watch grow: skills, evolutions, passives, teammates and level.
-  RS.powerScore = function (b) {
+  RS.powerScore = function (b, youth) {
     let s = b.level * 2;
-    for (const id of b.skillOrder) s += b.skills[id] * 10 + (b.evolved[id] ? 40 : 0);
+    for (const id of b.skillOrder) s += b.skills[id] * 10 + (b.evolved[id] ? 40 : 0) + ((b.stars && b.stars[id]) || 0) * 8;
     for (const id of b.passiveOrder) s += b.passives[id] * 8;
-    for (const m of b.teammates) s += 6 + m.lv * 5;
+    for (const m of b.teammates) s += (6 + m.lv * 5) * RS.mateMul(m.id, youth);
     for (const id of b.relicOrder || []) s += RS.TIER_POWER[RS.RELICS[id].tier];
+    for (const id in b.drills || {}) s += b.drills[id] * 2;
     return Math.round(s);
   };
-  // Threat of a season on a 1–5 star scale (enemy HP multiplier of the year).
+  // Threat of a season on a 1–5 star scale (enemy HP × damage of the year on a log scale, so the wall and the
+  // 고난의 시즌 show); the final duel is always ★5.
   RS.threatStars = function (idx) {
-    const h = RS.yearTuning(idx).hpMul;
-    return Math.max(1, Math.min(5, Math.ceil(Math.log2(h + 1))));
+    if (RS.YEARS[idx].final) return 5;
+    const t = RS.yearTuning(idx);
+    return Math.max(1, Math.min(5, Math.ceil((Math.log10(t.hpMul * t.dmgMul) + 0.5) * 1.25)));
   };
 
   // About a quarter less XP per level than round 2: level-ups keep coming.
@@ -97,18 +159,19 @@
     return COACH_CARDS[id] || null;
   };
 
-  // Derive runtime stats from build (passives + coach cards) and meta upgrades.
-  RS.computeStats = function (build, metaUpgrades) {
+  // Derive runtime stats from build (passives + coach cards) and meta upgrades. youth: a youth season (RS.mateMul).
+  RS.computeStats = function (build, metaUpgrades, youth) {
     const a = { dmg: 0, cd: 0, area: 0, projSpeed: 0, moveSpeed: 0, hp: 0, magnet: 0, crit: 0, dur: 0, regen: 0,
       armor: 0, xp: 0, gold: 0, teamDmg: 0, teamCd: 0, bossDmg: 0, revive: 0, reroll: 0, luck: 0 };
     const add = (mods, times) => { for (const k in mods) if (k in a) a[k] += mods[k] * times; };
     for (const id in build.passives) if (RS.PASSIVES[id]) add(RS.PASSIVES[id].mods, build.passives[id]);
     for (const id in build.relics || {}) if (RS.RELICS[id] && RS.RELICS[id].mods) add(RS.RELICS[id].mods, 1);
     for (const cid of build.coachCards) { const c = RS.coachCard(cid); if (c) add(c.mods, 1); }
+    for (const id in build.drills || {}) if (RS.DRILLS[id]) add(RS.DRILLS[id].mods, build.drills[id]);
     if (metaUpgrades) for (const id in metaUpgrades) if (RS.META[id]) add(RS.META[id].mods, metaUpgrades[id]);
-    // squad: role buffs (pitch full, bench weak) and the partnership of the two on the pitch
-    for (const m of build.teammates) add(RS.ROLE_BUFF[RS.TEAMMATES[m.id].role].mods, 1);
-    for (const m of build.bench || []) add(RS.ROLE_BUFF[RS.TEAMMATES[m.id].role].mods, RS.BENCH_FACTOR);
+    // squad: role buffs (pitch full, bench weak) scaled by each player's OVR, and the partnership on the pitch
+    for (const m of build.teammates) add(RS.ROLE_BUFF[RS.TEAMMATES[m.id].role].mods, RS.mateMul(m.id, youth));
+    for (const m of build.bench || []) add(RS.ROLE_BUFF[RS.TEAMMATES[m.id].role].mods, RS.BENCH_FACTOR * RS.mateMul(m.id, youth));
     const pair = RS.pairSynergy(build);
     if (pair) add(pair.mods, 1);
     if (RS.smallBody(build)) add(RS.SMALL_BODY, 1);
@@ -122,10 +185,16 @@
     };
   };
 
-  RS.skillStats = function (id, lv, evolved) {
+  // stars: 각성 of an evolved move (RS.STAR_STEP per star); the starred stat sets are cached (read every step).
+  const STARRED = {};
+  RS.skillStats = function (id, lv, evolved, stars) {
     const s = RS.SKILLS[id];
-    if (evolved) return (s.evos && s.evos[evolved] && s.evos[evolved].stats) || s.evo;
-    return s.lv[Math.max(0, Math.min(s.lv.length, lv) - 1)];
+    if (!evolved) return s.lv[Math.max(0, Math.min(s.lv.length, lv) - 1)];
+    const base = (s.evos && s.evos[evolved] && s.evos[evolved].stats) || s.evo;
+    if (!stars) return base;
+    const key = id + '|' + evolved + '|' + stars;
+    return STARRED[key] || (STARRED[key] = Object.assign({}, base,
+      { dmg: base.dmg * (1 + RS.STAR_STEP.dmg * stars), cd: base.cd * (1 + RS.STAR_STEP.cd * stars) }));
   };
 
   // Pure damage formula (tested). Returns {dmg, crit}.
@@ -156,14 +225,14 @@
     return set;
   };
   RS.mateCandidates = function (build, yearIdx, onlyCurrentEra) {
-    const owned = new Set(RS.allMates(build).map((m) => m.id));
+    const owned = RS.allMates(build).map((m) => m.id);
     const eras = onlyCurrentEra ? [RS.YEARS[yearIdx].era] : RS.erasUpTo(yearIdx);
-    return Object.keys(RS.TEAMMATES).filter((id) => !owned.has(id) && eras.includes(RS.TEAMMATES[id].era));
+    return Object.keys(RS.TEAMMATES).filter((id) => !owned.some((o) => RS.samePerson(o, id)) && eras.includes(RS.TEAMMATES[id].era));
   };
   RS.squadFull = (build) => build.teammates.length >= RS.MAX_MATES && (build.bench || []).length >= RS.MAX_BENCH;
   // A new teammate goes on the pitch if there is room, else on the bench. Returns 'pitch' | 'bench' | false.
   RS.addMate = function (build, id) {
-    if (RS.allMates(build).some((m) => m.id === id) || !RS.TEAMMATES[id]) return false;
+    if (!RS.TEAMMATES[id] || RS.allMates(build).some((m) => RS.samePerson(m.id, id))) return false;
     if (build.teammates.length < RS.MAX_MATES) { build.teammates.push({ id, lv: 1 }); return 'pitch'; }
     if (build.bench.length < RS.MAX_BENCH) { build.bench.push({ id, lv: 1 }); return 'bench'; }
     return false;
@@ -217,7 +286,8 @@
   };
   RS.mateLine = function (id) {
     const m = RS.TEAMMATES[id], r = RS.ROLES[m.role];
-    return r.name + ': ' + r.desc.replace(/\{hero\}/g, RS.HEROES[RS.HERO].short) + ' · 팀 효과 ' + RS.ROLE_BUFF[m.role].text;
+    const desc = (RS.HERO === 'messi' && r.descMessi) || r.desc;
+    return r.name + ': ' + desc.replace(/\{hero\}/g, RS.HEROES[RS.HERO].short) + ' · 팀 효과 ' + RS.ROLE_BUFF[m.role].text;
   };
   // What signing this player would do to the partnership (shown on recruit cards).
   RS.synergyHint = function (build, id) {
@@ -241,10 +311,18 @@
       case 'passive': { const p = RS.PASSIVES[c.id]; return Object.assign(c, { name: p.name, icon: p.icon, desc: p.desc, tag: '새 패시브', hint: RS.passiveHint(build, c.id) }); }
       case 'passiveUp': { const p = RS.PASSIVES[c.id]; const nl = build.passives[c.id] + 1;
         return Object.assign(c, { name: p.name, icon: p.icon, desc: p.desc, tag: 'Lv.' + nl + (nl === RS.PASSIVE_MAX ? ' MAX' : ''), hint: RS.passiveHint(build, c.id) }); }
-      case 'mate': { const m = RS.TEAMMATES[c.id]; const toBench = build.teammates.length >= RS.MAX_MATES;
-        return Object.assign(c, { name: m.name, icon: toBench ? '🪑' : '🤝', desc: RS.mateLine(c.id), tag: toBench ? '벤치 합류' : '동료 합류', hint: RS.synergyHint(build, c.id) }); }
+      case 'mate': { const m = RS.TEAMMATES[c.id]; const toBench = build.teammates.length >= RS.MAX_MATES; const syn = RS.synergyHint(build, c.id);
+        return Object.assign(c, { name: m.name, icon: toBench ? '🪑' : '🤝', desc: RS.mateLine(c.id), tag: RS.mateBadge(c.id), mtier: RS.mateTier(c.id).key,
+          hint: (toBench ? '벤치 합류' : '선발 합류') + (syn ? ' · ' + syn : '') }); }
       case 'mateUp': { const m = RS.TEAMMATES[c.id]; const cur = RS.allMates(build).find((x) => x.id === c.id).lv;
-        return Object.assign(c, { name: m.name, icon: '📈', desc: RS.mateLine(c.id), tag: '동료 Lv.' + (cur + 1) }); }
+        return Object.assign(c, { name: m.name + ' Lv.' + (cur + 1), icon: '📈', desc: RS.mateLine(c.id), tag: RS.mateBadge(c.id), mtier: RS.mateTier(c.id).key, hint: '동료 레벨 업 · 피해 증가' }); }
+      case 'star': { const s = RS.SKILLS[c.id]; const n = ((build.stars && build.stars[c.id]) || 0) + 1;
+        const v = s.evos && s.evos[build.evolved[c.id]];
+        return Object.assign(c, { name: (v ? v.name : s.evoName) + ' ★' + n, icon: v ? v.icon : s.evoIcon,
+          desc: '각성: 이 기술의 피해 +' + Math.round(RS.STAR_STEP.dmg * 100) + '%, 쿨타임 ' + Math.round(RS.STAR_STEP.cd * 100) + '%',
+          tag: '각성' + (n === RS.STAR_MAX ? ' MAX' : ''), hint: '진화한 기술을 ★' + RS.STAR_MAX + '까지 더 키운다' }); }
+      case 'drill': { const d = RS.DRILLS[c.id]; const n = ((build.drills && build.drills[c.id]) || 0) + 1;
+        return Object.assign(c, { name: d.name + (n > 1 ? ' ' + n + '회차' : ''), icon: d.icon, desc: d.desc + ' (영구)', tag: '개인 훈련', hint: '횟수 제한 없음 · 커리어 내내 유지' }); }
       case 'gold': return Object.assign(c, { name: '스폰서 보너스', icon: '💰', desc: '코인 +30', tag: '보너스' });
       case 'heal': return Object.assign(c, { name: '에그타르트', icon: '🥧', desc: '체력 40% 회복', tag: '보너스' });
       case 'relic': { const r = RS.RELICS[c.id];
@@ -281,20 +359,28 @@
       for (const id of cands) pool.push({ kind: 'mate', id, w: 1.6 / Math.max(1, cands.length / 2) });
     }
     for (const m of RS.allMates(build)) if (m.lv < RS.MATE_MAX_LV) pool.push({ kind: 'mateUp', id: m.id, w: 1.2 });
+    // 각성: an evolved move keeps growing up to ★STAR_MAX
+    for (const id of build.skillOrder) if (build.evolved[id] && ((build.stars && build.stars[id]) || 0) < RS.STAR_MAX) pool.push({ kind: 'star', id, w: 2.2 });
     while (out.length < n && pool.length) {
       const c = RS.pickWeighted(rng, pool);
       pool.splice(pool.indexOf(c), 1);
       out.push({ kind: c.kind, id: c.id });
     }
     out.length = Math.min(out.length, Math.max(n, 2));
-    if (out.length < n) out.push({ kind: 'heal', id: 'heal' });
-    if (out.length < n) out.push({ kind: 'gold', id: 'gold' });
+    // The offer ran short (a maxed build): 개인 훈련 cards (no cap) keep the hand a real choice; a heal stays last.
+    if (out.length < n) {
+      const drills = Object.keys(RS.DRILLS);
+      while (out.length < n - 1 && drills.length) out.push({ kind: 'drill', id: drills.splice(Math.floor(rng() * drills.length), 1)[0] });
+      out.push({ kind: 'heal', id: 'heal' });
+    }
     return out.map((c) => describe(c, build));
   };
 
   // ---------------------------------------------------------------- 특수 카드 (graded items, gambles)
   RS.relicPool = (build, tier) => Object.keys(RS.RELICS).filter((id) => RS.RELICS[id].tier === tier && !build.relics[id] && RS.relicFor(id, build.hero));
   RS.relicsLeft = (build) => Object.keys(RS.RELICS).some((id) => !build.relics[id] && RS.relicFor(id, build.hero));
+  // A coin draw costs more with every item already owned (RS.DRAW_COST_STEP).
+  RS.drawCost = (d, build) => Math.round(d.cost * (1 + RS.DRAW_COST_STEP * (build.relicOrder || []).length));
   // One item the build lacks. The grade comes from `odds` ({tier: p}, summing to 1); an exhausted grade falls to
   // the nearest grade that still has items — upward first when `up` (paid draws never come back empty),
   // downward only otherwise (free rolls). Returns a described card or null.
@@ -356,6 +442,12 @@
         build.passives[c.id]++; return true;
       case 'mate': return !!RS.addMate(build, c.id);
       case 'mateUp': return RS.levelMate(build, c.id, 1);
+      case 'star':
+        if (!build.evolved[c.id] || !build.skills[c.id] || (build.stars[c.id] || 0) >= RS.STAR_MAX) return false;
+        build.stars[c.id] = (build.stars[c.id] || 0) + 1; return true;
+      case 'drill':
+        if (!RS.DRILLS[c.id]) return false;
+        build.drills[c.id] = (build.drills[c.id] || 0) + 1; return true;
       case 'gold': case 'heal': return true;
       case 'relic':
         if (!RS.RELICS[c.id] || build.relics[c.id]) return false;
@@ -367,7 +459,7 @@
 
   // Transfer swap: newId replaces outId (pitch or bench) and inherits its level (the squad follows the career).
   RS.swapMate = function (build, outId, newId) {
-    if (!RS.TEAMMATES[newId] || RS.allMates(build).some((m) => m.id === newId)) return false;
+    if (!RS.TEAMMATES[newId] || RS.allMates(build).some((m) => m.id !== outId && RS.samePerson(m.id, newId)) || outId === newId) return false;
     for (const list of [build.teammates, build.bench]) {
       const i = list.findIndex((m) => m.id === outId);
       if (i >= 0) { list[i] = { id: newId, lv: list[i].lv }; return true; }
@@ -383,6 +475,7 @@
       opt = opt || {};
       this.yearIdx = opt.yearIdx || 0;
       this.yearDef = RS.YEARS[this.yearIdx];
+      this.youth = !!this.yearDef.youth; // kids' league: teammates are rated against kids (RS.mateMul)
       this.tune = RS.yearTuning(this.yearIdx);
       this.lvl = RS.tuneIdx(this.yearIdx); // difficulty index: youth seasons play like the debut year
       this.era = RS.ERAS[this.yearDef.era];
@@ -412,6 +505,7 @@
       this.textIdx = 0;
       this.timers = [];
       this.mates = [];
+      this.passers = []; // 챠비 / 니에미스타 running beside 메시 to play his passes (World.passerFor)
       this.grid = new RS.Grid(32, 1024, 1024);
       this._q = []; this._q2 = [];
       this.kills = 0; this.coinsPicked = 0; this.dmgDealt = 0;
@@ -429,13 +523,14 @@
       this.player.hp = this.stats.maxHp;
       this.rerolls = this.stats.reroll;
       for (const m of this.build.teammates) this.spawnMateRuntime(m);
+      for (const id of this.build.skillOrder) if (RS.SKILLS[id].passer) this.passerFor(RS.SKILLS[id].passer);
       this.schedule = this.makeSchedule();
     }
 
     // ------------------------------------------------------------ helpers
     recalc() {
       const prevMax = this.stats ? this.stats.maxHp : null;
-      this.stats = RS.computeStats(this.build, this.metaUp);
+      this.stats = RS.computeStats(this.build, this.metaUp, this.youth);
       if (prevMax != null && this.stats.maxHp > prevMax) this.player.hp += this.stats.maxHp - prevMax;
       this.player.hp = Math.min(this.player.hp, this.stats.maxHp);
       // The final stays a duel. 메시/날두 hit harder by exactly the toughness the graded items added (max HP + a
@@ -481,6 +576,11 @@
       s.push({ t: T * 2 / 3, kind: 'wave3' });
       s.push({ t: T * 0.75, kind: 'elite' });
       if (idx >= 4) s.push({ t: T * 0.82, kind: 'press' });
+      // the season's own pressure (RS.YEARS twist / foe): the 첼씨 버스 or a defensive wall, more 기자단, 연장전
+      const yd = this.yearDef, tw = yd.twist || {};
+      if (yd.foe || tw.wall) for (const f of yd.foe ? [0.3, 0.55, 0.8] : [0.36, 0.72]) s.push({ t: T * f, kind: 'bus' });
+      for (let i = 0; i < (tw.press || 0); i++) s.push({ t: T * (0.55 + 0.3 * i), kind: 'press' });
+      if (tw.extra) s.push({ t: T - tw.extra, kind: 'extra' });
       s.push({ t: T, kind: 'boss' });
       return s;
     }
@@ -517,6 +617,7 @@
       this.updateWeapons(dt);
       this.updateRelics(dt);
       this.updateMates(dt);
+      if (this.passers.length) this.updatePassers(dt);
       this.updateProjs(dt);
       this.updateRings(dt);
       this.updateZones(dt);
@@ -583,7 +684,23 @@
         }
         this.emit('mini', { n });
         this.emit('banner', { text: n > 1 ? '⚠️ 준보스 ' + n + '명 등장!' : '⚠️ 준보스 등장!' });
-      } else if (kind === 'wave2') { this.emit('wave', { n: 2 }); this.emit('banner', { text: '⚡ 2차 공세 — 상대가 거세진다' }); }
+      } else if (kind === 'bus') { // 버스 수비 / 철벽: two rows of heavy defenders sweep straight across the pitch —
+        // break a gap through the line or run around its end
+        const n = 7 + Math.min(6, Math.floor(idx / 3)); // per row
+        this.makeRoom(n * 2);
+        const a = this.rng() * TAU, R = this.spawnRadius(), p = this.player;
+        const vx = -Math.cos(a), vy = -Math.sin(a), px = -vy, py = vx; // marching direction, along the row
+        for (let row = 0; row < 2; row++) {
+          for (let i = 0; i < n; i++) {
+            const off = (i - (n - 1) / 2) * 20, d = R + row * 24;
+            const e = this.spawnEnemy('tank', p.x + Math.cos(a) * d + px * off, p.y + Math.sin(a) * d + py * off);
+            if (e) { e.lineVx = vx; e.lineVy = vy; e.speed = 40 * this.tune.speedMul; e.life = 2.4 * R / 40; e.maxHp = e.hp = Math.round(e.hp * 1.5); }
+          }
+        }
+        const yd = this.yearDef;
+        this.emit('banner', { text: (yd.twist && yd.twist.wall) || RS.FOES[yd.foe].wall });
+      } else if (kind === 'extra') this.emit('banner', { text: '⏱ 연장전! ' + this.yearDef.twist.extra + '초 더 버텨라' });
+      else if (kind === 'wave2') { this.emit('wave', { n: 2 }); this.emit('banner', { text: '⚡ 2차 공세 — 상대가 거세진다' }); }
       else if (kind === 'wave3') { this.emit('wave', { n: 3 }); this.emit('banner', { text: '🔥 총공세 — 버텨라!' }); }
       else if (kind === 'boss') this.spawnBoss();
     }
@@ -622,8 +739,9 @@
       e.anim = this.rng() * 10; e.minion = !!opt.minion;
       e.mini = !!def.mini; e.name = def.name;
       if (e.elite) { e.maxHp = e.hp = e.hp * 9; e.r = Math.round(e.r * 1.5); e.dmg = Math.round(e.dmg * 1.4); e.xp *= 12; e.speed *= RS.ELITE_SPEED; e.pace = 'slow'; }
-      if (e.mini) { // 준보스: scales with the year, acts like a small boss (telegraphed charge / slam)
-        e.maxHp = e.hp = Math.round(e.hp * (1 + 0.25 * this.lvl));
+      if (e.mini) { // 준보스: scales with the year (not with the wall), acts like a small boss (telegraphed charge / slam)
+        e.maxHp = e.hp = Math.round(e.hp / tu.wallHp * (1 + 0.25 * this.lvl));
+        e.dmg = Math.round(e.dmg / tu.wallDmg);
         e.ai = { kind: 'mini', cool: 1.6 + this.rng(), act: null, acts: def.acts, n: 0 };
       }
       this.enemies.push(e);
@@ -697,8 +815,9 @@
     openSwap(newId) {
       const nm = RS.TEAMMATES[newId];
       this.swapChoices = RS.allMates(this.build).map((m) => ({
-        kind: 'swap', id: newId, out: m.id, icon: '🔄', name: nm.name + ' 영입',
-        desc: RS.mateLine(newId), tag: RS.TEAMMATES[m.id].name + ' 방출 · Lv.' + m.lv + ' 승계' + (this.build.bench.some((b) => b.id === m.id) ? ' (벤치)' : '')
+        kind: 'swap', id: newId, out: m.id, icon: '🔄', name: RS.TEAMMATES[m.id].name + ' → ' + nm.name,
+        desc: RS.TEAMMATES[m.id].name + ' 방출 · Lv.' + m.lv + ' 승계' + (this.build.bench.some((b) => b.id === m.id) ? ' (벤치)' : ' (선발)'),
+        tag: RS.mateBadge(newId), mtier: RS.mateTier(newId).key, hint: RS.swapVerdict(m.id, newId)
       }));
       this.swapChoices.push({ kind: 'keep', id: newId, icon: '✋', name: '지금 스쿼드 유지', desc: nm.name + ' 영입을 거절한다.', tag: '거절' });
       this.phase = 'swap';
@@ -867,7 +986,7 @@
       for (const id of b.skillOrder) {
         const ws = this.wstate[id] || (this.wstate[id] = { timer: 0.3 + this.rng() * 0.5, tick: 0 });
         const evo = !!b.evolved[id], use = RS.skillUse(id);
-        const s = RS.skillStats(id, b.skills[id], b.evolved[id]); // the variant name picks the evolution path
+        const s = RS.skillStats(id, b.skills[id], b.evolved[id], b.stars[id]); // the variant name picks the evolution path
         if (s.aura) { // permanent tornado aura (바이시클 킥 / 엘라스티코 evolved)
           ws.tick -= dt;
           ws.angle = (ws.angle || 0) + dt * 9;
@@ -953,6 +1072,13 @@
       const p = this.player, st = this.stats;
       const def = RS.SKILLS[id || use];
       const ball = (n, e) => def.proj ? def.proj[evo ? 1 : 0] : evo ? e : n;
+      // 메시's balls are played by his passer (챠비 / 니에미스타) from where that player stands; 날두 kicks himself
+      const pz = def.passer ? this.passerFor(def.passer) : null;
+      const ox = pz ? pz.x : p.x, oy = pz ? pz.y : p.y;
+      const kicked = (a) => {
+        const f = Math.abs(Math.cos(a)) > 0.2 ? (Math.cos(a) > 0 ? 1 : -1) : 0;
+        if (pz) { pz.kickT = 0.25; if (f) pz.face = f; } else { p.kickT = 0.2; if (f) p.face = f; }
+      };
       switch (use) {
         case 'rabona': { // curling boomerangs: out to `range`, then home to 날두 (piercing both ways)
           const tg = this.nearestEnemies(s.count, 220, this._tg || (this._tg = []));
@@ -973,11 +1099,10 @@
           for (let i = 0; i < s.count; i++) {
             const e = tg[i % tg.length];
             const spread = i >= tg.length ? (i - tg.length + 1) * 0.25 * (i % 2 ? 1 : -1) : 0;
-            const a = Math.atan2(e.y - p.y, e.x - p.x) + spread;
-            this.spawnProj(ball('ball', 'golden'), p.x, p.y, a, s.speed * st.projSpeed, { dmg: s.dmg, pierce: s.pierce, bounce: s.bounce, r: s.r, life: 1.5 });
-            if (i === 0 && Math.abs(Math.cos(a)) > 0.2) p.face = Math.cos(a) > 0 ? 1 : -1;
+            const a = Math.atan2(e.y - oy, e.x - ox) + spread;
+            this.spawnProj(ball('ball', 'golden'), ox, oy, a, s.speed * st.projSpeed, { dmg: s.dmg, pierce: s.pierce, bounce: s.bounce, r: s.r, life: 1.5 });
+            if (i === 0) kicked(a);
           }
-          p.kickT = 0.2;
           this.emit('sfx', { name: 'kick' });
           return true;
         }
@@ -985,11 +1110,12 @@
           const tg = this.nearestEnemies(3, 260, this._tg || (this._tg = []));
           if (!tg.length) return false;
           const e = tg[Math.floor(this.rng() * tg.length)];
-          const base = Math.atan2(e.y - p.y, e.x - p.x);
+          const base = Math.atan2(e.y - oy, e.x - ox);
           for (let i = 0; i < s.count; i++) {
             const a = base + (i - (s.count - 1) / 2) * 0.16;
-            this.spawnProj(ball('knuckle', 'cannon'), p.x, p.y, a, s.speed * st.projSpeed, { dmg: s.dmg, pierce: s.pierce, r: s.r, life: 1.6, wobble: evo || def.straight ? 0 : 1, knock: evo ? 60 : 30 });
+            this.spawnProj(ball('knuckle', 'cannon'), ox, oy, a, s.speed * st.projSpeed, { dmg: s.dmg, pierce: s.pierce, r: s.r, life: 1.6, wobble: evo || def.straight ? 0 : 1, knock: evo ? 60 : 30 });
           }
+          if (pz) kicked(base);
           this.emit('sfx', { name: 'shoot' });
           return true;
         }
@@ -1030,7 +1156,7 @@
         case 'siuu': {
           if (!this.nearestEnemies(1, s.radius * st.area, this._tg || (this._tg = [])).length) return false;
           this.rings.push({ x: p.x, y: p.y, r: 0, maxR: s.radius * st.area, t: 0, dur: 0.45, dmg: s.dmg,
-            stun: s.stun * st.dur, knock: s.knock || 30, hits: new Set(), evo });
+            stun: s.stun * st.dur, knock: s.knock || 30, hits: new Set(), evo, shout: id !== 'bobo' });
           if (s.heal) p.hp = Math.min(st.maxHp, p.hp + s.heal);
           if (id === 'bobo') { // 메시: a glare and one line, not a SIUU
             this.addFx('martial', p.x, p.y, { dur: 0.8, ch: evo ? '저리 가!' : '뭘 봐?', n: 1, follow: true });
@@ -1043,24 +1169,24 @@
           if (!tg.length) return false;
           for (let i = 0; i < s.count; i++) {
             const e = tg[i % tg.length];
-            const a = Math.atan2(e.y - p.y, e.x - p.x) + (i % 2 ? -0.9 : 0.9);
-            this.spawnProj(ball('curler', 'golden'), p.x, p.y, a, s.speed * st.projSpeed,
+            const a = Math.atan2(e.y - oy, e.x - ox) + (i % 2 ? -0.9 : 0.9);
+            this.spawnProj(ball('curler', 'golden'), ox, oy, a, s.speed * st.projSpeed,
               { dmg: s.dmg, pierce: s.pierce, r: s.r, life: 1.8, home: s.home, target: e, critBonus: s.critBonus || 0, knock: 30 });
+            if (i === 0) kicked(a + (i % 2 ? 0.9 : -0.9));
           }
-          p.kickT = 0.2;
           this.emit('sfx', { name: 'curl' });
           return true;
         }
-        case 'chip': { // 칩슛: lobbed over the crowd onto the toughest enemies in range (the boss first)
+        case 'chip': { // 로빙 패스: lobbed over the crowd onto the toughest enemies in range (the boss first)
           const tg = this.nearestEnemies(8, 230, this._mt || (this._mt = []));
           if (!tg.length) return false;
           const R = s.radius * st.area;
           tg.slice().sort((a, b) => b.hp - a.hp).slice(0, s.count).forEach((e, i) => {
             const x = e.x, y = e.y, delay = 0.45 + i * 0.12;
-            this.addFx('meteor', x, y, { dur: delay, white: !evo });
+            this.addFx('lob', x, y, { dur: delay, white: !evo, x0: ox, y0: oy });
             this.later(delay, () => { this.shock(x, y, R, s.dmg, { knock: 60, color: evo ? '#ffd84a' : '#ffffff' }); this.emit('sfx', { name: 'thud' }); });
+            if (i === 0) kicked(Math.atan2(y - oy, x - ox));
           });
-          p.kickT = 0.2;
           this.emit('sfx', { name: 'curl' });
           return true;
         }
@@ -1213,11 +1339,12 @@
       this.dmgDealt += res.dmg;
       if (e.boss) { if (!e.bossDmgIn) e.firstHitT = this.t; e.bossDmgIn += res.dmg; }
       if (e.flash <= -0.06) e.flash = 0.06; // flicker, never stuck white under constant fire
+      // poise (RS.WALL): later seasons' crowds shrug off part of the knockback and stun
       if (o.knock) {
-        const k = e.boss ? o.knock * 0.15 : e.mini ? o.knock * 0.3 : e.elite ? o.knock * 0.4 : o.knock;
+        const k = (e.boss ? o.knock * 0.15 : e.mini ? o.knock * 0.3 : e.elite ? o.knock * 0.4 : o.knock) * this.tune.poise;
         e.kx += (o.kx || 0) * k; e.ky += (o.ky || 0) * k;
       }
-      if (o.stun && !e.boss) e.stun = Math.max(e.stun, o.stun * (e.elite || e.mini ? 0.5 : 1)); // bosses are stun-immune
+      if (o.stun && !e.boss) e.stun = Math.max(e.stun, o.stun * (e.elite || e.mini ? 0.5 : 1) * this.tune.poise); // bosses are stun-immune
       // damage numbers only where they matter (crits, bosses, 준보스, elites) — plain hits show the spark only
       if (res.crit || e.boss || e.mini || e.elite) this.addText(e.x, e.y - e.r, res.dmg, res.crit);
       // impact spark: a few shards flying away from the hit direction (crits bigger and golden); burns stay quiet
@@ -1291,8 +1418,10 @@
     updateMates(dt) {
       const p = this.player, st = this.stats;
       for (const m of this.mates) {
-        const lv = m.ref.lv;
+        // lv: damage keeps growing to MATE_MAX_LV; lg: reach, speed and size stop at Lv.5; mm: the player's OVR
+        const lv = m.ref.lv, lg = Math.min(lv, 5), mm = RS.mateMul(m.id, this.youth);
         m.anim += dt;
+        m.kickT = Math.max(0, (m.kickT || 0) - dt);
         const ox = Math.cos(m.slot * 2.1 + 2.4) * 22, oy = Math.sin(m.slot * 2.1 + 2.4) * 16 + 4;
         const follow = (k) => {
           const tx = p.x + ox, ty = p.y + oy;
@@ -1301,18 +1430,18 @@
           if (Math.abs(dx) > 1) m.face = dx > 0 ? 1 : -1;
         };
         if (m.role === 'defender') {
-          m.angle += (2.2 + 0.25 * lv) * dt;
-          const R = 26 + 2 * lv;
+          m.angle += (2.2 + 0.25 * lg) * dt;
+          const R = 26 + 2 * lg;
           m.x = p.x + Math.cos(m.angle) * R; m.y = p.y + Math.sin(m.angle) * R;
           m.face = Math.cos(m.angle + Math.PI / 2) > 0 ? 1 : -1;
           this.grid.query(m.x, m.y, 24, this._q);
           for (const e of this._q) {
             if (!e.alive || this.t - e.dHit < 0.45) continue;
-            const rr = e.r + 7 + lv;
+            const rr = e.r + 7 + lg;
             if ((e.x - m.x) ** 2 + (e.y - m.y) ** 2 > rr * rr) continue;
             e.dHit = this.t;
             const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
-            this.damageEnemy(e, 6 + 4 * lv, { team: true, knock: 110 + 15 * lv, kx: dx / d, ky: dy / d });
+            this.damageEnemy(e, (6 + 4 * lv) * mm, { team: true, knock: 110 + 15 * lg, kx: dx / d, ky: dy / d });
           }
         } else if (m.role === 'keeper') {
           follow(6);
@@ -1337,7 +1466,7 @@
             const e = this.nearestFrom(m.x, m.y, 44);
             if (e) {
               const dx = e.x - m.x, dy = e.y - m.y, d = Math.hypot(dx, dy) || 1;
-              this.damageEnemy(e, 10 + 6 * lv, { team: true, knock: 140, kx: dx / d, ky: dy / d });
+              this.damageEnemy(e, (10 + 6 * lv) * mm, { team: true, knock: 140, kx: dx / d, ky: dy / d });
               m.punch = 0.2;
             }
           }
@@ -1352,7 +1481,7 @@
               const rr = e.r + 9;
               if ((e.x - m.x) ** 2 + (e.y - m.y) ** 2 > rr * rr) continue;
               d.hits.add(e.uid);
-              this.damageEnemy(e, 10 + 7 * lv, { team: true, knock: 60, kx: -d.dy, ky: d.dx });
+              this.damageEnemy(e, (10 + 7 * lv) * mm, { team: true, knock: 60, kx: -d.dy, ky: d.dx });
             }
             if (Math.floor(d.t * 60) % 3 === 0) this.addFx('mghost', m.x, m.y, { dur: 0.2, id: m.id, face: m.face });
             if (d.t >= d.dur) m.dash = null;
@@ -1364,7 +1493,7 @@
               m.timer = e ? Math.max(1.4, 4.2 - 0.55 * lv) * st.teamCd : 0.5;
               if (e) {
                 const dx = e.x - m.x, dy = e.y - m.y, d = Math.hypot(dx, dy) || 1;
-                m.dash = { dx: dx / d, dy: dy / d, t: 0, dur: (140 + 20 * lv) / 330, hits: new Set() };
+                m.dash = { dx: dx / d, dy: dy / d, t: 0, dur: (140 + 20 * lg) / 330, hits: new Set() };
                 m.face = dx > 0 ? 1 : -1;
               }
             }
@@ -1376,8 +1505,9 @@
             const has = this.nearestEnemies(1, 220, this._tg2 || (this._tg2 = [])).length;
             m.timer = has ? Math.max(1.4, 4 - 0.5 * lv) * st.teamCd : 0.5;
             if (has) {
-              const pr = this.spawnProj('pass', m.x, m.y, 0, 260, { dmg: 24 + 12 * lv, pierce: 2 + Math.floor(lv / 2), r: 3, life: 2 });
+              const pr = this.spawnProj('pass', m.x, m.y, 0, 260, { dmg: (24 + 12 * lv) * mm, pierce: 2 + Math.floor(lg / 2), r: 3, life: 2 });
               pr.team = true;
+              m.kickT = 0.25; m.face = p.x > m.x ? 1 : -1;
             }
           }
         } else if (m.role === 'striker') {
@@ -1390,18 +1520,55 @@
               const n = 1 + (lv >= 3 ? 1 : 0) + (lv >= 5 ? 1 : 0);
               const base = Math.atan2(e.y - m.y, e.x - m.x);
               for (let i = 0; i < n; i++) {
-                this.spawnProj('mateball', m.x, m.y, base + (i - (n - 1) / 2) * 0.18, 250, { dmg: 8 + 4 * lv, r: 3, life: 1.2, team: true });
+                this.spawnProj('mateball', m.x, m.y, base + (i - (n - 1) / 2) * 0.18, 250, { dmg: (8 + 4 * lv) * mm, r: 3, life: 1.2, team: true });
               }
               m.face = e.x > m.x ? 1 : -1;
+              m.kickT = 0.2;
             }
           }
         }
       }
     }
 
-    // A midfielder's pass reached 날두: he shoots a power shot at the nearest enemy.
+    // 메시's passes (RS.SKILLS[id].passer) are played by 챠비 / 니에미스타: the squad member himself when he is on
+    // the pitch, else a support runner who trails 메시 (drawn like a teammate, never hit). Returns that runner.
+    passerFor(id) {
+      const m = this.mates.find((x) => x.id === id);
+      if (m) return m;
+      let h = this.passers.find((x) => x.id === id);
+      if (!h) {
+        const p = this.player, side = this.passers.length % 2 ? 1 : -1;
+        h = { id, side, x: p.x - 14, y: p.y + side * 12, face: 1, anim: 0, kickT: 0, moving: false };
+        this.passers.push(h);
+      }
+      return h;
+    }
+    updatePassers(dt) {
+      const p = this.player;
+      // a passer who is now on the pitch as a squad member plays from there instead
+      if (this.passers.some((h) => this.mates.some((m) => m.id === h.id))) this.passers = this.passers.filter((h) => !this.mates.some((m) => m.id === h.id));
+      for (const h of this.passers) {
+        h.anim += dt;
+        h.kickT = Math.max(0, h.kickT - dt);
+        const tx = p.x - p.face * 15, ty = p.y + h.side * 13 + 2; // a step behind 메시, one on each side
+        const dx = tx - h.x, dy = ty - h.y;
+        h.x += dx * Math.min(1, 7 * dt); h.y += dy * Math.min(1, 7 * dt);
+        h.moving = Math.abs(dx) + Math.abs(dy) > 3;
+        if (h.kickT <= 0 && Math.abs(dx) > 1.5) h.face = dx > 0 ? 1 : -1;
+      }
+    }
+
+    // A midfielder's pass reached the hero. 날두 shoots a power shot at the nearest enemy; 메시 never shoots —
+    // he takes the ball on and slaloms through the defenders around him.
     mateShot(dmg, pierce) {
       const p = this.player;
+      if (this.build.hero === 'messi') {
+        const R = 30 * this.stats.area;
+        this.shock(p.x, p.y, R, dmg * 0.8, { knock: 70, team: true, silentFx: true });
+        this.addFx('swing', p.x, p.y, { r: R, dur: 0.3, follow: true });
+        this.emit('sfx', { name: 'swish' });
+        return;
+      }
       const tg = this.nearestEnemies(1, 260, this._tg || (this._tg = []));
       const a = tg.length ? Math.atan2(tg[0].y - p.y, tg[0].x - p.x) : Math.atan2(p.diry, p.dirx);
       this.spawnProj('shot', p.x, p.y, a, 320 * this.stats.projSpeed, { dmg, pierce, r: 4, life: 1.4, team: true, knock: 50 });
@@ -1957,10 +2124,11 @@
     // One grade draw per level-up: the item is applied at once and the hand stays to pick from.
     coinDraw(id) {
       const d = RS.COIN_DRAWS.find((x) => x.id === id);
-      if (!d || this.phase !== 'levelup' || this.drawUsed || this.purse() < d.cost) return null;
+      const cost = d && RS.drawCost(d, this.build);
+      if (!d || this.phase !== 'levelup' || this.drawUsed || this.purse() < cost) return null;
       const c = RS.drawRelic(this.build, this.rng, d.odds, true);
       if (!c) return null;
-      this.spend(d.cost);
+      this.spend(cost);
       this.drawUsed = true;
       this.applyChoiceRuntime(c);
       this.lastDraw = c;
@@ -2022,8 +2190,8 @@
           if (this.applyChoiceRuntime(c)) res.push(c);
         }
       }
-      if (this.rng() < 0.12 && RS.relicsLeft(this.build)) { // sometimes a graded item sits in the chest
-        const rc = RS.drawRelic(this.build, this.rng, { rare: 0.8, hidden: 0.17, ultra: 0.03 }, false);
+      if (this.rng() < RS.CHEST_RELIC.chance && RS.relicsLeft(this.build)) { // sometimes a graded item sits in the chest
+        const rc = RS.drawRelic(this.build, this.rng, RS.CHEST_RELIC.odds, false);
         if (rc && this.applyChoiceRuntime(rc)) res.push(rc);
       }
       const coins = 10 + this.lvl * 2;
@@ -2077,12 +2245,13 @@
       }
       this.addFx('martial', p.x, p.y, { dur: 0.7, ch: '메!', n: 0, follow: true });
       this.emit('sfx', { name: 'dash' });
-      this.later(0.24, () => {
+      this.later(0.24, () => { // 시!: 챠비 and 니에미스타 fire five curling passes (메시 never shoots himself)
         const ts = this.nearestEnemies(5, 220, this._mt || (this._mt = []));
         for (let i = 0; i < 5; i++) {
-          const e = ts.length ? ts[i % ts.length] : null;
-          const a = (e ? Math.atan2(e.y - p.y, e.x - p.x) : i * TAU / 5) + (i % 2 ? -0.9 : 0.9);
-          this.spawnProj('golden', p.x, p.y, a, 230 * st.projSpeed, { dmg: base * 0.8, pierce: 2, r: 4, life: 1.6, home: 6, target: e, knock: 40 });
+          const e = ts.length ? ts[i % ts.length] : null, pz = this.passerFor(i % 2 ? 'iniestar' : 'xavino');
+          const a = (e ? Math.atan2(e.y - pz.y, e.x - pz.x) : i * TAU / 5) + (i % 2 ? -0.9 : 0.9);
+          this.spawnProj('golden', pz.x, pz.y, a, 230 * st.projSpeed, { dmg: base * 0.8, pierce: 2, r: 4, life: 1.6, home: 6, target: e, knock: 40 });
+          pz.kickT = 0.25;
         }
         this.addFx('martial', p.x, p.y, { dur: 0.7, ch: '시!', n: 1, follow: true });
         this.emit('sfx', { name: 'curl' });
@@ -2168,7 +2337,7 @@
 
     // ------------------------------------------------------------ results
     exportBuild() { return RS.cloneBuild(this.build); }
-    power() { return RS.powerScore(this.build); }
+    power() { return RS.powerScore(this.build, this.youth); }
     result() {
       const cleared = this.phase === 'clear' || this.phase === 'victory';
       const base = this.coinsPicked + this.kills / 8 + (cleared ? 40 + 8 * this.lvl : 0);
@@ -2234,7 +2403,7 @@
   // Strong default bot. Picks: evolution > passive that unlocks an evolution path > skill upgrade > ...
   // Graded items rank by grade (히든 and up beat even an evolution); the bot never gambles.
   RS.botChoose = function (choices, build) {
-    const pr = { evolve: 0, skillUp: 2, mate: 3, skill: 4, passive: 5, passiveUp: 6, mateUp: 7, heal: 8, gold: 9, gamble: 10 };
+    const pr = { evolve: 0, skillUp: 2, star: 2.5, mate: 3, skill: 4, passive: 5, passiveUp: 6, mateUp: 7, drill: 7.5, heal: 8, gold: 9, gamble: 10 };
     const tierScore = { super: -3, ultra: -2, hidden: -1, rare: 1.5 };
     const score = (c) => (c.kind === 'relic' ? tierScore[c.tier] : c.kind === 'passive' && build && RS.isPairPassive(build, c.id) ? 1 : pr[c.kind]);
     let bi = 0;

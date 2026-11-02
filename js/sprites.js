@@ -35,6 +35,8 @@
     '....SSSSS....'
   ];
   const HEAD_LEGS = ['...WWW.WWW...', '....BB.BB....', '.............'];
+  // 메시's own pose instead of the heading jump: low on the ball, the ball glued to the front foot (his dribbles)
+  const DRIBBLE_LEGS = ['....WW.WW....', '...WW...WWqq.', '...BB....Bqx.'];
   // 메시 before the growth-hormone treatment (and his whole career in 하드 모드): one torso and one shorts row less
   const kidRows = (rows) => rows.filter((r, i) => i !== 3 && i !== 7);
   const HAIR = {
@@ -101,7 +103,36 @@
 
   const BASE_PAL = { '.': null, s: '#e7b48c', e: '#1a1a1a', H: '#2a1b12', h: '#e2c068', f: '#7a5a46', b: '#4a2e1c',
     K: '#ffffff', k: '#dddddd', S: '#ffffff', W: '#ffffff', B: '#222222', C: '#444444', Y: '#f4d43a', y: '#ffe98a',
-    G: '#e0a822', g: '#ffd75a', O: '#c06a2a', o: '#f2a35a', R: '#d22b2b', c: '#7a4a22' };
+    G: '#e0a822', g: '#ffd75a', O: '#c06a2a', o: '#f2a35a', R: '#d22b2b', c: '#7a4a22', q: '#f8f8f8', x: '#26262a' };
+
+  // ---------------------------------------------------------------- HD people (opt.hd)
+  // People are drawn at twice the detail: Scale2x rounds the 13×16 template's stair-step edges, every colour
+  // area gets a light rim on its upper-left and a shade on its lower-right (light from the upper left, like the
+  // balls), eyes get a glint, and the outline is one crisp dark pixel plus a soft one. The renderer draws them
+  // back at world size on its 2× canvas, so the art reads finer while the sizes stay the same.
+  const SHADE_GROUP = { s: 1, e: 1, b: 1, H: 2, h: 2, f: 2, K: 3, A: 3, Y: 3, R: 3, S: 4, W: 5, B: 6, C: 7, q: 8, x: 8 };
+  // Scale2x (EPX) on a char grid. Eyes are kept as solid 2×2 blocks (smoothing would chip them).
+  function scale2x(rows) {
+    const h = rows.length, w = Math.max(...rows.map((r) => r.length));
+    const at = (i, j) => { const ch = j < 0 || j >= h || i < 0 || i >= w ? '.' : rows[j][i] || '.'; return ch === 'e' ? 's' : ch; };
+    const out = [];
+    for (let j = 0; j < h; j++) {
+      let r0 = '', r1 = '';
+      for (let i = 0; i < w; i++) {
+        if ((rows[j][i] || '.') === 'e') { r0 += 'ee'; r1 += 'ee'; continue; }
+        const P = at(i, j), A = at(i, j - 1), B = at(i + 1, j), C = at(i - 1, j), D = at(i, j + 1);
+        r0 += (C === A && C !== D && A !== B ? A : P) + (A === B && A !== C && B !== D ? B : P);
+        r1 += (D === C && D !== B && C !== A ? C : P) + (B === D && B !== A && D !== C ? D : P);
+      }
+      out.push(r0, r1);
+    }
+    return out;
+  }
+  // Mix a #rrggbb colour toward [r,g,b] by k.
+  function mixTo(hex, t, k) {
+    const n = parseInt(hex.slice(1), 16), c = [n >> 16, (n >> 8) & 255, n & 255];
+    return '#' + c.map((v, i) => Math.round(v + (t[i] - v) * k).toString(16).padStart(2, '0')).join('');
+  }
 
   function canvas(w, h) {
     const c = document.createElement('canvas');
@@ -111,52 +142,64 @@
 
   // Render a char grid with palette + per-pixel kit pattern. Adds outline. Returns canvas.
   // opt.glow: a second, bright outline ring outside the dark one (the player's "I am the hero" halo).
+  // opt.hd: twice the detail (see HD people above); the canvas is twice the size.
   function paint(rows, pal, opt) {
     opt = opt || {};
-    const sc = opt.scale || 1;
-    const pad = opt.glow ? 2 : 1;
-    const h = rows.length, w = Math.max(...rows.map((r) => r.length));
+    const sc = opt.scale || 1, hd = opt.hd ? 2 : 1;
+    const grid = hd === 2 ? scale2x(rows) : rows;
+    const w0 = Math.max(...rows.map((r) => r.length));
+    const h = grid.length, w = w0 * hd;
+    const glowN = opt.glow ? hd : 0, pad = hd + glowN; // outline rings (hd: crisp + soft), then the glow
     const W = (w + pad * 2) * sc, H = (h + pad * 2) * sc;
     const c = canvas(W, H);
     const x = c.getContext('2d');
+    const at = (i, j) => (j < 0 || j >= h || i < 0 || i >= w ? '.' : grid[j][i] || '.');
     const fill = [];
     for (let j = 0; j < h; j++) {
       for (let i = 0; i < w; i++) {
-        const ch = rows[j][i] || '.';
+        const ch = at(i, j);
         let col = pal[ch] !== undefined ? pal[ch] : BASE_PAL[ch];
         if (ch === 'K' && opt.pattern && pal.k2) {
-          const p = opt.pattern;
-          const alt = (p === 'hoops' && j % 2 === 0) || (p === 'stripes' && i % 2 === 1) ||
-            (p === 'trim' && (j === opt.collar || i === 1 || i === w - 2)) ||
-            (p === 'sash' && ((i - j + 40) % 7 === 0));
+          const p = opt.pattern, bi = Math.floor(i / hd), bj = Math.floor(j / hd);
+          const alt = (p === 'hoops' && bj % 2 === 0) || (p === 'stripes' && bi % 2 === 1) ||
+            (p === 'trim' && (bj === opt.collar || bi === 1 || bi === w0 - 2)) ||
+            (p === 'sash' && ((bi - bj + 40) % 7 === 0));
           if (alt) col = pal.k2;
         }
-        if (opt.white && col) col = '#ffffff';
         if (!col) continue;
+        if (opt.white) col = '#ffffff';
+        else if (hd === 2 && col[0] === '#') {
+          const g = SHADE_GROUP[ch];
+          if (ch === 'e' && i % 2 === 1 && j % 2 === 0) col = '#f2f2f2'; // eye glint, upper right
+          else if (g) {
+            const same = (a, b) => SHADE_GROUP[at(a, b)] === g;
+            if (!same(i + 1, j) || !same(i, j + 1)) col = mixTo(col, [0, 0, 0], 0.26);
+            else if (!same(i - 1, j) || !same(i, j - 1)) col = mixTo(col, [255, 255, 255], 0.2);
+          }
+        }
         fill.push([i, j]);
         x.fillStyle = col;
         x.fillRect((i + pad) * sc, (j + pad) * sc, sc, sc);
       }
     }
-    // outline (4-neighbour ring), then the optional glow ring (8-neighbour, one step further out)
+    // outline (4-neighbour rings: one; hd: a crisp one and a soft one), then the optional glow (8-neighbour)
     const on = new Set(fill.map(([i, j]) => i + ',' + j));
-    const ring = [];
-    x.fillStyle = opt.white ? 'rgba(255,255,255,0.9)' : (opt.outline || 'rgba(16,12,10,0.95)');
-    for (const [i, j] of fill) {
-      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const ni = i + di, nj = j + dj, key = ni + ',' + nj;
-        if (!on.has(key)) { on.add(key); ring.push([ni, nj]); x.fillRect((ni + pad) * sc, (nj + pad) * sc, sc, sc); }
-      }
-    }
-    if (opt.glow) {
-      x.fillStyle = opt.white ? 'rgba(255,255,255,0.9)' : opt.glow;
-      for (const [i, j] of ring) {
+    const dark = opt.white ? 'rgba(255,255,255,0.9)' : (opt.outline || 'rgba(16,12,10,0.95)');
+    const ring = (from, style, diag) => {
+      const out = [];
+      x.fillStyle = style;
+      for (const [i, j] of from) {
         for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+          if ((!di && !dj) || (!diag && di && dj)) continue;
           const ni = i + di, nj = j + dj, key = ni + ',' + nj;
-          if (!on.has(key)) { on.add(key); x.fillRect((ni + pad) * sc, (nj + pad) * sc, sc, sc); }
+          if (!on.has(key)) { on.add(key); out.push([ni, nj]); x.fillRect((ni + pad) * sc, (nj + pad) * sc, sc, sc); }
         }
       }
-    }
+      return out;
+    };
+    let edge = ring(fill, dark, false);
+    if (hd === 2) edge = edge.concat(ring(edge, opt.white ? 'rgba(255,255,255,0.45)' : (opt.outline ? dark : 'rgba(16,12,10,0.5)'), false));
+    if (opt.glow) for (let k = 0; k < glowN; k++) edge = ring(edge, opt.white ? 'rgba(255,255,255,0.9)' : opt.glow, true);
     return c;
   }
   // Enemy kits are pulled toward a dull slate tone so the vivid, gold-ringed hero reads at a glance.
@@ -178,22 +221,26 @@
     return o;
   }
 
-  // Sprite = { frames: [{n, f, w}], w, h } ; n normal, f flipped, w white flash
+  // Sprite = { frames: [{n, f, w}], w, h, hd } ; n normal, f flipped, w white flash. People are HD (opt.hd
+  // defaults on): canvases are hd× the size and w/h are world units, so draw them with an explicit w, h.
   function makeSprite(frameRows, pal, opt) {
+    opt = Object.assign({ hd: true }, opt);
     const frames = frameRows.map((rows) => {
       const n = paint(rows, pal, opt);
       const wcan = paint(rows, pal, Object.assign({}, opt, { white: true }));
       return { n, f: flip(n), w: wcan, wf: flip(wcan) };
     });
-    return { frames, w: frames[0].n.width, h: frames[0].n.height };
+    const hd = opt.hd ? 2 : 1;
+    return { frames, w: frames[0].n.width / hd, h: frames[0].n.height / hd, hd };
   }
 
-  // pose: undefined → 4 run frames; 'kick' / 'head' → one posed frame
+  // pose: undefined → 4 run frames; 'kick' / 'head' / 'dribble' → one posed frame
   function person(hair, pose, kid) {
     const head = (HAIR[hair] || HAIR.short).map(pad);
     const body = kid ? kidRows(BODY) : BODY;
     if (pose === 'kick') return [head.concat(body, KICK_LEGS)];
     if (pose === 'head') return [head.concat(kid ? kidRows(HEAD_BODY) : HEAD_BODY, HEAD_LEGS)];
+    if (pose === 'dribble') return [head.concat(body, DRIBBLE_LEGS)];
     return LEGS.map((legs) => head.concat(body, legs));
   }
 
@@ -333,11 +380,12 @@
 
   RS.Sprites = {
     ronaldo(yearIdx, scale, yd) { return RS.Sprites.hero('ronaldo', yearIdx, scale, yd); },
-    // Player sprite for a hero: frames 0-3 run cycle, 4 kick pose, 5 heading jump (see Renderer.drawPlayer)
+    // Player sprite for a hero: frames 0-3 run cycle, 4 kick pose, 5 날두's heading jump / 메시's dribble
+    // (see Renderer.drawPlayer)
     hero(hero, yearIdx, scale, yd, small) {
       const L = RS.heroLook(hero, yearIdx, yd, small);
       return get(L.key + '|' + (scale || 1), () => {
-        const frames = person(L.hair, null, L.kid).concat(person(L.hair, 'kick', L.kid), person(L.hair, 'head', L.kid));
+        const frames = person(L.hair, null, L.kid).concat(person(L.hair, 'kick', L.kid), person(L.hair, hero === 'messi' ? 'dribble' : 'head', L.kid));
         if (L.armband) for (const f of frames) f[7] = f[7].slice(0, 2) + 'A' + f[7].slice(3);
         const pal = hero === 'messi'
           ? kitPal(L.kit, { H: '#4a3020', b: '#4a3020', B: L.goldBoots ? '#f0c030' : '#f0f0f0', A: '#75aadb', s: '#e8b48e' })
@@ -361,8 +409,9 @@
         const pal = def.role === 'keeper'
           ? { K: '#2fd36b', k2: '#1a1a1a', S: '#1a1a1a', W: '#2fd36b', H: def.hair, s: def.skin, C: '#1a1a1a', B: '#222' }
           : kitPal(era.kit, { H: def.hair, s: def.skin, f: def.hair });
-        // teammates: a thin green ring so "ours" reads apart from the dull enemy crowd without rivalling the hero
-        return makeSprite(person(hair), pal, { pattern: def.role === 'keeper' ? 'trim' : era.kit.pattern, collar: 6, glow: 'rgba(80,230,130,0.85)' });
+        // teammates: a thin green ring so "ours" reads apart from the dull enemy crowd without rivalling the hero.
+        // Frames 0-3 run, 4 kick (a pass or a shot).
+        return makeSprite(person(hair).concat(person(hair, 'kick')), pal, { pattern: def.role === 'keeper' ? 'trim' : era.kit.pattern, collar: 6, glow: 'rgba(80,230,130,0.85)' });
       });
     },
     coach(coachId, scale) {
@@ -371,10 +420,9 @@
         { K: c.look.suit, k2: '#f4f4f4', S: c.look.suit, W: '#222', H: c.look.hair, B: '#111' }, { pattern: 'trim', collar: 6, scale }));
     },
     enemy(type, yearIdx, tier) {
-      const era = RS.ERAS[RS.YEARS[yearIdx].era];
-      const foe = era.foe;
+      const foe = RS.foeColors(yearIdx); // the era's opponents, or a named foe's kit (첼씨 blue)
       tier = tier || 0;
-      return get('en|' + type + '|' + RS.YEARS[yearIdx].era + '|' + tier, () => {
+      return get('en|' + type + '|' + foe.join() + '|' + tier, () => {
         const o = (opt) => Object.assign({}, opt, tier ? { outline: TIER_OUTLINE[tier] } : {});
         const P = (pal) => tiered(dull(pal), tier);
         switch (type) {
@@ -390,8 +438,8 @@
       });
     },
     boss(spriteKey, yearIdx) {
-      const era = RS.ERAS[RS.YEARS[yearIdx].era];
-      return get('boss|' + spriteKey + '|' + RS.YEARS[yearIdx].era, () => {
+      const foe = RS.foeColors(yearIdx);
+      return get('boss|' + spriteKey + '|' + foe.join(), () => {
         const sc = 2;
         switch (spriteKey) {
           case 'bkeeper': return makeSprite(person('cap'), { K: '#f2e600', k2: '#111', S: '#111', W: '#f2e600', C: '#111', H: '#222' }, { pattern: 'trim', collar: 6, scale: sc });
@@ -399,7 +447,9 @@
           case 'bmaestro': return makeSprite(person('long'), { K: '#1b3f92', k2: '#9b1b3a', S: '#1b3f92', W: '#1b3f92', H: '#2a1a10' }, { pattern: 'stripes', scale: sc });
           case 'bstriker': return makeSprite(person('slick'), { K: '#ff7a1a', k2: '#1a1a1a', S: '#1a1a1a', W: '#ff7a1a', H: '#e2c068' }, { pattern: 'trim', collar: 6, scale: sc });
           case 'bref': return makeSprite(person('bald').map((f) => { f = f.slice(); f[8] = '..s.KKKKK.R..'; f[9] = '..s.KKKKK.R..'; return f; }), { K: '#111', k2: '#111', S: '#111', W: '#111', R: '#e01b1b' }, { scale: sc });
-          case 'bgiant': return makeSprite([0, 1].map((i) => TANK.concat(TANK_LEGS[i])), { K: era.foe[1], k2: '#111', S: '#111', W: era.foe[1], H: '#111', s: '#c98a66' }, { pattern: 'trim', collar: 5, scale: sc });
+          case 'bgiant': return makeSprite([0, 1].map((i) => TANK.concat(TANK_LEGS[i])), { K: foe[1], k2: '#111', S: '#111', W: foe[1], H: '#111', s: '#c98a66' }, { pattern: 'trim', collar: 5, scale: sc });
+          // 드록빠: 첼씨 royal blue with white trim and socks, close-cropped hair
+          case 'bdrogba': return makeSprite(person('fade'), { K: '#1a56b8', k2: '#f2f2f2', S: '#1a56b8', W: '#f2f2f2', H: '#111111', f: '#111111', s: '#5a3a26' }, { pattern: 'trim', collar: 6, scale: sc });
           case 'messi': return RS.Sprites.messi(1);
           case 'ronaldo': { const ry = RS.YEARS_RONALDO; return RS.Sprites.hero('ronaldo', ry.length - 1, 1, ry[ry.length - 1]); }
         }
@@ -474,11 +524,11 @@
     },
     // Canvas element (CSS-scaled) for DOM screens.
     toCanvas(sprite, frame, cssScale) {
-      const src = sprite.frames ? sprite.frames[frame || 0].n : sprite.n;
+      const src = sprite.frames ? sprite.frames[frame || 0].n : sprite.n, k = sprite.hd || 1;
       const c = canvas(src.width, src.height);
       c.getContext('2d').drawImage(src, 0, 0);
-      c.style.width = (src.width * cssScale) + 'px';
-      c.style.height = (src.height * cssScale) + 'px';
+      c.style.width = (src.width / k * cssScale) + 'px';
+      c.style.height = (src.height / k * cssScale) + 'px';
       c.className = 'pix';
       return c;
     }

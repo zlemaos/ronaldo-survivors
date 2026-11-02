@@ -58,7 +58,7 @@ test('skill and passive slot limits are respected by choices', () => {
   assert.equal(RS.applyChoice(b, { kind: 'skill', id: 'siuu' }), b.skillOrder.length < RS.MAX_SKILLS && !b.skills.siuu);
 });
 
-test('choices fall back to heal/gold when everything is maxed', () => {
+test('a maxed build still gets a real choice: ★ awakening of evolved moves, then 개인 훈련 and a heal', () => {
   const b = RS.newBuild();
   b.skills = {}; b.skillOrder = [];
   for (const id of Object.keys(RS.SKILLS).slice(0, 6)) { b.skills[id] = RS.SKILL_MAX; b.skillOrder.push(id); b.evolved[id] = true; }
@@ -66,9 +66,18 @@ test('choices fall back to heal/gold when everything is maxed', () => {
   const all = Object.keys(RS.TEAMMATES).map((id) => ({ id, lv: RS.MATE_MAX_LV }));
   b.teammates = all.slice(0, RS.MAX_MATES);
   b.bench = all.slice(RS.MAX_MATES, RS.MAX_MATES + RS.MAX_BENCH);
-  const c = RS.makeChoices(b, RS.makeRng(1), 5);
-  assert.deepEqual(c.map((x) => x.kind).sort(), ['gold', 'heal']);
-  assert.ok(c.every((x) => x.kind === 'gold' || x.kind === 'heal'));
+  const c = RS.makeChoices(b, RS.makeRng(1), 5, 4);
+  assert.ok(c.length === 4 && c.every((x) => x.kind === 'star'), c.map((x) => x.kind).join());
+  assert.ok(RS.applyChoice(b, c[0]));
+  assert.equal(b.stars[c[0].id], 1);
+  for (const id of b.skillOrder) b.stars[id] = RS.STAR_MAX;
+  const d = RS.makeChoices(b, RS.makeRng(1), 5, 4);
+  assert.deepEqual(d.map((x) => x.kind), ['drill', 'drill', 'drill', 'heal']);
+  assert.equal(new Set(d.map((x) => x.id)).size, 4, 'no card twice');
+  const before = RS.computeStats(b, {});
+  for (let i = 0; i < 3; i++) assert.ok(RS.applyChoice(b, { kind: 'drill', id: 'shoot' }), 'drills have no cap');
+  assert.equal(b.drills.shoot, 3);
+  assert.ok(RS.computeStats(b, {}).dmg > before.dmg);
 });
 
 test('player takes contact damage with armor and i-frames', () => {

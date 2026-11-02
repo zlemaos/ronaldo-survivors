@@ -53,7 +53,7 @@ test('squad: role buffs on the pitch, a third of them on the bench, named partne
   const base = RS.computeStats(b, {});
   assert.equal(RS.addMate(b, byRole('striker')), 'pitch');
   const one = RS.computeStats(b, {});
-  assert.ok(Math.abs(one.dmg - base.dmg - RS.ROLE_BUFF.striker.mods.dmg) < 1e-9, 'striker buff on the pitch');
+  assert.ok(Math.abs(one.dmg - base.dmg - RS.ROLE_BUFF.striker.mods.dmg * RS.mateMul(byRole('striker'))) < 1e-9, 'striker buff on the pitch, scaled by his OVR');
   assert.equal(RS.pairSynergy(b), null);
   assert.equal(RS.addMate(b, byRole('mid')), 'pitch');
   const pair = RS.pairSynergy(b);
@@ -62,7 +62,7 @@ test('squad: role buffs on the pitch, a third of them on the bench, named partne
   assert.ok(two.teamDmg > one.teamDmg, 'partnership applies');
   assert.equal(RS.addMate(b, byRole('keeper')), 'bench');
   const three = RS.computeStats(b, {});
-  assert.equal(three.maxHp - two.maxHp, Math.round(RS.ROLE_BUFF.keeper.mods.hp * RS.BENCH_FACTOR), 'bench keeper gives a third');
+  assert.equal(three.maxHp - two.maxHp, Math.round(RS.ROLE_BUFF.keeper.mods.hp * RS.BENCH_FACTOR * RS.mateMul(byRole('keeper'))), 'bench keeper gives a third');
   // bench → pitch swaps with a starter and changes the partnership
   const striker = b.teammates[0].id;
   assert.equal(RS.toggleBench(b, byRole('keeper'), striker), true);
