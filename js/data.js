@@ -5,8 +5,36 @@
 
   RS.MAX_SKILLS = 6;
   RS.MAX_PASSIVES = 6;
-  RS.MAX_MATES = 5;
+  RS.MAX_MATES = 2;   // on the pitch with 날두
+  RS.MAX_BENCH = 3;   // bench warmers: weak passive synergy only
+  RS.BENCH_FACTOR = 0.34;
   RS.MATE_MAX_LV = 5;
+  // What each role gives the team while on the pitch (bench: ×BENCH_FACTOR). Shown on every teammate card.
+  RS.ROLE_BUFF = {
+    defender: { mods: { armor: 1 }, text: '받는 피해 -1' },
+    keeper: { mods: { hp: 15 }, text: '최대 체력 +15' },
+    winger: { mods: { moveSpeed: 0.06 }, text: '이동속도 +6%' },
+    mid: { mods: { cd: -0.05 }, text: '쿨타임 -5%' },
+    striker: { mods: { dmg: 0.08 }, text: '공격력 +8%' }
+  };
+  // Two players on the pitch make a named partnership (key = roles sorted and joined with '+').
+  RS.PAIR_SYNERGY = {
+    'mid+striker': { name: '원투 패스', desc: '동료 공격력 +25%', mods: { teamDmg: 0.25 } },
+    'defender+keeper': { name: '철벽 수비', desc: '받는 피해 -1, 최대 체력 +10', mods: { armor: 1, hp: 10 } },
+    'striker+winger': { name: '역습 축구', desc: '치명타 +8%', mods: { crit: 0.08 } },
+    'mid+winger': { name: '측면 크로스', desc: '동료 쿨타임 -20%', mods: { teamCd: -0.2 } },
+    'defender+striker': { name: '롱볼 축구', desc: '공격력 +6%, 투사체 속도 +10%', mods: { dmg: 0.06, projSpeed: 0.1 } },
+    'keeper+mid': { name: '빌드업', desc: '초당 체력 +0.3', mods: { regen: 0.3 } },
+    'defender+winger': { name: '오버래핑', desc: '이동속도 +5%, 범위 +6%', mods: { moveSpeed: 0.05, area: 0.06 } },
+    'keeper+striker': { name: '골킥 카운터', desc: '보스에게 주는 피해 +12%', mods: { bossDmg: 0.12 } },
+    'defender+mid': { name: '중원 장악', desc: '경험치 +10%', mods: { xp: 0.1 } },
+    'keeper+winger': { name: '빠른 전환', desc: '쿨타임 -4%, 이동속도 +4%', mods: { cd: -0.04, moveSpeed: 0.04 } },
+    'striker+striker': { name: '투톱', desc: '동료 공격력 +30%', mods: { teamDmg: 0.3 } },
+    'defender+defender': { name: '더블 센터백', desc: '받는 피해 -2', mods: { armor: 2 } },
+    'mid+mid': { name: '더블 볼란치', desc: '쿨타임 -8%', mods: { cd: -0.08 } },
+    'winger+winger': { name: '양 날개', desc: '이동속도 +10%', mods: { moveSpeed: 0.1 } },
+    'keeper+keeper': { name: '골키퍼 둘', desc: '최대 체력 +30', mods: { hp: 30 } }
+  };
 
   // ---------------------------------------------------------------- Skills (active, auto-firing)
   // Each skill: lv[] holds stats for level 1..max; evo holds evolved stats. passive = paired passive for evolution.
@@ -335,7 +363,7 @@
     striker: { hp: 420, fight: 1, speed: 42, r: 12, dmg: 12, actions: ['snipe', 'burst', 'dash', 'snipe', 'burst'], cool: 1.8, sprite: 'bstriker', sig: '강슛 저격·연사' },
     referee: { hp: 400, fight: 1, speed: 36, r: 12, dmg: 10, actions: ['cards', 'pslam', 'summon', 'cards', 'wall'], cool: 1.9, sprite: 'bref', sig: '카드 세례·소환' },
     giant: { hp: 640, fight: 1.15, speed: 25, r: 18, dmg: 18, actions: ['pslam', 'ring', 'slam', 'wall', 'pslam'], cool: 2.0, sprite: 'bgiant', sig: '지면 강타·링' },
-    messi: { hp: 700, fight: 2.2, speed: 70, r: 9, dmg: 18, actions: [], cool: 1.25, sprite: 'messi', sig: '드리블·감아차기·발리' } // the final: a long duel
+    messi: { hp: 700, fight: 1.4, speed: 70, r: 9, dmg: 18, actions: [], cool: 1.25, sprite: 'messi', sig: '드리블·감아차기·발리' } // the final: a long duel
   };
   // 메시: phase 1 → roar at 50 % HP → phase 2 rage.
   RS.MESSI = {

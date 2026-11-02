@@ -54,6 +54,7 @@ test('club change opens a transfer window: sign or swap (level passes on)', () =
   const rng = RS.makeRng(4);
   const b = save.career.build;
   for (const id of ['tumblenano', 'hugovia', 'lisbongk', 'gingerscorp', 'looneytoon']) RS.addMate(b, id);
+  assert.ok(RS.squadFull(b));
   b.teammates[0].lv = 4;
   save.career.yearIdx = 7; save.career.coachDone = 7; // 2009: Madrid
   assert.equal(RS.clubChanged(7), true);
@@ -66,6 +67,7 @@ test('club change opens a transfer window: sign or swap (level passes on)', () =
   assert.equal(m.lv, 4, 'inherits level');
   assert.ok(!b.teammates.some((x) => x.id === 'tumblenano'));
   assert.equal(b.teammates.length, RS.MAX_MATES);
+  assert.equal(b.bench.length, RS.MAX_BENCH);
   assert.equal(save.career.snapshots[7].teammates.find((x) => x.id === offers[0]).lv, 4);
   RS.finishTransfers(save, 7);
   assert.deepEqual(RS.transferOffers(save, 7, rng), [], 'window closes once handled');
@@ -86,6 +88,7 @@ test('rescue marker with a full squad offers an in-run swap', () => {
   for (const id of ['tumblenano', 'hugovia', 'lisbongk', 'gingerscorp', 'looneytoon']) RS.addMate(b, id);
   b.teammates[1].lv = 3;
   const w = new RS.World({ yearIdx: 8, build: b, seed: 2 }); // Madrid
+  assert.equal(w.mates.length, RS.MAX_MATES, 'only the starters run on the pitch');
   w.debug.godMode = true;
   w.spawnRescue();
   assert.ok(w.rescue && w.rescue.swap);
@@ -93,7 +96,7 @@ test('rescue marker with a full squad offers an in-run swap', () => {
   w.player.x = w.rescue.x; w.player.y = w.rescue.y;
   for (let i = 0; i < 80 && w.phase === 'play'; i++) w.updateRescue(1 / 60);
   assert.equal(w.phase, 'swap');
-  assert.equal(w.swapChoices.length, RS.MAX_MATES + 1);
+  assert.equal(w.swapChoices.length, RS.MAX_MATES + RS.MAX_BENCH + 1, 'any starter or bench player can be released');
   const newId = w.swapChoices[1].id;
   assert.equal(w.chooseSwap(1), true);
   assert.equal(w.phase, 'play');

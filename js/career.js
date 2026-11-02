@@ -12,6 +12,7 @@
         cleared: [], // cleared[idx] = true
         coachDone: -1, // coach card for year idx picked when coachDone >= idx
         transferDone: -1, // transfer window for year idx handled when transferDone >= idx
+        rewardDone: -1, // boss reward for year idx picked when rewardDone >= idx
         build: RS.newBuild(),
         snapshots: {}, // idx -> build at the start of that year (after the coach pick)
         finished: false,
@@ -63,8 +64,8 @@
     const pool = coach.cards.filter((c) => !b.coachCards.includes(c.id));
     const out = [];
     while (out.length < 2 && pool.length) out.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
-    const canRecruit = b.teammates.length < RS.MAX_MATES && RS.mateCandidates(b, idx, false).length > 0;
-    const canTrain = b.teammates.some((m) => m.lv < RS.MATE_MAX_LV);
+    const canRecruit = !RS.squadFull(b) && RS.mateCandidates(b, idx, false).length > 0;
+    const canTrain = RS.allMates(b).some((m) => m.lv < RS.MATE_MAX_LV);
     if (canRecruit && (!canTrain || rng() < 0.6)) out.push(RS.COACH_EXTRA.recruit);
     else if (canTrain) out.push(RS.COACH_EXTRA.train);
     while (out.length < 3 && pool.length) out.push(pool.splice(0, 1)[0]);
@@ -84,7 +85,7 @@
       if (!cands.length) cands = RS.mateCandidates(c.build, idx, false);
       if (cands.length) { const id = cands[Math.floor(rng() * cands.length)]; RS.addMate(c.build, id); info.mate = id; }
     } else if (card.id === 'train') {
-      for (const m of c.build.teammates) RS.levelMate(c.build, m.id, 1);
+      for (const m of RS.allMates(c.build)) RS.levelMate(c.build, m.id, 1);
     } else if (card.id === 'rest') {
       save.meta.coins += 40;
     } else if (RS.coachCard(card.id) && !c.build.coachCards.includes(card.id)) {
@@ -109,7 +110,7 @@
   RS.applyTransfer = function (save, idx, newId, outId) {
     const b = save.career.build;
     let ok = true;
-    if (newId) ok = outId ? RS.swapMate(b, outId, newId) : RS.addMate(b, newId);
+    if (newId) ok = outId ? RS.swapMate(b, outId, newId) : !!RS.addMate(b, newId);
     save.career.snapshots[idx] = RS.cloneBuild(b);
     return ok;
   };
@@ -119,7 +120,7 @@
     const offers = RS.transferOffers(save, idx, rng);
     for (const id of offers) {
       const b = save.career.build;
-      RS.applyTransfer(save, idx, id, b.teammates.length < RS.MAX_MATES ? null : b.teammates[0].id);
+      RS.applyTransfer(save, idx, id, RS.squadFull(b) ? b.teammates[0].id : null);
       // the swapped-in player goes to the back of the line
       const i = b.teammates.findIndex((m) => m.id === id);
       if (i >= 0) b.teammates.push(b.teammates.splice(i, 1)[0]);
@@ -173,6 +174,42 @@
     }
     return out;
   };
+
+  // Boss reward: after a season boss falls (career years only) 날두 picks one trophy perk. Permanent for the career.
+  RS.BOSS_REWARDS = [
+    { id: 'hp', icon: '🏆', name: '트로피 체력', desc: '최대 체력 +20 (영구)' },
+    { id: 'reroll', icon: '🎲', name: '베테랑의 눈', desc: '레벨업 다시 뽑기 +1 (매 시즌)' },
+    { id: 'train', icon: '📈', name: '팀 훈련 캠프', desc: '선발·벤치 동료 전원 Lv.+1' },
+    { id: 'coins', icon: '💰', name: '우승 보너스', desc: '코인 +150' },
+    { id: 'coach', icon: '👔', name: '감독의 선물', desc: '이번 시즌 감독 카드 1장 추가' }
+  ];
+  RS.bossRewardChoices = function (save, idx, rng) {
+    const b = save.career.build;
+    const pool = RS.BOSS_REWARDS.filter((r) => {
+      if (r.id === 'train') return RS.allMates(b).some((m) => m.lv < RS.MATE_MAX_LV);
+      if (r.id === 'coach') return RS.COACHES[RS.YEARS[idx].coach].cards.some((c) => !b.coachCards.includes(c.id));
+      return true;
+    });
+    const out = [];
+    while (out.length < 3 && pool.length) out.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+    return out.map((r) => Object.assign({ kind: 'reward', tag: '보스 보상' }, r));
+  };
+  RS.applyBossReward = function (save, idx, card, rng) {
+    const b = save.career.build;
+    const info = { card: card.id };
+    if (card.id === 'hp') b.bonusHp = (b.bonusHp || 0) + 20;
+    else if (card.id === 'reroll') b.bonusReroll = (b.bonusReroll || 0) + 1;
+    else if (card.id === 'train') for (const m of RS.allMates(b)) RS.levelMate(b, m.id, 1);
+    else if (card.id === 'coins') save.meta.coins += 150;
+    else if (card.id === 'coach') {
+      const pool = RS.COACHES[RS.YEARS[idx].coach].cards.filter((c) => !b.coachCards.includes(c.id));
+      if (pool.length) { const c = pool[Math.floor(rng() * pool.length)]; b.coachCards.push(c.id); info.coach = c.id; }
+    }
+    save.career.rewardDone = idx;
+    save.career.snapshots[idx] = RS.cloneBuild(b);
+    return info;
+  };
+  RS.needsBossReward = (save, idx) => !RS.YEARS[idx].final && !!save.career.cleared[idx] && (save.career.rewardDone == null ? -1 : save.career.rewardDone) < idx && save.career.yearIdx === idx + 1;
 
   // New career lap after beating 메시 (meta upgrades are kept).
   RS.newCareer = function (save) {

@@ -63,7 +63,9 @@ test('choices fall back to heal/gold when everything is maxed', () => {
   b.skills = {}; b.skillOrder = [];
   for (const id of Object.keys(RS.SKILLS).slice(0, 6)) { b.skills[id] = RS.SKILL_MAX; b.skillOrder.push(id); b.evolved[id] = true; }
   for (const id of Object.keys(RS.PASSIVES).slice(0, 6)) { b.passives[id] = RS.PASSIVE_MAX; b.passiveOrder.push(id); }
-  b.teammates = Object.keys(RS.TEAMMATES).slice(0, RS.MAX_MATES).map((id) => ({ id, lv: RS.MATE_MAX_LV }));
+  const all = Object.keys(RS.TEAMMATES).map((id) => ({ id, lv: RS.MATE_MAX_LV }));
+  b.teammates = all.slice(0, RS.MAX_MATES);
+  b.bench = all.slice(RS.MAX_MATES, RS.MAX_MATES + RS.MAX_BENCH);
   const c = RS.makeChoices(b, RS.makeRng(1), 5);
   assert.deepEqual(c.map((x) => x.kind).sort(), ['gold', 'heal']);
   assert.ok(c.every((x) => x.kind === 'gold' || x.kind === 'heal'));

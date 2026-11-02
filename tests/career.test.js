@@ -68,6 +68,43 @@ test('clearing a year advances the career, keeps the build and saves/loads', () 
   assert.equal(RS.canPlay(loaded, 2), false);
 });
 
+test('a beaten season boss offers one permanent reward, once, in career years only', () => {
+  const save = RS.newSave();
+  const rng = RS.makeRng(5);
+  RS.applyCoach(save, 0, RS.coachChoices(save, 0, rng)[0], rng);
+  RS.addMate(save.career.build, RS.mateCandidates(save.career.build, 0, false)[0]);
+  const w = RS.startYear(save, 0, { seed: 2 });
+  assert.equal(RS.needsBossReward(save, 0), false, 'nothing before the clear');
+  fakeClear(w);
+  RS.finishYear(save, w);
+  assert.equal(RS.needsBossReward(save, 0), true);
+  const choices = RS.bossRewardChoices(save, 0, rng);
+  assert.equal(choices.length, 3);
+  assert.ok(choices.every((c) => RS.BOSS_REWARDS.some((r) => r.id === c.id)));
+  const hpBefore = RS.computeStats(save.career.build, {}).maxHp;
+  const rrBefore = RS.computeStats(save.career.build, {}).reroll;
+  const lvBefore = save.career.build.teammates[0].lv;
+  const coinsBefore = save.meta.coins;
+  for (const r of RS.BOSS_REWARDS) RS.applyBossReward(save, 0, r, rng);
+  const st = RS.computeStats(save.career.build, {});
+  assert.equal(st.maxHp, hpBefore + 20);
+  assert.equal(st.reroll, rrBefore + 1);
+  assert.equal(save.career.build.teammates[0].lv, lvBefore + 1);
+  assert.equal(save.meta.coins, coinsBefore + 150);
+  assert.ok(save.career.build.coachCards.length >= 2, 'coach gift added a card');
+  assert.equal(RS.needsBossReward(save, 0), false, 'picked once');
+  assert.equal(save.career.snapshots[0].bonusHp, 20, 'snapshot keeps the perk');
+  // replaying year 0 later never re-offers it
+  const w2 = RS.startYear(save, 0, { seed: 3 });
+  w2.debug.godMode = true;
+  const boss = w2.spawnBoss();
+  w2.killEnemy(boss);
+  assert.equal(w2.phase, 'clear');
+  assert.ok(w2.coinsPicked >= 30, 'boss kill banks coins: ' + w2.coinsPicked);
+  RS.finishYear(save, w2);
+  assert.equal(RS.needsBossReward(save, 0), false);
+});
+
 test('dying does not advance; retry starts from the year snapshot', () => {
   const save = RS.newSave();
   const rng = RS.makeRng(4);

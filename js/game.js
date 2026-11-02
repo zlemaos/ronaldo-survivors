@@ -11,8 +11,11 @@
       skills: { kick: 1 }, skillOrder: ['kick'],
       passives: {}, passiveOrder: [],
       evolved: {},
-      teammates: [], // [{id, lv}]
-      coachCards: [] // card ids, stack for the career
+      teammates: [], // on the pitch [{id, lv}], at most MAX_MATES
+      bench: [], // bench warmers [{id, lv}], at most MAX_BENCH (weak passive synergy)
+      coachCards: [], // card ids, stack for the career
+      bonusHp: 0, bonusReroll: 0, // boss rewards (permanent for the career)
+      hero: 'ronaldo'
     };
   };
   RS.cloneBuild = (b) => JSON.parse(JSON.stringify(b));
@@ -24,7 +27,20 @@
     b.skillOrder = b.skillOrder.filter((id) => RS.SKILLS[id] && b.skills[id]);
     b.passiveOrder = b.passiveOrder.filter((id) => RS.PASSIVES[id] && b.passives[id]);
     b.teammates = b.teammates.filter((m) => m && RS.TEAMMATES[m.id]);
+    b.bench = (b.bench || []).filter((m) => m && RS.TEAMMATES[m.id]);
+    // old saves carried up to 5 on the pitch: the extras move to the bench
+    while (b.teammates.length > RS.MAX_MATES) { const m = b.teammates.splice(RS.MAX_MATES, 1)[0]; if (b.bench.length < RS.MAX_BENCH) b.bench.push(m); }
+    b.bench.length = Math.min(b.bench.length, RS.MAX_BENCH);
+    if (!RS.HEROES || !RS.HEROES[b.hero]) b.hero = 'ronaldo';
     return b;
+  };
+  RS.allMates = (b) => b.teammates.concat(b.bench);
+  // Named partnership of the two on the pitch (null with fewer than two).
+  RS.pairSynergy = function (b) {
+    if (b.teammates.length < 2) return null;
+    const key = b.teammates.map((m) => RS.TEAMMATES[m.id].role).sort().join('+');
+    const s = RS.PAIR_SYNERGY[key];
+    return s ? Object.assign({ key }, s) : null;
   };
 
   // One number the player can watch grow: skills, evolutions, passives, teammates and level.
@@ -62,12 +78,18 @@
     for (const id in build.passives) if (RS.PASSIVES[id]) add(RS.PASSIVES[id].mods, build.passives[id]);
     for (const cid of build.coachCards) { const c = RS.coachCard(cid); if (c) add(c.mods, 1); }
     if (metaUpgrades) for (const id in metaUpgrades) if (RS.META[id]) add(RS.META[id].mods, metaUpgrades[id]);
+    // squad: role buffs (pitch full, bench weak) and the partnership of the two on the pitch
+    for (const m of build.teammates) add(RS.ROLE_BUFF[RS.TEAMMATES[m.id].role].mods, 1);
+    for (const m of build.bench || []) add(RS.ROLE_BUFF[RS.TEAMMATES[m.id].role].mods, RS.BENCH_FACTOR);
+    const pair = RS.pairSynergy(build);
+    if (pair) add(pair.mods, 1);
+    const hero = (RS.HEROES && RS.HEROES[build.hero]) || { moveMul: 1 };
     return {
       dmg: 1 + a.dmg, cd: Math.max(0.45, 1 + a.cd), area: 1 + a.area, projSpeed: 1 + a.projSpeed,
-      move: 78 * (1 + a.moveSpeed), maxHp: Math.round(100 + a.hp), magnet: 30 * (1 + a.magnet),
+      move: 78 * hero.moveMul * (1 + a.moveSpeed), maxHp: Math.round(100 + a.hp + (build.bonusHp || 0)), magnet: 30 * (1 + a.magnet),
       crit: Math.min(0.9, 0.05 + a.crit), dur: 1 + a.dur, regen: a.regen, armor: a.armor, xp: 1 + a.xp,
       gold: 1 + a.gold, teamDmg: 1 + a.teamDmg, teamCd: Math.max(0.5, 1 + a.teamCd), bossDmg: 1 + a.bossDmg,
-      revive: a.revive, reroll: a.reroll
+      revive: a.revive, reroll: a.reroll + (build.bonusReroll || 0), armor: Math.round(a.armor)
     };
   };
 
@@ -105,20 +127,44 @@
     return set;
   };
   RS.mateCandidates = function (build, yearIdx, onlyCurrentEra) {
-    const owned = new Set(build.teammates.map((m) => m.id));
+    const owned = new Set(RS.allMates(build).map((m) => m.id));
     const eras = onlyCurrentEra ? [RS.YEARS[yearIdx].era] : RS.erasUpTo(yearIdx);
     return Object.keys(RS.TEAMMATES).filter((id) => !owned.has(id) && eras.includes(RS.TEAMMATES[id].era));
   };
+  RS.squadFull = (build) => build.teammates.length >= RS.MAX_MATES && (build.bench || []).length >= RS.MAX_BENCH;
+  // A new teammate goes on the pitch if there is room, else on the bench. Returns 'pitch' | 'bench' | false.
   RS.addMate = function (build, id) {
-    if (build.teammates.length >= RS.MAX_MATES) return false;
-    if (build.teammates.some((m) => m.id === id) || !RS.TEAMMATES[id]) return false;
-    build.teammates.push({ id, lv: 1 });
-    return true;
+    if (RS.allMates(build).some((m) => m.id === id) || !RS.TEAMMATES[id]) return false;
+    if (build.teammates.length < RS.MAX_MATES) { build.teammates.push({ id, lv: 1 }); return 'pitch'; }
+    if (build.bench.length < RS.MAX_BENCH) { build.bench.push({ id, lv: 1 }); return 'bench'; }
+    return false;
   };
   RS.levelMate = function (build, id, n) {
-    const m = build.teammates.find((x) => x.id === id);
+    const m = RS.allMates(build).find((x) => x.id === id);
     if (!m || m.lv >= RS.MATE_MAX_LV) return false;
     m.lv = Math.min(RS.MATE_MAX_LV, m.lv + (n || 1));
+    return true;
+  };
+  // Pitch ↔ bench. Bench → pitch needs a free pitch slot (or swaps with `withId` on the pitch).
+  RS.toggleBench = function (build, id, withId) {
+    const pi = build.teammates.findIndex((m) => m.id === id);
+    if (pi >= 0) {
+      if (build.bench.length >= RS.MAX_BENCH) return false;
+      build.bench.push(build.teammates.splice(pi, 1)[0]);
+      return true;
+    }
+    const bi = build.bench.findIndex((m) => m.id === id);
+    if (bi < 0) return false;
+    if (withId) {
+      const wi = build.teammates.findIndex((m) => m.id === withId);
+      if (wi < 0) return false;
+      const out = build.teammates[wi];
+      build.teammates[wi] = build.bench.splice(bi, 1)[0];
+      build.bench.push(out);
+      return true;
+    }
+    if (build.teammates.length >= RS.MAX_MATES) return false;
+    build.teammates.push(build.bench.splice(bi, 1)[0]);
     return true;
   };
 
@@ -142,7 +188,18 @@
   };
   RS.mateLine = function (id) {
     const m = RS.TEAMMATES[id], r = RS.ROLES[m.role];
-    return r.name + ': ' + r.desc;
+    return r.name + ': ' + r.desc + ' · 팀 효과 ' + RS.ROLE_BUFF[m.role].text;
+  };
+  // What signing this player would do to the partnership (shown on recruit cards).
+  RS.synergyHint = function (build, id) {
+    const role = RS.TEAMMATES[id].role;
+    if (build.teammates.length >= RS.MAX_MATES) return '벤치: 팀 효과의 1/3만 적용';
+    if (build.teammates.length === 1) {
+      const key = [RS.TEAMMATES[build.teammates[0].id].role, role].sort().join('+');
+      const s = RS.PAIR_SYNERGY[key];
+      return s ? '파트너십 "' + s.name + '": ' + s.desc : '';
+    }
+    return '';
   };
 
   function describe(c, build) {
@@ -154,9 +211,9 @@
       case 'passive': { const p = RS.PASSIVES[c.id]; return Object.assign(c, { name: p.name, icon: p.icon, desc: p.desc, tag: '새 패시브', hint: RS.passiveHint(build, c.id) }); }
       case 'passiveUp': { const p = RS.PASSIVES[c.id]; const nl = build.passives[c.id] + 1;
         return Object.assign(c, { name: p.name, icon: p.icon, desc: p.desc, tag: 'Lv.' + nl + (nl === RS.PASSIVE_MAX ? ' MAX' : ''), hint: RS.passiveHint(build, c.id) }); }
-      case 'mate': { const m = RS.TEAMMATES[c.id];
-        return Object.assign(c, { name: m.name, icon: '🤝', desc: RS.mateLine(c.id), tag: '동료 합류' }); }
-      case 'mateUp': { const m = RS.TEAMMATES[c.id]; const cur = build.teammates.find((x) => x.id === c.id).lv;
+      case 'mate': { const m = RS.TEAMMATES[c.id]; const toBench = build.teammates.length >= RS.MAX_MATES;
+        return Object.assign(c, { name: m.name, icon: toBench ? '🪑' : '🤝', desc: RS.mateLine(c.id), tag: toBench ? '벤치 합류' : '동료 합류', hint: RS.synergyHint(build, c.id) }); }
+      case 'mateUp': { const m = RS.TEAMMATES[c.id]; const cur = RS.allMates(build).find((x) => x.id === c.id).lv;
         return Object.assign(c, { name: m.name, icon: '📈', desc: RS.mateLine(c.id), tag: '동료 Lv.' + (cur + 1) }); }
       case 'gold': return Object.assign(c, { name: '스폰서 보너스', icon: '💰', desc: '코인 +30', tag: '보너스' });
       case 'heal': return Object.assign(c, { name: '에그타르트', icon: '🥧', desc: '체력 40% 회복', tag: '보너스' });
@@ -180,11 +237,11 @@
       const w = sid ? (build.skills[sid] >= RS.SKILL_MAX - 1 ? 6 : 2.4) : 0.9;
       pool.push({ kind: 'passive', id, w });
     }
-    if (build.teammates.length < RS.MAX_MATES) {
+    if (!RS.squadFull(build)) {
       const cands = RS.mateCandidates(build, yearIdx || 0, false);
       for (const id of cands) pool.push({ kind: 'mate', id, w: 1.6 / Math.max(1, cands.length / 2) });
     }
-    for (const m of build.teammates) if (m.lv < RS.MATE_MAX_LV) pool.push({ kind: 'mateUp', id: m.id, w: 1.2 });
+    for (const m of RS.allMates(build)) if (m.lv < RS.MATE_MAX_LV) pool.push({ kind: 'mateUp', id: m.id, w: 1.2 });
     while (out.length < n && pool.length) {
       const c = RS.pickWeighted(rng, pool);
       pool.splice(pool.indexOf(c), 1);
@@ -213,19 +270,21 @@
       case 'passiveUp':
         if (!build.passives[c.id] || build.passives[c.id] >= RS.PASSIVE_MAX) return false;
         build.passives[c.id]++; return true;
-      case 'mate': return RS.addMate(build, c.id);
+      case 'mate': return !!RS.addMate(build, c.id);
       case 'mateUp': return RS.levelMate(build, c.id, 1);
       case 'gold': case 'heal': return true;
     }
     return false;
   };
 
-  // Transfer swap: newId replaces outId and inherits its level (the squad follows the career).
+  // Transfer swap: newId replaces outId (pitch or bench) and inherits its level (the squad follows the career).
   RS.swapMate = function (build, outId, newId) {
-    const i = build.teammates.findIndex((m) => m.id === outId);
-    if (i < 0 || !RS.TEAMMATES[newId] || build.teammates.some((m) => m.id === newId)) return false;
-    build.teammates[i] = { id: newId, lv: build.teammates[i].lv };
-    return true;
+    if (!RS.TEAMMATES[newId] || RS.allMates(build).some((m) => m.id === newId)) return false;
+    for (const list of [build.teammates, build.bench]) {
+      const i = list.findIndex((m) => m.id === outId);
+      if (i >= 0) { list[i] = { id: newId, lv: list[i].lv }; return true; }
+    }
+    return false;
   };
 
   // ================================================================ World
@@ -479,7 +538,7 @@
     }
 
     spawnRescue() {
-      const full = this.build.teammates.length >= RS.MAX_MATES;
+      const full = RS.squadFull(this.build);
       let cands = RS.mateCandidates(this.build, this.yearIdx, true);
       // With a full squad only era players appear: reaching them opens a transfer swap.
       if (!cands.length && !full) cands = RS.mateCandidates(this.build, this.yearIdx, false);
@@ -500,10 +559,12 @@
       if (r.progress >= r.need) {
         this.rescue = null;
         this.addFx('shock', r.x, r.y, { r: 30, dur: 0.4, color: '#7fe0ff' });
-        if (RS.addMate(this.build, r.id)) {
-          this.spawnMateRuntime(this.build.teammates[this.build.teammates.length - 1], r.x, r.y);
+        const where = RS.addMate(this.build, r.id);
+        if (where) {
+          if (where === 'pitch') this.spawnMateRuntime(this.build.teammates[this.build.teammates.length - 1], r.x, r.y);
+          this.recalc();
           this.recruitedThisRun.push(r.id);
-          this.emit('recruit', { id: r.id });
+          this.emit('recruit', { id: r.id, bench: where === 'bench' });
         } else this.openSwap(r.id);
       }
     }
@@ -511,9 +572,9 @@
     // Transfer offer during a run: replace one teammate (the newcomer keeps that level) or keep the squad.
     openSwap(newId) {
       const nm = RS.TEAMMATES[newId];
-      this.swapChoices = this.build.teammates.map((m) => ({
+      this.swapChoices = RS.allMates(this.build).map((m) => ({
         kind: 'swap', id: newId, out: m.id, icon: '🔄', name: nm.name + ' 영입',
-        desc: RS.mateLine(newId), tag: RS.TEAMMATES[m.id].name + ' 방출 · Lv.' + m.lv + ' 승계'
+        desc: RS.mateLine(newId), tag: RS.TEAMMATES[m.id].name + ' 방출 · Lv.' + m.lv + ' 승계' + (this.build.bench.some((b) => b.id === m.id) ? ' (벤치)' : '')
       }));
       this.swapChoices.push({ kind: 'keep', id: newId, icon: '✋', name: '지금 스쿼드 유지', desc: nm.name + ' 영입을 거절한다.', tag: '거절' });
       this.phase = 'swap';
@@ -524,10 +585,13 @@
       if (this.phase !== 'swap' || !this.swapChoices || !this.swapChoices[i]) return false;
       const c = this.swapChoices[i];
       if (c.kind === 'swap' && RS.swapMate(this.build, c.out, c.id)) {
-        const m = this.mates.find((x) => x.id === c.out);
-        const ref = this.build.teammates.find((x) => x.id === c.id);
-        const def = RS.TEAMMATES[c.id];
-        m.id = c.id; m.ref = ref; m.role = def.role; m.dash = null; m.timer = 0.5;
+        const m = this.mates.find((x) => x.id === c.out); // null when the released player sat on the bench
+        if (m) {
+          const ref = this.build.teammates.find((x) => x.id === c.id);
+          const def = RS.TEAMMATES[c.id];
+          m.id = c.id; m.ref = ref; m.role = def.role; m.dash = null; m.timer = 0.5;
+        }
+        this.recalc();
         this.recruitedThisRun.push(c.id);
         this.emit('recruit', { id: c.id, swap: c.out });
       }
@@ -915,9 +979,10 @@
       const xpv = Math.max(1, Math.round(e.xp * this.tune.xpMul));
       if (e.boss) {
         this.addFx('boom', e.x, e.y, { r: 60, dur: 0.8 });
-        this.dropPickup('chest', e.x, e.y, 1);
-        for (let i = 0; i < 12; i++) this.dropPickup('coin', e.x + (this.rng() - 0.5) * 50, e.y + (this.rng() - 0.5) * 50, 2);
-        this.dropPickup('gem', e.x, e.y, xpv * 5);
+        // the season ends here, so the loot is banked directly instead of dropped (coins scale with the year)
+        this.bossCoins = 30 + 6 * this.yearIdx;
+        this.coinsPicked += this.bossCoins;
+        for (let i = 0; i < 12; i++) this.dropPickup('coin', e.x + (this.rng() - 0.5) * 50, e.y + (this.rng() - 0.5) * 50, 0);
         if (this.yearDef.final) {
           this.phase = 'victory';
           this.emit('victory');
@@ -1602,7 +1667,7 @@
       if (!ok) return false;
       if (c.kind === 'gold') this.coinsPicked += 30;
       if (c.kind === 'heal') this.player.hp = Math.min(this.stats.maxHp, this.player.hp + this.stats.maxHp * 0.4);
-      if (c.kind === 'mate') this.spawnMateRuntime(this.build.teammates[this.build.teammates.length - 1]);
+      if (c.kind === 'mate' && this.build.teammates.some((m) => m.id === c.id)) this.spawnMateRuntime(this.build.teammates.find((m) => m.id === c.id));
       if (c.kind === 'evolve') { this.emit('evolve', { id: c.id }); this.emit('siuu'); this.emit('banner', { text: '진화! ' + RS.SKILLS[c.id].evoName }); }
       this.recalc();
       return true;
