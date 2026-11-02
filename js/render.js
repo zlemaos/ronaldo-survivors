@@ -37,7 +37,8 @@
       const p = w.player;
       if (this.shake > 0) this.shake = Math.max(0, this.shake - 1 / 60);
       const sh = this.shake > 0 ? Math.round((Math.random() - 0.5) * 6 * this.shake * 4) : 0;
-      const camX = Math.round(p.x - V.w / 2) + sh, camY = Math.round(p.y - V.h / 2);
+      const camDy = ui && ui.camDy ? Math.round(ui.camDy * V.h) : 0; // title screen: player sits low
+      const camX = Math.round(p.x - V.w / 2) + sh, camY = Math.round(p.y - V.h / 2) - camDy;
       this.camX = camX; this.camY = camY;
       const eraKey = w.yearDef.era;
       const th = RS.ERAS[eraKey].theme;
@@ -118,7 +119,7 @@
         L.drawImage(m.face < 0 ? fr.f : fr.n, Math.round(sx - spr.w / 2), Math.round(sy - spr.h / 2));
         if (m.role === 'keeper') {
           L.strokeStyle = 'rgba(80,255,150,' + (m.punch > 0 ? 0.7 : 0.18) + ')';
-          L.lineWidth = 1; L.beginPath(); L.arc(Math.round(sx), Math.round(sy), 26 + 5 * m.ref.lv, 0, TAU); L.stroke();
+          L.lineWidth = 1; L.beginPath(); L.arc(Math.round(sx), Math.round(sy), RS.keeperRadius(m.ref.lv), 0, TAU); L.stroke();
         }
         // role pip
         L.fillStyle = { defender: '#5aa0ff', keeper: '#3ce07a', winger: '#ffb03a', mid: '#c070ff', striker: '#ff4a5a' }[m.role];
@@ -142,7 +143,9 @@
       for (const ep of w.eprojs) {
         if (!ep.alive) continue;
         const it = S.item(ep.kind === 'ball' ? 'eball' : ep.kind);
+        if (ep.wait > 0) L.globalAlpha = 0.35 + 0.35 * Math.sin(w.t * 30); // closing ring: telegraph
         L.drawImage(it.n, Math.round(ep.x - camX) - (it.w >> 1), Math.round(ep.y - camY) - (it.h >> 1));
+        L.globalAlpha = 1;
       }
 
       // fx
@@ -232,15 +235,18 @@
         L.translate(Math.round(t.x - camX), Math.round(t.y - camY));
         L.rotate(t.a);
         L.fillStyle = 'rgba(255,60,60,' + a + ')';
-        L.fillRect(0, -7, t.len, 14);
+        if (t.thin) L.fillRect(0, -2, t.len, 4); // 강슛 aim line
+        else L.fillRect(0, -7, t.len, 14);
         L.fillStyle = 'rgba(255,255,255,' + (a * 0.8) + ')';
         L.fillRect(0, -1, t.len * t.p, 2);
         L.restore();
-      } else if (t.kind === 'circle') {
-        L.fillStyle = 'rgba(255,90,60,' + (a * 0.6) + ')';
-        L.beginPath(); L.arc(Math.round(t.x - camX), Math.round(t.y - camY), t.r, 0, TAU); L.fill();
-        L.strokeStyle = 'rgba(255,255,255,0.8)'; L.lineWidth = 1;
-        L.beginPath(); L.arc(Math.round(t.x - camX), Math.round(t.y - camY), t.r * t.p, 0, TAU); L.stroke();
+      } else if (t.kind === 'circles') {
+        for (const c of t.spots) {
+          L.fillStyle = 'rgba(255,90,60,' + (a * 0.6) + ')';
+          L.beginPath(); L.arc(Math.round(c.x - camX), Math.round(c.y - camY), t.r, 0, TAU); L.fill();
+          L.strokeStyle = 'rgba(255,255,255,0.8)'; L.lineWidth = 1;
+          L.beginPath(); L.arc(Math.round(c.x - camX), Math.round(c.y - camY), t.r * t.p, 0, TAU); L.stroke();
+        }
       }
     }
 

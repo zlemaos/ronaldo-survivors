@@ -28,7 +28,7 @@
   };
 
   RS.xpToNext = function (level) {
-    return Math.floor(6 + level * 5 + Math.max(0, level - 12) * 6 + Math.max(0, level - 30) * 12);
+    return Math.floor(6 + level * 5 + Math.max(0, level - 12) * 6 + Math.max(0, level - 30) * 14 + Math.max(0, level - 50) * 30);
   };
 
   let COACH_CARDS = null;
@@ -109,19 +109,41 @@
   };
 
   // ================================================================ Level-up choices
+  // A passive that pairs with an owned skill can always be taken (it ignores the passive slot cap),
+  // so every owned skill can reach its evolution.
+  RS.isPairPassive = (build, pid) => build.skillOrder.some((sid) => RS.SKILLS[sid].passive === pid);
+  RS.canTakePassive = (build, pid) => !build.passives[pid] && !!RS.PASSIVES[pid] &&
+    (build.passiveOrder.length < RS.MAX_PASSIVES || RS.isPairPassive(build, pid));
+  RS.evoHint = function (build, sid) {
+    const s = RS.SKILLS[sid];
+    if (build.evolved[sid]) return '진화 완료';
+    const p = RS.PASSIVES[s.passive];
+    return build.passives[s.passive] ? '진화: Lv.6 + ' + p.name + ' ✓' : '진화: Lv.6 + ' + p.name + ' 패시브 필요';
+  };
+  RS.passiveHint = function (build, pid) {
+    const sid = Object.keys(RS.SKILLS).find((k) => RS.SKILLS[k].passive === pid);
+    if (!sid) return '';
+    const s = RS.SKILLS[sid];
+    return build.skills[sid] ? '진화 짝: ' + s.name + ' → ' + s.evoName : '진화 짝: ' + s.name + ' (스킬 필요)';
+  };
+  RS.mateLine = function (id) {
+    const m = RS.TEAMMATES[id], r = RS.ROLES[m.role];
+    return r.name + ': ' + r.desc;
+  };
+
   function describe(c, build) {
     switch (c.kind) {
-      case 'skill': { const s = RS.SKILLS[c.id]; return Object.assign(c, { name: s.name, icon: s.icon, desc: s.desc, tag: '새 스킬' }); }
+      case 'skill': { const s = RS.SKILLS[c.id]; return Object.assign(c, { name: s.name, icon: s.icon, desc: s.desc, tag: '새 스킬', hint: RS.evoHint(build, c.id) }); }
       case 'skillUp': { const s = RS.SKILLS[c.id]; const nl = build.skills[c.id] + 1;
-        return Object.assign(c, { name: s.name, icon: s.icon, desc: s.ups[nl - 1], tag: 'Lv.' + nl + (nl === RS.SKILL_MAX ? ' MAX' : '') }); }
-      case 'evolve': { const s = RS.SKILLS[c.id]; return Object.assign(c, { name: s.evoName, icon: s.evoIcon, desc: s.evoDesc, tag: '진화!' }); }
-      case 'passive': { const p = RS.PASSIVES[c.id]; return Object.assign(c, { name: p.name, icon: p.icon, desc: p.desc, tag: '새 패시브' }); }
+        return Object.assign(c, { name: s.name, icon: s.icon, desc: s.ups[nl - 1], tag: 'Lv.' + nl + (nl === RS.SKILL_MAX ? ' MAX' : ''), hint: RS.evoHint(build, c.id) }); }
+      case 'evolve': { const s = RS.SKILLS[c.id]; return Object.assign(c, { name: s.evoName, icon: s.evoIcon, desc: s.evoDesc, tag: '진화!', hint: s.name + ' + ' + RS.PASSIVES[s.passive].name }); }
+      case 'passive': { const p = RS.PASSIVES[c.id]; return Object.assign(c, { name: p.name, icon: p.icon, desc: p.desc, tag: '새 패시브', hint: RS.passiveHint(build, c.id) }); }
       case 'passiveUp': { const p = RS.PASSIVES[c.id]; const nl = build.passives[c.id] + 1;
-        return Object.assign(c, { name: p.name, icon: p.icon, desc: p.desc, tag: 'Lv.' + nl + (nl === RS.PASSIVE_MAX ? ' MAX' : '') }); }
-      case 'mate': { const m = RS.TEAMMATES[c.id]; const r = RS.ROLES[m.role];
-        return Object.assign(c, { name: m.name, icon: '🤝', desc: r.desc, tag: '동료 합류 · ' + r.name }); }
+        return Object.assign(c, { name: p.name, icon: p.icon, desc: p.desc, tag: 'Lv.' + nl + (nl === RS.PASSIVE_MAX ? ' MAX' : ''), hint: RS.passiveHint(build, c.id) }); }
+      case 'mate': { const m = RS.TEAMMATES[c.id];
+        return Object.assign(c, { name: m.name, icon: '🤝', desc: RS.mateLine(c.id), tag: '동료 합류' }); }
       case 'mateUp': { const m = RS.TEAMMATES[c.id]; const cur = build.teammates.find((x) => x.id === c.id).lv;
-        return Object.assign(c, { name: m.name, icon: '📈', desc: RS.ROLES[m.role].name + ' 능력 강화', tag: '동료 Lv.' + (cur + 1) }); }
+        return Object.assign(c, { name: m.name, icon: '📈', desc: RS.mateLine(c.id), tag: '동료 Lv.' + (cur + 1) }); }
       case 'gold': return Object.assign(c, { name: '스폰서 보너스', icon: '💰', desc: '코인 +30', tag: '보너스' });
       case 'heal': return Object.assign(c, { name: '에그타르트', icon: '🥧', desc: '체력 40% 회복', tag: '보너스' });
     }
@@ -138,12 +160,11 @@
       for (const id in RS.SKILLS) if (!build.skills[id]) pool.push({ kind: 'skill', id, w: 1.7 });
     }
     for (const id of build.passiveOrder) if (build.passives[id] < RS.PASSIVE_MAX) pool.push({ kind: 'passiveUp', id, w: 2 });
-    if (build.passiveOrder.length < RS.MAX_PASSIVES) {
-      // Prefer passives that pair with owned skills (helps reach evolutions).
-      for (const id in RS.PASSIVES) if (!build.passives[id]) {
-        const pairs = build.skillOrder.some((s) => RS.SKILLS[s].passive === id);
-        pool.push({ kind: 'passive', id, w: pairs ? 1.8 : 0.9 });
-      }
+    for (const id in RS.PASSIVES) if (RS.canTakePassive(build, id)) {
+      // Paired passives come up much more often once the skill is high level (evolution path).
+      const sid = build.skillOrder.find((k) => RS.SKILLS[k].passive === id);
+      const w = sid ? (build.skills[sid] >= RS.SKILL_MAX - 1 ? 6 : 2.4) : 0.9;
+      pool.push({ kind: 'passive', id, w });
     }
     if (build.teammates.length < RS.MAX_MATES) {
       const cands = RS.mateCandidates(build, yearIdx || 0, false);
@@ -173,7 +194,7 @@
         if (!RS.availableEvolutions(build).includes(c.id)) return false;
         build.evolved[c.id] = true; return true;
       case 'passive':
-        if (build.passives[c.id] || build.passiveOrder.length >= RS.MAX_PASSIVES) return false;
+        if (!RS.canTakePassive(build, c.id)) return false;
         build.passives[c.id] = 1; build.passiveOrder.push(c.id); return true;
       case 'passiveUp':
         if (!build.passives[c.id] || build.passives[c.id] >= RS.PASSIVE_MAX) return false;
@@ -183,6 +204,14 @@
       case 'gold': case 'heal': return true;
     }
     return false;
+  };
+
+  // Transfer swap: newId replaces outId and inherits its level (the squad follows the career).
+  RS.swapMate = function (build, outId, newId) {
+    const i = build.teammates.findIndex((m) => m.id === outId);
+    if (i < 0 || !RS.TEAMMATES[newId] || build.teammates.some((m) => m.id === newId)) return false;
+    build.teammates[i] = { id: newId, lv: build.teammates[i].lv };
+    return true;
   };
 
   // ================================================================ World
@@ -205,7 +234,9 @@
       this.frame = 0;
       this.stageTime = this.tune.duration;
       this.phase = 'play'; // play | levelup | chest | clear | dead | victory
-      this.player = { x: 0, y: 0, r: 6, hp: 100, iframe: 0, dirx: 1, diry: 0, face: 1, moving: false,
+      this.saves = 0; this.dmgTaken = 0; this.bossDmgTaken = 0; this.hits = 0; this.minHp = Infinity;
+      this.dpsHist = []; this._lastSec = 0; this._lastDmg = 0; this.bossT = 0; this.swapChoices = null;
+      this.player = { x: 0, y: 0, vx: 0, vy: 0, r: 6, hp: 100, iframe: 0, dirx: 1, diry: 0, face: 1, moving: false,
         dash: null, jump: 0, animT: 0, revived: false, hurtT: 0 };
       this.enemies = []; this.enemyPool = [];
       this.projs = []; this.projPool = [];
@@ -274,6 +305,13 @@
       this.frame++;
       this.t += dt;
       const p = this.player;
+      if (this.bossSpawned && this.boss && this.boss.alive) this.bossT += dt;
+      if (Math.floor(this.t) !== this._lastSec) { // damage per second over the last 20 s (boss HP scaling)
+        this._lastSec = Math.floor(this.t);
+        this.dpsHist.push(this.dmgDealt - this._lastDmg);
+        this._lastDmg = this.dmgDealt;
+        if (this.dpsHist.length > 20) this.dpsHist.shift();
+      }
 
       for (let i = this.timers.length - 1; i >= 0; i--) {
         const tm = this.timers[i];
@@ -379,26 +417,38 @@
       const e = this.spawnEnemy('grunt', this.player.x + Math.cos(a) * R, this.player.y + Math.sin(a) * R);
       e.type = 'boss'; e.sprite = bt.sprite; e.boss = true; e.elite = false;
       e.r = bt.r; e.speed = bt.speed * this.tune.speedMul;
-      e.maxHp = e.hp = Math.round(bt.hp * this.tune.hpMul);
-      e.dmg = Math.round(bt.dmg * this.tune.dmgMul);
+      e.maxHp = e.hp = RS.bossHp(bt, this.tune);
+      e.bossDmgIn = 0; e.calibrated = 0; e.baseHp = e.maxHp;
+      // starting floor from the player's recent total output (assumes ~25 % of it lands on the boss)
+      e.maxHp = e.hp = Math.round(Math.max(e.maxHp, this.recentDps() * 0.25 * this.bossTarget(e)));
+      e.dmg = Math.round(bt.dmg * this.tune.bossDmgMul);
       e.xp = 40;
       e.name = yd.boss.name;
-      e.ai = { kind: yd.boss.type, cool: 1.8, act: null, last: null, phase: 1, coolMul: 1, keep: yd.boss.type === 'messi' ? 105 : 0, strafe: 1 };
+      e.ai = { kind: yd.boss.type, cool: 1.8, act: null, last: null, phase: 1, keep: yd.boss.type === 'messi' ? 105 : 0, strafe: 1, history: [] };
       this.boss = e;
       this.emit('boss', { name: e.name, final: !!yd.final });
       return e;
     }
 
+    // Average damage per second over the last 20 s (all targets).
+    recentDps() {
+      if (!this.dpsHist.length) return 0;
+      let s = 0;
+      for (const v of this.dpsHist) s += v;
+      return s / this.dpsHist.length;
+    }
+
     spawnRescue() {
-      if (this.build.teammates.length >= RS.MAX_MATES) return;
+      const full = this.build.teammates.length >= RS.MAX_MATES;
       let cands = RS.mateCandidates(this.build, this.yearIdx, true);
-      if (!cands.length) cands = RS.mateCandidates(this.build, this.yearIdx, false);
+      // With a full squad only era players appear: reaching them opens a transfer swap.
+      if (!cands.length && !full) cands = RS.mateCandidates(this.build, this.yearIdx, false);
       if (!cands.length) return;
       const id = this.rng.pick(cands);
       const a = this.rng() * TAU;
       const d = Math.min(this.view.w, this.view.h) * 0.42 + 40;
-      this.rescue = { id, x: this.player.x + Math.cos(a) * d, y: this.player.y + Math.sin(a) * d, progress: 0, need: 1.0 };
-      this.emit('rescueSpawn', { id });
+      this.rescue = { id, x: this.player.x + Math.cos(a) * d, y: this.player.y + Math.sin(a) * d, progress: 0, need: 1.0, swap: full };
+      this.emit('rescueSpawn', { id, swap: full });
     }
 
     updateRescue(dt) {
@@ -408,14 +458,42 @@
       const d = Math.hypot(p.x - r.x, p.y - r.y);
       if (d < 22) r.progress += dt; else r.progress = Math.max(0, r.progress - dt * 0.5);
       if (r.progress >= r.need) {
+        this.rescue = null;
+        this.addFx('shock', r.x, r.y, { r: 30, dur: 0.4, color: '#7fe0ff' });
         if (RS.addMate(this.build, r.id)) {
           this.spawnMateRuntime(this.build.teammates[this.build.teammates.length - 1], r.x, r.y);
           this.recruitedThisRun.push(r.id);
           this.emit('recruit', { id: r.id });
-          this.addFx('shock', r.x, r.y, { r: 30, dur: 0.4, color: '#7fe0ff' });
-        }
-        this.rescue = null;
+        } else this.openSwap(r.id);
       }
+    }
+
+    // Transfer offer during a run: replace one teammate (the newcomer keeps that level) or keep the squad.
+    openSwap(newId) {
+      const nm = RS.TEAMMATES[newId];
+      this.swapChoices = this.build.teammates.map((m) => ({
+        kind: 'swap', id: newId, out: m.id, icon: '🔄', name: nm.name + ' 영입',
+        desc: RS.mateLine(newId), tag: RS.TEAMMATES[m.id].name + ' 방출 · Lv.' + m.lv + ' 승계'
+      }));
+      this.swapChoices.push({ kind: 'keep', id: newId, icon: '✋', name: '지금 스쿼드 유지', desc: nm.name + ' 영입을 거절한다.', tag: '거절' });
+      this.phase = 'swap';
+      this.emit('swap', { id: newId });
+    }
+
+    chooseSwap(i) {
+      if (this.phase !== 'swap' || !this.swapChoices || !this.swapChoices[i]) return false;
+      const c = this.swapChoices[i];
+      if (c.kind === 'swap' && RS.swapMate(this.build, c.out, c.id)) {
+        const m = this.mates.find((x) => x.id === c.out);
+        const ref = this.build.teammates.find((x) => x.id === c.id);
+        const def = RS.TEAMMATES[c.id];
+        m.id = c.id; m.ref = ref; m.role = def.role; m.dash = null; m.timer = 0.5;
+        this.recruitedThisRun.push(c.id);
+        this.emit('recruit', { id: c.id, swap: c.out });
+      }
+      this.swapChoices = null;
+      this.phase = 'play';
+      return true;
     }
 
     // ------------------------------------------------------------ player
@@ -455,6 +533,11 @@
         p.x += ix * this.stats.move * dt;
         p.y += iy * this.stats.move * dt;
       }
+      // smoothed velocity, used by bosses to lead their attacks
+      const vx = p.dash ? p.dash.dx * p.dash.speed : ix * this.stats.move;
+      const vy = p.dash ? p.dash.dy * p.dash.speed : iy * this.stats.move;
+      p.vx += (vx - p.vx) * Math.min(1, dt * 8);
+      p.vy += (vy - p.vy) * Math.min(1, dt * 8);
     }
 
     hurtPlayer(dmg, src) {
@@ -462,6 +545,10 @@
       if (p.iframe > 0 || p.dash || this.debug.godMode || this.phase !== 'play') return;
       const d = Math.max(1, Math.round(dmg - this.stats.armor));
       p.hp -= d;
+      this.dmgTaken += d;
+      this.hits++;
+      if (this.bossSpawned) this.bossDmgTaken += d;
+      if (p.hp < this.minHp) this.minHp = p.hp;
       p.iframe = 0.45;
       p.hurtT = 0.2;
       this.emit('hurt', { dmg: d });
@@ -639,7 +726,7 @@
       }
       const dur = 0.16;
       p.dash = { dx, dy, t: 0, dur, speed: s.dist / dur, dmg: s.dmg, hits: new Set(), burst: s.burst || 0, sx: p.x, sy: p.y };
-      p.iframe = Math.max(p.iframe, dur + 0.12);
+      p.iframe = Math.max(p.iframe, dur + 0.04);
       ws.timer = s.cd * this.stats.cd;
       this.emit('sfx', { name: 'dash' });
     }
@@ -738,12 +825,13 @@
       const res = RS.calcDamage(base, this.stats, { team: o.team, boss: e.boss, critBonus: o.critBonus }, this.rng());
       e.hp -= res.dmg;
       this.dmgDealt += res.dmg;
+      if (e.boss) { if (!e.bossDmgIn) e.firstHitT = this.t; e.bossDmgIn += res.dmg; }
       if (e.flash <= -0.06) e.flash = 0.06; // flicker, never stuck white under constant fire
       if (o.knock) {
         const k = e.boss ? o.knock * 0.15 : e.elite ? o.knock * 0.4 : o.knock;
         e.kx += (o.kx || 0) * k; e.ky += (o.ky || 0) * k;
       }
-      if (o.stun) e.stun = Math.max(e.stun, e.boss ? o.stun * 0.15 : e.elite ? o.stun * 0.5 : o.stun);
+      if (o.stun && !e.boss) e.stun = Math.max(e.stun, e.elite ? o.stun * 0.5 : o.stun); // bosses are stun-immune
       this.addText(e.x, e.y - e.r, res.dmg, res.crit);
       if (e.hp <= 0) this.killEnemy(e);
       return res.dmg;
@@ -825,13 +913,18 @@
           }
         } else if (m.role === 'keeper') {
           follow(6);
-          const R = 26 + 5 * lv;
-          for (const ep of this.eprojs) {
-            if (!ep.alive) continue;
+          // one save per cooldown: a keeper helps, but cannot make 날두 untouchable
+          const R = RS.keeperRadius(lv);
+          m.blockCd = Math.max(0, (m.blockCd || 0) - dt);
+          if (m.blockCd <= 0) for (const ep of this.eprojs) {
+            if (!ep.alive || ep.wait > 0 || ep.kind === 'mball' || ep.power) continue; // nobody saves 메시's shots or a 강슛
             if ((ep.x - m.x) ** 2 + (ep.y - m.y) ** 2 < R * R) {
               ep.alive = false;
               this.addFx('save', ep.x, ep.y, { dur: 0.3 });
               m.punch = 0.2;
+              m.blockCd = Math.max(0.9, 2.0 - 0.25 * lv) * st.teamCd;
+              this.saves++;
+              break;
             }
           }
           m.timer -= dt;
@@ -977,19 +1070,33 @@
       }
     }
 
-    enemyShot(kind, x, y, a, speed, dmg, r, curve) {
-      if (this.eprojs.length > 260) return;
-      this.eprojs.push({ kind, x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, r: r || 3, dmg, life: 5, curve: curve || 0, alive: true, t: 0 });
+    enemyShot(kind, x, y, a, speed, dmg, r, curve, o) {
+      if (this.eprojs.length > 300) return null;
+      const ep = { kind, x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, speed, r: r || 3, dmg, life: 5,
+        curve: curve || 0, alive: true, t: 0, home: 0, turn: 0, wait: 0 };
+      if (o) Object.assign(ep, o);
+      this.eprojs.push(ep);
+      return ep;
     }
 
     updateEProjs(dt) {
       const p = this.player;
       for (const ep of this.eprojs) {
         if (!ep.alive) continue;
+        if (ep.wait > 0) { ep.wait -= dt; continue; } // telegraph: visible, harmless, not moving yet
         ep.t += dt;
         if (ep.curve) {
           const c = Math.cos(ep.curve * dt), s = Math.sin(ep.curve * dt);
           const vx = ep.vx * c - ep.vy * s; ep.vy = ep.vx * s + ep.vy * c; ep.vx = vx;
+        }
+        if (ep.home > 0) { // brief homing, limited turn rate
+          ep.home -= dt;
+          const cur = Math.atan2(ep.vy, ep.vx);
+          let diff = Math.atan2(p.y - ep.y, p.x - ep.x) - cur;
+          while (diff > Math.PI) diff -= TAU;
+          while (diff < -Math.PI) diff += TAU;
+          const na = cur + Math.max(-ep.turn * dt, Math.min(ep.turn * dt, diff));
+          ep.vx = Math.cos(na) * ep.speed; ep.vy = Math.sin(na) * ep.speed;
         }
         ep.x += ep.vx * dt; ep.y += ep.vy * dt;
         ep.life -= dt;
@@ -1002,20 +1109,53 @@
     }
 
     // ------------------------------------------------------------ bosses (incl. 메시)
+    // Where the player will be in `lead` seconds if they keep running (bosses lead their attacks).
+    predict(lead, maxDist) {
+      const p = this.player;
+      let dx = p.vx * lead, dy = p.vy * lead;
+      const d = Math.hypot(dx, dy);
+      if (maxDist && d > maxDist) { dx *= maxDist / d; dy *= maxDist / d; }
+      return { x: p.x + dx, y: p.y + dy };
+    }
+
+    // At fixed checkpoints, rescale boss HP so the measured damage rate on it gives a real fight
+    // (never below the year's base HP). The HP bar keeps its current fraction, so the change is invisible.
+    calibrateBoss(e) {
+      // damage rate since the previous checkpoint (the first checkpoint uses everything since the first hit)
+      const now = this.t;
+      const since = e.lastCalT != null ? e.lastCalT : e.firstHitT;
+      const dealt = e.bossDmgIn - (e.lastCalDmg || 0);
+      e.lastCalT = now; e.lastCalDmg = e.bossDmgIn;
+      const rate = dealt / Math.max(0.5, now - since);
+      const want = Math.max(e.baseHp, rate * this.bossTarget(e));
+      if (Math.abs(want - e.maxHp) / e.maxHp < 0.1) return;
+      const k = want / e.maxHp; // keep the HP-bar fraction: the change is invisible
+      e.maxHp = Math.round(e.maxHp * k);
+      e.hp = Math.max(1, Math.round(e.hp * k));
+    }
+    bossTarget(e) { return RS.BOSS_FIGHT_SECONDS * RS.BOSS_TYPES[this.yearDef.boss.type].fight * this.tune.bossFight; }
+
+    bossActions(e) {
+      const ai = e.ai;
+      if (ai.kind !== 'messi') return RS.BOSS_TYPES[ai.kind].actions;
+      return ai.phase === 1 ? RS.MESSI.phase1 : RS.MESSI.phase2;
+    }
+
     bossAI(e, dt, dx, dy, d) {
       const ai = e.ai;
       const isMessi = ai.kind === 'messi';
       if (isMessi && ai.phase === 1 && e.hp <= e.maxHp * 0.5) {
         ai.phase = 2;
-        ai.act = { kind: 'roar', t: 0 };
+        ai.act = { kind: 'roar', t: 0, stage: 0, n: 0 };
         e.invuln = true;
         e.tele = null;
         this.emit('rage');
         this.emit('banner', { text: '메시 분노! 2페이즈' });
       }
+      if (e.bossDmgIn && e.calibrated < RS.BOSS_CALIBRATE_AT.length && this.t - e.firstHitT >= RS.BOSS_CALIBRATE_AT[e.calibrated]) { e.calibrated++; this.calibrateBoss(e); }
       if (ai.act) { this.runBossAct(e, ai.act, dt, dx, dy, d); return; }
       // movement between attacks
-      const sp = e.speed * (isMessi ? (ai.phase === 2 ? 1.25 : 1) : 1);
+      const sp = e.speed;
       if (ai.keep) {
         const want = d > ai.keep + 20 ? 1 : d < ai.keep - 20 ? -1 : 0;
         if (this.rng() < dt * 0.4) ai.strafe = -ai.strafe;
@@ -1025,16 +1165,17 @@
       } else {
         e.x += dx / d * sp * dt; e.y += dy / d * sp * dt;
       }
+      // never let the player simply outrun the boss off-screen
+      if (d > this.spawnRadius() * 0.9) { e.x += dx / d * sp * 1.5 * dt; e.y += dy / d * sp * 1.5 * dt; }
       ai.cool -= dt;
       if (ai.cool <= 0) {
-        let list;
-        if (isMessi) list = ai.phase === 1 ? ['dribble', 'curl', 'volley'] : ['dribble3', 'curl', 'volley2', 'summon', 'dribble3'];
-        else list = RS.BOSS_TYPES[ai.kind].actions;
+        const list = this.bossActions(e);
         let k = this.rng.pick(list);
         if (k === ai.last && list.length > 1) k = this.rng.pick(list.filter((x) => x !== ai.last));
         ai.last = k;
         ai.act = { kind: k, t: 0, stage: 0, n: 0 };
-        if (isMessi) ai.history = (ai.history || []).concat(k).slice(-12);
+        ai.history.push(k);
+        if (ai.history.length > 40) ai.history.shift();
       }
     }
 
@@ -1042,8 +1183,7 @@
       const ai = e.ai;
       ai.act = null;
       e.tele = null;
-      const base = ai.kind === 'messi' ? RS.BOSS_TYPES.messi.cool : RS.BOSS_TYPES[ai.kind].cool;
-      ai.cool = base * (ai.kind === 'messi' && ai.phase === 2 ? 0.62 : 1);
+      ai.cool = RS.BOSS_TYPES[ai.kind].cool * (ai.kind === 'messi' && ai.phase === 2 ? RS.MESSI.rageCool : 1) * this.tune.bossCool;
     }
 
     runBossAct(e, a, dt, dx, dy, d) {
@@ -1052,6 +1192,9 @@
       const aim = Math.atan2(dy, dx);
       const pdmg = Math.round(e.dmg * 0.75);
       const isMessi = e.ai.kind === 'messi';
+      const rage = isMessi && e.ai.phase === 2;
+      const ball = isMessi ? 'mball' : 'ball';
+      const k = this.tune.bossDensity; // fewer bullets in the first years
       switch (a.kind) {
         case 'roar':
           if (a.stage === 0) {
@@ -1059,17 +1202,24 @@
             this.addFx('shock', e.x, e.y, { r: 140, dur: 0.8, color: '#7ec8ff' });
             const n = d || 1;
             p.x += (p.x - e.x) / n * 30; p.y += (p.y - e.y) / n * 30;
-            for (const o of this.enemies) if (o !== e && o.alive && !o.boss) { o.stun = Math.max(o.stun, 0.6); }
+            for (const o of this.enemies) if (o !== e && o.alive && !o.boss) o.stun = Math.max(o.stun, 0.6);
           }
-          if (a.t >= 1.6) { e.invuln = false; e.speed *= 1.3; this.endAct(e); }
+          if (a.t >= 1.6) { e.invuln = false; e.speed *= RS.MESSI.rageSpeed; this.endAct(e); }
           break;
-        case 'dash': case 'dribble': case 'dribble3': {
+        // Dashes: 'dash' aims where the player will be; 'cut' runs across the player's escape path;
+        // 'dribble'/'dribble3' are 메시's (3 chained in rage).
+        case 'dash': case 'cut': case 'dribble': case 'dribble3': {
           const chain = a.kind === 'dribble3' ? 3 : 1;
-          const tele = a.kind === 'dash' ? 0.85 : a.kind === 'dribble' ? 0.7 : 0.48;
-          const speed = a.kind === 'dash' ? 300 : a.kind === 'dribble' ? 380 : 430;
-          const dur = a.kind === 'dash' ? 0.7 : 0.72;
-          if (a.stage === 0) { // telegraph
-            if (!a.dir) { a.dir = aim; this.emit('sfx', { name: 'warn' }); }
+          const tele = a.kind === 'dash' ? 0.8 : a.kind === 'cut' ? 0.75 : a.kind === 'dribble' ? 0.65 : 0.5;
+          const speed = a.kind === 'dash' ? 300 : a.kind === 'cut' ? 330 : a.kind === 'dribble' ? 380 : 430;
+          const dur = 0.75;
+          if (a.stage === 0) {
+            if (a.dir == null) this.emit('sfx', { name: 'warn' });
+            if (a.dir == null || a.t < tele - 0.25) { // keeps tracking, locks 0.25 s before the dash
+              const lead = a.kind === 'cut' ? 0.9 : 0.45;
+              const tp = this.predict(lead + d / speed, a.kind === 'cut' ? 140 : 90);
+              a.dir = Math.atan2(tp.y - e.y, tp.x - e.x);
+            }
             e.tele = { kind: 'line', x: e.x, y: e.y, a: a.dir, len: speed * dur, p: Math.min(1, a.t / tele) };
             if (a.t >= tele) { a.stage = 1; a.t = 0; e.tele = null; this.emit('sfx', { name: 'dash' }); }
           } else if (a.stage === 1) {
@@ -1077,6 +1227,13 @@
             if (Math.floor(a.t * 60) % 3 === 0) this.addFx('bghost', e.x, e.y, { dur: 0.3, sprite: e.sprite, face: Math.cos(a.dir) > 0 ? 1 : -1 });
             if (a.t >= dur) {
               a.n++;
+              if (rage) { // in rage, each dribble ends with a point-blank shot at where the player is going
+                const tp = this.predict(0.35, 60);
+                const base = Math.atan2(tp.y - e.y, tp.x - e.x);
+                const n = 3;
+                for (let i = 0; i < n; i++) this.enemyShot(ball, e.x, e.y, base + (i - (n - 1) / 2) * 0.24, 165, pdmg, 3);
+                this.emit('sfx', { name: 'shoot' });
+              }
               if (a.n < chain) { a.stage = 0; a.t = 0; a.dir = null; }
               else { a.stage = 2; a.t = 0; }
             }
@@ -1084,13 +1241,15 @@
           break;
         }
         case 'fan': case 'volley': case 'volley2': {
-          const waves = a.kind === 'volley2' ? 2 : a.kind === 'fan' ? 2 : 1;
-          const n = a.kind === 'fan' ? 5 : a.kind === 'volley' ? 7 : 9;
+          const waves = a.kind === 'volley' ? 1 : 2;
+          const n = Math.max(3, Math.round((a.kind === 'fan' ? 5 : a.kind === 'volley' ? 7 : 9) * k));
           const spread = a.kind === 'fan' ? 0.8 : 1.15;
-          const speed = a.kind === 'fan' ? 120 : 150;
+          const speed = a.kind === 'fan' ? 120 + 2 * this.yearIdx : 170;
           if (a.t >= 0.35 + a.n * 0.45 && a.n < waves) {
             const off = (a.n % 2) * (spread / (n - 1)) * 0.5;
-            for (let i = 0; i < n; i++) this.enemyShot(isMessi ? 'mball' : 'ball', e.x, e.y, aim - spread / 2 + spread * i / (n - 1) + off, speed, pdmg, 3);
+            const tp = this.predict(0.5, 70);
+            const base = Math.atan2(tp.y - e.y, tp.x - e.x);
+            for (let i = 0; i < n; i++) this.enemyShot(ball, e.x, e.y, base - spread / 2 + spread * i / (n - 1) + off, speed, pdmg, 3);
             a.n++;
             this.emit('sfx', { name: 'shoot' });
           }
@@ -1099,7 +1258,7 @@
         }
         case 'ring': {
           if (a.n < 2 && a.t >= 0.3 + a.n * 0.5) {
-            const n = 14;
+            const n = Math.round(14 * k);
             for (let i = 0; i < n; i++) this.enemyShot('ball', e.x, e.y, (i + a.n * 0.5) / n * TAU, 95, pdmg, 3);
             a.n++;
             this.emit('sfx', { name: 'shoot' });
@@ -1108,12 +1267,14 @@
           break;
         }
         case 'curl': {
-          const n = isMessi ? (e.ai.phase === 2 ? 5 : 3) : 4;
+          // curling shots that bend in and home on the player briefly
+          const n = isMessi ? (rage ? 5 : 3) : Math.max(2, Math.round(4 * k));
           if (a.n === 0 && a.t >= 0.3) {
             for (let i = 0; i < n; i++) {
               const side = i % 2 ? 1 : -1;
-              const k = 0.7 + 0.25 * Math.floor(i / 2);
-              this.enemyShot(isMessi ? 'mball' : 'ball', e.x, e.y, aim + side * k, 135, pdmg, 3, -side * k * 1.25);
+              const kk = 0.7 + 0.25 * Math.floor(i / 2);
+              this.enemyShot(ball, e.x, e.y, aim + side * kk, isMessi ? 165 : 125 + 1.5 * this.yearIdx, pdmg, 3, -side * kk * 1.1,
+                { home: isMessi ? (rage ? 1.1 : 0.9) : 0.6, turn: isMessi ? 3.0 : 2.0, life: 4 });
             }
             a.n = 1;
             this.emit('sfx', { name: 'curl' });
@@ -1122,17 +1283,40 @@
           break;
         }
         case 'burst': {
-          if (a.n < 5 && a.t >= 0.3 + a.n * 0.13) {
-            this.enemyShot('ball', e.x, e.y, aim + (this.rng() - 0.5) * 0.2, 170, pdmg, 3);
+          const n = Math.max(3, Math.round(6 * k));
+          if (a.n < n && a.t >= 0.3 + a.n * 0.13) {
+            const tp = this.predict(d / 170, 80);
+            this.enemyShot('ball', e.x, e.y, Math.atan2(tp.y - e.y, tp.x - e.x) + (this.rng() - 0.5) * 0.15, 170, pdmg, 3);
             a.n++;
           }
-          if (a.n >= 5 && a.t > 1.1) this.endAct(e);
+          if (a.n >= n && a.t > 0.3 + n * 0.13 + 0.4) this.endAct(e);
+          break;
+        }
+        case 'snipe': {
+          // 강슛: a red aim line tracks where the player is heading, locks for a moment, then a very fast shot.
+          // Running straight gets you hit; changing direction after the lock dodges it.
+          const tele = 0.9, lock = 0.16;
+          const speed = 380 + 5 * this.yearIdx;
+          if (a.stage === 0) {
+            if (a.dir == null) this.emit('sfx', { name: 'warn' });
+            if (a.dir == null || a.t < tele - lock) {
+              const tp = this.predict(lock + d / speed, 120);
+              a.dir = Math.atan2(tp.y - e.y, tp.x - e.x);
+            }
+            e.tele = { kind: 'line', x: e.x, y: e.y, a: a.dir, len: 260, p: Math.min(1, a.t / tele), thin: true };
+            if (a.t >= tele) {
+              e.tele = null; a.stage = 1; a.t = 0;
+              const offs = isMessi && !rage ? [0] : [0, -0.12, 0.12];
+              for (const off of offs) this.enemyShot(isMessi ? 'mball' : 'ball', e.x, e.y, a.dir + off, speed, Math.round(pdmg * (off ? 0.9 : 1.2)), 4, 0, { power: true });
+              this.emit('sfx', { name: 'shoot' });
+            }
+          } else if (a.t > 0.4) this.endAct(e);
           break;
         }
         case 'cards': {
           if (a.n === 0 && a.t >= 0.4) {
             for (let i = 0; i < 5; i++) this.enemyShot('card', e.x, e.y, aim - 0.6 + i * 0.3, 110, pdmg, 3);
-            this.enemyShot('redcard', e.x, e.y, aim, 70, Math.round(pdmg * 1.8), 6);
+            this.enemyShot('redcard', e.x, e.y, aim, 70, Math.round(pdmg * 1.8), 6, 0, { home: 1.5, turn: 1.2, life: 6 });
             a.n = 1;
           }
           if (a.t > 1.0) this.endAct(e);
@@ -1151,18 +1335,49 @@
           if (a.t > 0.9) this.endAct(e);
           break;
         }
-        case 'slam': {
+        case 'slam': case 'pslam': {
+          // telegraphed ground slam where the player is heading; 'pslam' adds two flanking circles
           if (a.stage === 0) {
-            if (!a.tx) { a.tx = p.x; a.ty = p.y; this.emit('sfx', { name: 'warn' }); }
-            e.tele = { kind: 'circle', x: a.tx, y: a.ty, r: 48, p: Math.min(1, a.t / 1.0) };
+            if (!a.spots) {
+              const tp = this.predict(0.9, 90);
+              a.spots = [tp];
+              if (a.kind === 'pslam' && k > 0.7) {
+                const ang = Math.atan2(p.vy, p.vx) + Math.PI / 2;
+                const off = 62;
+                a.spots.push({ x: tp.x + Math.cos(ang) * off, y: tp.y + Math.sin(ang) * off }, { x: tp.x - Math.cos(ang) * off, y: tp.y - Math.sin(ang) * off });
+              }
+              this.emit('sfx', { name: 'warn' });
+            }
+            e.tele = { kind: 'circles', spots: a.spots, r: 46, p: Math.min(1, a.t / 1.0) };
             if (a.t >= 1.0) {
               a.stage = 1;
               e.tele = null;
-              this.addFx('shock', a.tx, a.ty, { r: 48, dur: 0.4, color: '#ff8a5c' });
               this.emit('sfx', { name: 'thud' });
-              if ((p.x - a.tx) ** 2 + (p.y - a.ty) ** 2 < (48 + p.r) ** 2) this.hurtPlayer(Math.round(e.dmg * 1.2), e);
+              for (const sp of a.spots) {
+                this.addFx('shock', sp.x, sp.y, { r: 46, dur: 0.4, color: '#ff8a5c' });
+                if ((p.x - sp.x) ** 2 + (p.y - sp.y) ** 2 < (46 + p.r) ** 2) this.hurtPlayer(Math.round(e.dmg * 1.1), e);
+              }
             }
           } else if (a.t > 1.4) this.endAct(e);
+          break;
+        }
+        case 'encircle': {
+          // a ring of balls appears around the player (one gap), waits, then closes in
+          if (a.n === 0) {
+            const n = Math.round((isMessi ? 20 : 16) * Math.max(0.75, k));
+            const R = 118;
+            const gap = Math.floor(this.rng() * n);
+            const gapW = rage ? 2 : 3;
+            for (let i = 0; i < n; i++) {
+              if (((i - gap + n) % n) < gapW) continue;
+              const ang = i / n * TAU;
+              const x = p.x + Math.cos(ang) * R, y = p.y + Math.sin(ang) * R;
+              this.enemyShot(ball, x, y, ang + Math.PI, isMessi ? 95 : 62 + this.yearIdx, pdmg, 3, 0, { wait: 0.7, life: 3.4 });
+            }
+            a.n = 1;
+            this.emit('sfx', { name: 'warn' });
+          }
+          if (a.t > 1.6) this.endAct(e);
           break;
         }
         default: this.endAct(e);
@@ -1320,6 +1535,7 @@
     }
     for (const ep of w.eprojs) {
       if (!ep.alive) continue;
+      if (ep.wait > 0 && ep.wait > 0.3) continue;
       const dx = p.x - ep.x, dy = p.y - ep.y;
       const d2 = dx * dx + dy * dy;
       if (d2 > 60 * 60) continue;
@@ -1328,7 +1544,7 @@
     }
     if (w.boss && w.boss.alive && w.boss.tele) {
       const t = w.boss.tele;
-      if (t.kind === 'circle') { const dx = p.x - t.x, dy = p.y - t.y, d = Math.hypot(dx, dy) || 1; if (d < t.r + 20) { vx += dx / d * 6; vy += dy / d * 6; } }
+      if (t.kind === 'circles') for (const c of t.spots) { const dx = p.x - c.x, dy = p.y - c.y, d = Math.hypot(dx, dy) || 1; if (d < t.r + 20) { vx += dx / d * 6; vy += dy / d * 6; } }
       if (t.kind === 'line') { vx += -Math.sin(t.a) * 5; vy += Math.cos(t.a) * 5; }
     }
     const danger = Math.hypot(vx, vy);
@@ -1357,10 +1573,28 @@
     return n > 0.01 ? { x: vx / n, y: vy / n } : { x: 0, y: 0 };
   };
 
-  RS.botChoose = function (choices) {
-    const pr = { evolve: 0, skillUp: 1, mate: 2, skill: 3, passive: 4, passiveUp: 5, mateUp: 6, heal: 7, gold: 8 };
+  // Strong default bot. Picks: evolution > passive that unlocks an evolution path > skill upgrade > ...
+  RS.botChoose = function (choices, build) {
+    const pr = { evolve: 0, skillUp: 2, mate: 3, skill: 4, passive: 5, passiveUp: 6, mateUp: 7, heal: 8, gold: 9 };
+    const score = (c) => (c.kind === 'passive' && build && RS.isPairPassive(build, c.id) ? 1 : pr[c.kind]);
     let bi = 0;
-    for (let i = 1; i < choices.length; i++) if (pr[choices[i].kind] < pr[choices[bi].kind]) bi = i;
+    for (let i = 1; i < choices.length; i++) if (score(choices[i]) < score(choices[bi])) bi = i;
     return bi;
+  };
+
+  // A human-like weaker bot: reacts late (input from `delay` s ago) and with aim noise.
+  RS.makeBot = function (opt) {
+    opt = opt || {};
+    const rng = RS.makeRng(opt.seed || 1);
+    const q = [];
+    const steps = Math.max(0, Math.round((opt.delay || 0) * 60));
+    let noiseA = 0;
+    return function (w) {
+      const v = RS.botInput(w);
+      if (rng() < 0.05) noiseA = (rng() - 0.5) * 2 * (opt.noise || 0);
+      const c = Math.cos(noiseA), s = Math.sin(noiseA);
+      q.push({ x: v.x * c - v.y * s, y: v.x * s + v.y * c });
+      return q.length > steps ? q.shift() : { x: 0, y: 0 };
+    };
   };
 })(globalThis.RS = globalThis.RS || {});

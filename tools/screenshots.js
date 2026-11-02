@@ -12,11 +12,13 @@ async function setup(page, opts) {
     const rng = RS.makeRng(4);
     for (let i = 0; i < o.year; i++) {
       RS.applyCoach(save, i, RS.coachChoices(save, i, rng)[0], rng);
+      RS.autoTransfers(save, i, rng);
       const w = RS.startYear(save, i, { seed: i });
       let guard = 0;
       while (w.phase !== 'clear' && guard++ < 60 * 400) {
-        if (w.phase === 'levelup') { w.choose(RS.botChoose(w.choices)); continue; }
+        if (w.phase === 'levelup') { w.choose(RS.botChoose(w.choices, w.build)); continue; }
         if (w.phase === 'chest') { w.closeChest(); continue; }
+        if (w.phase === 'swap') { w.chooseSwap(0); continue; }
         if (w.phase === 'dead') { w.phase = 'clear'; break; }
         w.debug.godMode = true;
         w.update(1 / 60, RS.botInput(w));
@@ -33,8 +35,9 @@ async function botDrive(page) {
     clearInterval(window.__bot);
     window.__bot = setInterval(() => {
       const A = RSApp, w = A.world; if (!w) return;
-      if (w.phase === 'levelup' && A.lvShown && !window.__keepLv) { const c = document.querySelector('#lv-cards .card'); if (c) { w.choose(RS.botChoose(w.choices)); document.getElementById('levelup').classList.add('hidden'); A.lvShown = false; } }
+      if (w.phase === 'levelup' && A.lvShown && !window.__keepLv) { const c = document.querySelector('#lv-cards .card'); if (c) { w.choose(RS.botChoose(w.choices, w.build)); document.getElementById('levelup').classList.add('hidden'); A.lvShown = false; } }
       if (w.phase === 'chest') { document.getElementById('btn-chest-ok').click(); }
+      if (w.phase === 'swap' && A.swapShown && !window.__keepLv) { w.chooseSwap(w.swapChoices.length - 1); document.getElementById('levelup').classList.add('hidden'); A.swapShown = false; }
       w.debug.godMode = true;
       const v = RS.botInput(w); const j = A.input.joy;
       j.active = true; j.dx = v.x * 0.9; j.dy = v.y * 0.9; j.ox = innerWidth / 2; j.oy = innerHeight * 0.75;
@@ -57,7 +60,7 @@ async function botDrive(page) {
       await page.click('#btn-play'); await page.waitForTimeout(500);
       await page.screenshot({ path: out(prefix + '-02-coach') });
     }
-    await setup(page, { year: 9 });
+    await setup(page, { year: 7 });
     await page.waitForTimeout(400);
     if (prefix === 'phone') {
       await page.click('#btn-years'); await page.waitForTimeout(400);
@@ -67,6 +70,11 @@ async function botDrive(page) {
     }
     await page.evaluate(() => RSApp.startYear(RSApp.save.career.yearIdx)); await page.waitForTimeout(300);
     if (await page.isVisible('#coach')) { await page.waitForTimeout(400); await page.click('#coach-cards .card >> nth=0'); await page.waitForTimeout(300); }
+    if (await page.isVisible('#transfer')) {
+      await page.waitForTimeout(400);
+      if (prefix === 'phone') await page.screenshot({ path: out(prefix + '-05a-transfer') });
+      for (let i = 0; i < 3 && await page.isVisible('#transfer'); i++) { await page.waitForTimeout(400); await page.click('#tr-cards .card >> nth=1'); await page.waitForTimeout(300); }
+    }
     await page.screenshot({ path: out(prefix + '-05-intro') });
     await page.click('#btn-kickoff');
     await botDrive(page);
@@ -76,6 +84,10 @@ async function botDrive(page) {
       await page.evaluate(() => { window.__keepLv = true; RSApp.world.gainXp(RS.xpToNext(RSApp.world.build.level)); });
       await page.waitForTimeout(900);
       await page.screenshot({ path: out(prefix + '-07-levelup') });
+      await page.evaluate(() => { const w = RSApp.world; w.choose(0); document.getElementById('levelup').classList.add('hidden'); RSApp.lvShown = false;
+        const c = RS.mateCandidates(w.build, w.yearIdx, true)[0]; if (w.build.teammates.length >= RS.MAX_MATES && c) w.openSwap(c); });
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: out(prefix + '-07a-swap') });
       await page.evaluate(() => { window.__keepLv = false; });
       await page.evaluate(() => { const w = RSApp.world; w.t = w.stageTime - 0.5; });
       await page.waitForTimeout(6000);

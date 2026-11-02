@@ -13,7 +13,7 @@ test('bot clears the first 4 career years headlessly', () => {
       const w = RS.startYear(save, idx, { seed: 100 + idx * 10 + attempt });
       let bossSeen = false;
       while (w.t < 600) {
-        if (w.phase === 'levelup') { assert.equal(w.choose(RS.botChoose(w.choices)), true); continue; }
+        if (w.phase === 'levelup') { assert.equal(w.choose(RS.botChoose(w.choices, w.build)), true); continue; }
         if (w.phase === 'chest') { w.closeChest(); continue; }
         if (w.phase !== 'play') break;
         w.update(1 / 60, RS.botInput(w));

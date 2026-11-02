@@ -126,7 +126,39 @@
     startYear(idx) {
       if (!RS.canPlay(this.save, idx)) return;
       if (RS.needsCoach(this.save, idx)) this.showCoach(idx);
+      else this.afterCoach(idx);
+    },
+
+    afterCoach(idx) {
+      const offers = RS.transferOffers(this.save, idx, this.rng);
+      if (offers.length) this.showTransfer(idx, offers, 0);
       else this.showIntro(idx);
+    },
+
+    // Club changed: era players offer to join (free slot) or swap with a teammate (who passes on his level).
+    showTransfer(idx, offers, k) {
+      if (k >= offers.length) { RS.finishTransfers(this.save, idx); this.persist(); this.showIntro(idx); return; }
+      this.show('transfer');
+      const yd = RS.YEARS[idx];
+      const id = offers[k];
+      const nm = RS.TEAMMATES[id];
+      const b = this.save.career.build;
+      $('tr-club').textContent = yd.year + ' · ' + RS.ERAS[yd.era].club + ' 이적 시장 (' + (k + 1) + '/' + offers.length + ')';
+      $('tr-name').textContent = nm.name;
+      $('tr-role').textContent = RS.mateLine(id);
+      const sp = $('tr-sprite'); sp.innerHTML = '';
+      sp.appendChild(RS.Sprites.toCanvas(RS.Sprites.mate(id, idx), 0, 4));
+      const cards = [];
+      if (b.teammates.length < RS.MAX_MATES) cards.push({ kind: 'recruit', icon: '🤝', name: '빈 자리에 영입', desc: nm.name + ' Lv.1 합류', tag: '영입', out: null, take: true });
+      for (const m of b.teammates) cards.push({ kind: 'swap', icon: '🔄', name: RS.TEAMMATES[m.id].name + ' 방출', desc: RS.mateLine(m.id), tag: 'Lv.' + m.lv + ' 승계', out: m.id, take: true });
+      cards.push({ kind: 'keep', icon: '✋', name: '영입하지 않기', desc: '지금 스쿼드 그대로 간다.', tag: '유지', take: false });
+      this.renderCards($('tr-cards'), cards, (i) => {
+        const c = cards[i];
+        RS.applyTransfer(this.save, idx, c.take ? id : null, c.out);
+        this.persist();
+        if (c.take) this.toast(nm.name + ' 합류!');
+        this.showTransfer(idx, offers, k + 1);
+      });
     },
 
     showCoach(idx) {
@@ -146,7 +178,7 @@
         const info = RS.applyCoach(this.save, idx, cards[i], this.rng);
         this.persist();
         if (info.mate) this.toast(RS.TEAMMATES[info.mate].name + ' 합류!');
-        this.showIntro(idx);
+        this.afterCoach(idx);
       });
     },
 
@@ -184,9 +216,19 @@
           : '<span class="chip">' + s.icon + ' ' + esc(s.name) + ' ' + b.skills[id] + '</span>';
       }
       for (const id of b.passiveOrder) h += '<span class="chip">' + RS.PASSIVES[id].icon + ' ' + b.passives[id] + '</span>';
-      for (const m of b.teammates) h += '<span class="chip mate">🤝 ' + esc(RS.TEAMMATES[m.id].name) + ' ' + m.lv + '</span>';
       if (b.coachCards.length) h += '<span class="chip">👔 감독 카드 ' + b.coachCards.length + '</span>';
-      return h;
+      return h + this.squadLines(b);
+    },
+
+    // One plain line per teammate: name, level, role and what the role does.
+    squadLines(b) {
+      const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+      if (!b.teammates.length) return '<div class="squad"><div class="sq empty">동료 없음 — 필드의 ! 표시로 영입</div></div>';
+      let h = '<div class="squad">';
+      for (const m of b.teammates) {
+        h += '<div class="sq"><b>' + esc(RS.TEAMMATES[m.id].name) + '</b> <span class="lv">Lv.' + m.lv + '</span><div class="rl">' + esc(RS.mateLine(m.id)) + '</div></div>';
+      }
+      return h + '</div>';
     },
 
     play(idx) {
@@ -215,11 +257,13 @@
       cards.forEach((c, i) => {
         const b = document.createElement('button');
         b.className = 'card k-' + c.kind;
-        b.innerHTML = '<div class="ic"></div><div class="tx"><div class="nm"><span class="n"></span><span class="tg"></span></div><div class="ds"></div></div>';
+        b.innerHTML = '<div class="ic"></div><div class="tx"><div class="nm"><span class="n"></span><span class="tg"></span></div><div class="ds"></div><div class="hn"></div></div>';
         b.querySelector('.ic').textContent = c.icon || '⚽';
         b.querySelector('.n').textContent = c.name;
         b.querySelector('.tg').textContent = c.tag || '';
         b.querySelector('.ds').textContent = c.desc || '';
+        const hn = b.querySelector('.hn');
+        if (c.hint) { hn.textContent = c.hint; if (/필요|스킬 필요/.test(c.hint)) hn.classList.add('need'); } else hn.remove();
         b.onclick = () => {
           if (performance.now() - shownAt < 350) return; // guard against the joystick finger
           RS.Audio.sfx('click');
@@ -233,6 +277,7 @@
       const w = this.world;
       this.input.release();
       $('levelup').classList.remove('hidden');
+      $('lv-title').textContent = '레벨 업!';
       $('reroll-n').textContent = w.rerolls;
       $('btn-reroll').classList.toggle('hidden', w.rerolls <= 0);
       this.renderCards($('lv-cards'), w.choices, (i) => {
@@ -241,6 +286,21 @@
         this.lvShown = false;
       });
       this.lvShown = true;
+    },
+
+    // In-run transfer offer (rescue marker with a full squad).
+    showSwap() {
+      const w = this.world;
+      this.input.release();
+      $('levelup').classList.remove('hidden');
+      $('lv-title').textContent = '이적 제안!';
+      $('btn-reroll').classList.add('hidden');
+      this.renderCards($('lv-cards'), w.swapChoices, (i) => {
+        w.chooseSwap(i);
+        $('levelup').classList.add('hidden');
+        this.swapShown = false;
+      });
+      this.swapShown = true;
     },
 
     showChest() {
@@ -358,7 +418,8 @@
           let n = 0;
           while (this.attractAcc >= STEP && n < 3) {
             const a = this.attract;
-            if (a.phase === 'levelup') a.choose(RS.botChoose(a.choices));
+            if (a.phase === 'levelup') a.choose(RS.botChoose(a.choices, a.build));
+            else if (a.phase === 'swap') a.chooseSwap(a.swapChoices.length - 1);
             else if (a.phase === 'chest') a.closeChest();
             else if (a.phase !== 'play' || a.t > 80) this.makeAttract();
             else a.update(STEP, RS.botInput(a));
@@ -366,7 +427,7 @@
           }
           if (n >= 3) this.attractAcc = 0;
           this.attract.events.length = 0;
-          this.renderer.render(this.attract, null);
+          this.renderer.render(this.attract, { camDy: 0.34 }); // keep the running 날두 below the title labels
         } else if (this.world) this.renderer.render(this.world, null);
         else if (this.attract) this.renderer.render(this.attract, null);
       } catch (err) {
@@ -393,6 +454,7 @@
         this.handleEvents();
         if (w.phase === 'levelup' && !this.lvShown) this.showLevelUp();
         if (w.phase === 'chest' && !this.chestShown) this.showChest();
+        if (w.phase === 'swap' && !this.swapShown) this.showSwap();
         if (w.phase === 'clear' || w.phase === 'dead' || w.phase === 'victory') {
           this.endT += dt;
           if (!this.ended && this.endT > (w.phase === 'dead' ? 1.2 : 1.8)) { this.ended = true; this.endYear(); return; }
@@ -418,8 +480,9 @@
             $('bossbar').classList.remove('hidden');
             $('boss-name').textContent = e.name;
             break;
-          case 'recruit': RS.Audio.sfx('recruit'); this.banner(RS.TEAMMATES[e.id].name + ' 합류!'); break;
-          case 'rescueSpawn': this.banner('동료 발견! ' + RS.TEAMMATES[e.id].name + ' 에게 가자'); break;
+          case 'recruit': RS.Audio.sfx('recruit'); this.banner(RS.TEAMMATES[e.id].name + ' 합류!' + (e.swap ? ' (' + RS.TEAMMATES[e.swap].name + ' 이적)' : '')); break;
+          case 'rescueSpawn': this.banner((e.swap ? '이적 제안! ' : '동료 발견! ') + RS.TEAMMATES[e.id].name + ' 에게 가자'); break;
+          case 'swap': RS.Audio.sfx('recruit'); break;
           case 'banner': this.banner(e.text); break;
           case 'rage': this.renderer.shake = 0.5; RS.Audio.sfx('boss'); break;
           case 'elite': this.banner('엘리트 등장! 보물 상자를 노려라'); break;

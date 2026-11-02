@@ -11,6 +11,7 @@
         yearIdx: 0, // next year to play
         cleared: [], // cleared[idx] = true
         coachDone: -1, // coach card for year idx picked when coachDone >= idx
+        transferDone: -1, // transfer window for year idx handled when transferDone >= idx
         build: RS.newBuild(),
         snapshots: {}, // idx -> build at the start of that year (after the coach pick)
         finished: false,
@@ -92,6 +93,40 @@
     c.coachDone = idx;
     c.snapshots[idx] = RS.cloneBuild(c.build);
     return info;
+  };
+
+  // Transfer window: when the club changes, era players are offered (sign into a free slot or swap with
+  // a current teammate, who passes on his level). Returns up to 2 candidate ids, [] when nothing to offer.
+  RS.clubChanged = (idx) => idx > 0 && RS.YEARS[idx].era !== RS.YEARS[idx - 1].era;
+  RS.transferOffers = function (save, idx, rng) {
+    if (RS.isReplay(save, idx) || !RS.clubChanged(idx) || save.career.transferDone >= idx) return [];
+    const cands = RS.mateCandidates(save.career.build, idx, true);
+    const out = [];
+    while (out.length < 2 && cands.length) out.push(cands.splice(Math.floor(rng() * cands.length), 1)[0]);
+    return out;
+  };
+  // outId: teammate to release (null = sign into a free slot). newId null = keep the squad.
+  RS.applyTransfer = function (save, idx, newId, outId) {
+    const b = save.career.build;
+    let ok = true;
+    if (newId) ok = outId ? RS.swapMate(b, outId, newId) : RS.addMate(b, newId);
+    save.career.snapshots[idx] = RS.cloneBuild(b);
+    return ok;
+  };
+  RS.finishTransfers = function (save, idx) { save.career.transferDone = idx; };
+  // Simple policy for bots/tests: sign into free slots, otherwise replace the longest-serving teammate.
+  RS.autoTransfers = function (save, idx, rng) {
+    const offers = RS.transferOffers(save, idx, rng);
+    for (const id of offers) {
+      const b = save.career.build;
+      RS.applyTransfer(save, idx, id, b.teammates.length < RS.MAX_MATES ? null : b.teammates[0].id);
+      // the swapped-in player goes to the back of the line
+      const i = b.teammates.findIndex((m) => m.id === id);
+      if (i >= 0) b.teammates.push(b.teammates.splice(i, 1)[0]);
+    }
+    RS.finishTransfers(save, idx);
+    save.career.snapshots[idx] = RS.cloneBuild(save.career.build);
+    return offers;
   };
 
   // Build used to start year idx. Career year: current career build. Replay: snapshot from that year.

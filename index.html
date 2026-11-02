@@ -39,7 +39,7 @@
   <!-- Overlays during play -->
   <div id="levelup" class="overlay hidden">
     <div class="panel">
-      <h2 class="glow">레벨 업!</h2>
+      <h2 class="glow" id="lv-title">레벨 업!</h2>
       <div id="lv-cards" class="cards"></div>
       <button id="btn-reroll" class="btn small">🔁 다시 뽑기 (<span id="reroll-n">0</span>)</button>
     </div>
@@ -91,7 +91,8 @@
         <li>⚽ 공격은 자동! 날두가 가장 가까운 적에게 공을 찬다.</li>
         <li>💎 적이 떨군 공을 주워 레벨 업 → 카드 3장 중 1장 선택.</li>
         <li>🌟 스킬 최대 레벨 + 짝 패시브 = 진화! (상자에서도 진화)</li>
-        <li>🤝 필드의 <b class="cyan">!</b> 동료 위에 잠시 서 있으면 합류.</li>
+        <li>🤝 필드의 <b class="cyan">!</b> 동료 위에 잠시 서 있으면 합류. 스쿼드가 꽉 차면 교체 제안.</li>
+        <li>✈️ 클럽을 옮기면 이적 시장: 새 클럽 동료와 교체 가능 (레벨 승계).</li>
         <li>👔 시즌마다 감독 카드 1장. 효과는 커리어 내내 누적.</li>
         <li>🏆 시즌 보스를 쓰러뜨리면 다음 해로. 2026년 최종 보스는 메시.</li>
         <li>💰 코인·발롱도르로 훈련장에서 영구 강화.</li>
@@ -123,6 +124,19 @@
       </div>
       <p class="sub">감독의 전술 카드를 하나 고르세요. 효과는 커리어 내내 유지됩니다.</p>
       <div id="coach-cards" class="cards"></div>
+    </div>
+  </section>
+
+  <section id="transfer" class="screen hidden">
+    <div class="panel">
+      <div class="sub" id="tr-club">이적 시장</div>
+      <h2 class="glow">새 클럽, 새 동료!</h2>
+      <div class="coach-head">
+        <div id="tr-sprite"></div>
+        <div><h2 id="tr-name"></h2><div class="sub" id="tr-role"></div></div>
+      </div>
+      <p class="sub">빈 자리에 영입하거나 기존 동료와 교체하세요. 교체하면 레벨을 그대로 물려받습니다.</p>
+      <div id="tr-cards" class="cards"></div>
     </div>
   </section>
 

@@ -290,7 +290,22 @@
     sadiomane: { name: '사막의 질주 마네', role: 'winger', era: 'riyadh', hair: '#111111', skin: '#5a3a26' },
     talis: { name: '프리킥 탈리', role: 'striker', era: 'riyadh', hair: '#1a1a1a', skin: '#a8714a' },
     bernardo: { name: '꼬마 마법사 베르니', role: 'mid', era: 'national', hair: '#3a2a1a', skin: '#e3b48c' },
-    quaresmo: { name: '아웃프런트 콰레', role: 'winger', era: 'national', hair: '#111111', skin: '#a8714a' }
+    quaresmo: { name: '아웃프런트 콰레', role: 'winger', era: 'national', hair: '#111111', skin: '#a8714a' },
+    hugovia: { name: '왼발 위고', role: 'mid', era: 'lisbon', hair: '#3a2a1a', skin: '#e3b48c' },
+    lisbongk: { name: '사자굴 수문장', role: 'keeper', era: 'lisbon', hair: '#1a1a1a', skin: '#c99a73' },
+    parkji: { name: '세 개의 폐 박지', role: 'winger', era: 'manchester', hair: '#111111', skin: '#e8c09a' },
+    dybalino: { name: '조커 디발리노', role: 'striker', era: 'turin', hair: '#2a1a10', skin: '#e8b892' },
+    pjanic: { name: '프리킥 퍄니치', role: 'mid', era: 'turin', hair: '#1a1a1a', skin: '#e0ac84' },
+    cuadrado: { name: '헛다리 콰드라', role: 'winger', era: 'turin', hair: '#111111', skin: '#7a4a2a' },
+    rashy: { name: '질주 래시', role: 'winger', era: 'manchester2', hair: '#111111', skin: '#6a4430' },
+    degea: { name: '거미손 데헤아노', role: 'keeper', era: 'manchester2', hair: '#2a1a10', skin: '#e8b892' },
+    varanne: { name: '침착 바란느', role: 'defender', era: 'manchester2', hair: '#111111', skin: '#9a6a48' },
+    brozo: { name: '엔진 브로조', role: 'mid', era: 'riyadh', hair: '#c9a46a', skin: '#f0c8a2' },
+    laporto: { name: '사막 장벽 라포르', role: 'defender', era: 'riyadh', hair: '#1a1a1a', skin: '#e0ac84' },
+    bentoz: { name: '사막 거미 벤투', role: 'keeper', era: 'riyadh', hair: '#111111', skin: '#9a6a48' },
+    dias: { name: '철벽 디아스', role: 'defender', era: 'national', hair: '#111111', skin: '#c99a73' },
+    brunopt: { name: '대표팀 브루노', role: 'mid', era: 'national', hair: '#3a2a1a', skin: '#e3b48c' },
+    leaozinho: { name: '번개 레앙', role: 'striker', era: 'national', hair: '#111111', skin: '#6a4430' }
   };
 
   // ---------------------------------------------------------------- Enemies
@@ -305,14 +320,30 @@
 
   // Season bosses — archetypes reused with parody names per year.
   RS.BOSS_TYPES = {
-    keeper: { hp: 520, speed: 30, r: 14, dmg: 14, actions: ['summon', 'slam', 'dash'], cool: 2.2, sprite: 'bkeeper' },
-    tackler: { hp: 440, speed: 40, r: 12, dmg: 16, actions: ['dash', 'dash', 'fan'], cool: 1.9, sprite: 'btackler' },
-    maestro: { hp: 420, speed: 34, r: 12, dmg: 12, actions: ['fan', 'ring', 'curl'], cool: 2.0, sprite: 'bmaestro' },
-    striker: { hp: 420, speed: 42, r: 12, dmg: 12, actions: ['burst', 'dash', 'fan'], cool: 1.9, sprite: 'bstriker' },
-    referee: { hp: 400, speed: 36, r: 12, dmg: 10, actions: ['cards', 'summon', 'ring'], cool: 2.0, sprite: 'bref' },
-    giant: { hp: 640, speed: 25, r: 18, dmg: 18, actions: ['slam', 'slam', 'ring'], cool: 2.1, sprite: 'bgiant' },
-    messi: { hp: 1500, speed: 70, r: 9, dmg: 16, actions: [], cool: 1.3, sprite: 'messi' }
+    keeper: { hp: 520, fight: 1, speed: 30, r: 14, dmg: 14, actions: ['summon', 'pslam', 'snipe', 'curl', 'snipe'], cool: 2.0, sprite: 'bkeeper' },
+    tackler: { hp: 440, fight: 1, speed: 40, r: 12, dmg: 16, actions: ['cut', 'snipe', 'fan', 'pslam', 'dash'], cool: 1.8, sprite: 'btackler' },
+    maestro: { hp: 420, fight: 1, speed: 34, r: 12, dmg: 12, actions: ['fan', 'snipe', 'curl', 'encircle', 'ring'], cool: 1.9, sprite: 'bmaestro' },
+    striker: { hp: 420, fight: 1, speed: 42, r: 12, dmg: 12, actions: ['burst', 'snipe', 'curl', 'cut', 'snipe'], cool: 1.8, sprite: 'bstriker' },
+    referee: { hp: 400, fight: 1, speed: 36, r: 12, dmg: 10, actions: ['cards', 'snipe', 'encircle', 'curl', 'summon'], cool: 1.9, sprite: 'bref' },
+    giant: { hp: 640, fight: 1.15, speed: 25, r: 18, dmg: 18, actions: ['pslam', 'snipe', 'ring', 'encircle', 'pslam'], cool: 2.0, sprite: 'bgiant' },
+    messi: { hp: 700, fight: 1.3, speed: 70, r: 9, dmg: 16, actions: [], cool: 1.25, sprite: 'messi' }
   };
+  // 메시: phase 1 → roar at 50 % HP → phase 2 rage.
+  RS.MESSI = {
+    phase1: ['dribble', 'curl', 'volley', 'snipe', 'encircle'],
+    phase2: ['dribble3', 'curl', 'volley2', 'encircle', 'snipe', 'summon'],
+    rageCool: 0.62, rageSpeed: 1.3
+  };
+
+  // Boss HP: base HP for the year; after BOSS_CALIBRATE_AT seconds of fighting the boss is topped up so the
+  // player's measured damage rate on it gives roughly BOSS_FIGHT_SECONDS × fight (see World.calibrateBoss).
+  // Bosses are stun-immune.
+  RS.BOSS_FIGHT_SECONDS = 45;
+  RS.BOSS_CALIBRATE_AT = [2, 6, 12, 20, 30]; // seconds after the boss first takes damage
+  RS.bossHp = (bt, tune) => Math.round(bt.hp * tune.bossHpMul);
+  RS.keeperRadius = (lv) => 20 + 3 * lv;
+  // 'Weaker bot' used by balance tests: reacts 0.12 s late with up to ±0.3 rad steering noise.
+  RS.WEAK_BOT = { delay: 0.12, noise: 0.3 };
 
   // ---------------------------------------------------------------- Career years (debut at 17 → present)
   // Facts are kept to well-known headlines. Ballon: true = a real Ballon d'Or year, grants a 발롱도르 on first clear.
@@ -351,14 +382,20 @@
   // Per-year tuning derived from index so new years need no extra numbers.
   RS.yearTuning = function (idx) {
     const y = RS.YEARS[idx];
+    const gentle = idx === 0 ? 0.35 : idx === 1 ? 0.75 : 1; // first two years: phone newcomers
     const t = {
       hpMul: 1 + 0.55 * idx + 0.03 * idx * idx,
-      dmgMul: 1 + 0.1 * idx,
+      dmgMul: (1 + 0.1 * idx) * gentle,
       speedMul: 1 + 0.008 * idx,
-      spawnRate: 2.0 + 0.16 * idx,
+      spawnRate: (2.0 + 0.16 * idx) * (idx === 0 ? 0.65 : 1),
       maxAlive: Math.min(420, 150 + 12 * idx),
       duration: y.final ? 100 : Math.min(150, 95 + 3 * idx),
       xpMul: 1 + 0.16 * idx,
+      bossHpMul: 1 + 0.55 * idx + 0.03 * idx * idx,
+      bossDmgMul: (1 + 0.12 * idx) * gentle,
+      bossCool: idx === 0 ? 1.2 : 1,
+      bossDensity: Math.min(1, 0.7 + 0.1 * idx),
+      bossFight: idx === 0 ? 0.7 : idx === 1 ? 0.85 : 1, // shorter boss fights for newcomers
       mix: [{ type: 'grunt', w: 10 }]
     };
     if (idx >= 1) t.mix.push({ type: 'runner', w: 4 + Math.min(4, idx * 0.3) });
