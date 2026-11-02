@@ -85,9 +85,23 @@ often once the skill is Lv.5+, and can be taken even with all 6 passive slots us
 | 미드필더 mid | passes a ball to 날두, who auto-fires a piercing power shot |
 | 스트라이커 striker | extra shots at nearby enemies (1→3) |
 
-36 parody teammates, at least 3 per era (`RS.TEAMMATES`). Sources: level-up cards (eras up to the current year),
-rescue markers on the field (current era; stand on the marker ~1 s), and the coach "동료 영입" card.
+Parody teammates, at least 3 per era (`RS.TEAMMATES`, 메시 eras included). Sources: level-up cards (eras up to the
+current year), rescue markers on the field (current era; stand on the marker ~1 s), and the coach "동료 영입" card.
 Teammates do not take damage.
+
+**Squad = 2 starters + 3 bench (round 3).**
+- `RS.MAX_MATES = 2` run on the pitch; `RS.MAX_BENCH = 3` sit on the bench. A new signing goes to the pitch if there
+  is room, else to the bench; with 2+3 the rescue marker becomes a transfer swap (any of the five can be released).
+- Every role gives a team buff while on the pitch (`RS.ROLE_BUFF`: defender 받는 피해 -1, keeper 체력 +15, winger
+  이동속도 +6 %, mid 쿨타임 -5 %, striker 공격력 +8 %); bench players give `RS.BENCH_FACTOR` (34 %) of it.
+- The two starters form a named partnership by role pair (`RS.PAIR_SYNERGY`, 15 combos: 원투 패스, 철벽 수비, 투톱 …).
+  Recruit cards preview the partnership they would create (`RS.synergyHint`).
+- Between seasons the intro screen's squad panel has 벤치로/선발로 buttons (`RS.toggleBench`); replays keep that
+  year's squad.
+
+**Boss rewards (`RS.BOSS_REWARDS`).** After a season boss falls in a career year the result screen offers 3 of 5
+permanent perks (max HP +20, reroll +1, all teammates +1 Lv, coins +150, an extra coach card); the boss also banks
+`30 + 6·idx` coins directly (pickups would be lost at the phase change).
 
 **Transfers (the squad follows the career).**
 - When the club changes (2003, 2009, 2018, 2021, 2023, 2026), a transfer window opens after the coach pick:
@@ -159,6 +173,25 @@ invisible. This removes the power creep of the carried-over build: late bosses n
   cooldowns ×0.62, 3-dash chains that each end in a point-blank 3-ball volley, 5 curling balls, two-wave volley of 9,
   3-ball 강슛, tighter 포위망, 꼬마 메시 minions.
 - Death → victory screen with SIUU (twice), confetti, +1 발롱도르, new-career lap option (meta kept).
+- Final bosses are generic: `RS.FINAL[type]` holds the two action lists, rage multipliers, ball sprite and minion.
+  The 메시 career ends with `ronaldo` (dash·snipe·pslam·burst·wall → + ring·summon 꼬마 날두).
+
+### 메시 (playable hero, `RS.HEROES.messi`)
+- Title-screen hero buttons; each hero keeps his own career (`save.careers[hero]` parks the other), meta is shared.
+  `RS.selectHero()` points `RS.YEARS`/`DEBUT_YEAR`/`BIRTH_YEAR` at the active career; `RS.YEARS_MESSI` has 23
+  years (2004 Barcelona debut → 2026 final vs 날두) with eras barcelona/paris/miami/argentina and 10 parody coaches.
+- Move speed ×1.22, slide cooldown 3 s (날두 5 s).
+- No projectiles: starts with `orbit` (발롱도르 공) — `count` golden balls circle at `radius`, each enemy touched takes
+  `dmg` every `cd` s (per-enemy timer `e.orbT`). Lv.1→6: 1→4 balls, size 1→2×. Evolution with the 발롱도르 수집 passive
+  offers two cards: 8발롱도르공 (8 balls) or 8발롱도르 (one ball 8×, knockback). `build.evolved.orbit` stores the
+  variant name; `RS.skillStats` reads `evos[variant].stats`.
+- 킥, 무회전 프리킥, SIUU 함성 are 날두-only (`skill.hero`); orbit and 발롱도르 수집 are 메시-only.
+
+### Hero readability (round 3)
+- The hero sprite alone has a gold double outline (`paint` `opt.glow`), a pulsing gold ring + soft light pool under
+  the feet, a bobbing gold chevron above the head and a gold-framed HP bar.
+- Enemy kits are pulled 38 % toward a slate tone (`dull`) and enemies within 18 px of the hero draw at 55 % alpha so
+  he never vanishes in a pile. Teammates get a thin green outline.
 
 ### Balance targets (checked by `tests/balance.test.js`)
 - A player who does not move survives the first 45 s of 2002 (5 seeds).

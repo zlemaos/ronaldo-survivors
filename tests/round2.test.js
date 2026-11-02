@@ -15,7 +15,7 @@ test('level-up cards show each evolution condition', () => {
 
 test('every evolution stays reachable even when passive slots are full', () => {
   for (const sid of Object.keys(RS.SKILLS)) {
-    const b = RS.newBuild();
+    const b = RS.newBuild(RS.SKILLS[sid].hero || 'ronaldo'); // hero-locked skills are tested for their hero
     b.skills = { [sid]: RS.SKILL_MAX }; b.skillOrder = [sid];
     const pair = RS.SKILLS[sid].passive;
     for (const pid of Object.keys(RS.PASSIVES)) if (pid !== pair && b.passiveOrder.length < RS.MAX_PASSIVES) { b.passives[pid] = 1; b.passiveOrder.push(pid); }

@@ -58,12 +58,24 @@
       const c = this.save.career;
       const yd = RS.YEARS[c.yearIdx];
       const started = c.yearIdx > 0 || c.coachDone >= 0;
-      $('btn-play').textContent = c.finished ? '🏆 커리어 완주! 다시 보기' : started ? '▶ 이어하기 · ' + yd.year + '년' : '⚽ 커리어 시작';
-      $('title-progress').textContent = c.finished ? '메시를 꺾은 전설 · ' + (c.laps + 1) + '회차' : yd.year + '년 · ' + RS.yearAge(c.yearIdx) + '세 · ' + RS.ERAS[yd.era].club;
+      const hero = RS.HEROES[c.build.hero];
+      $('btn-play').textContent = c.finished ? '🏆 커리어 완주! 다시 보기' : started ? '▶ 이어하기 · ' + yd.year + '년' : '⚽ ' + hero.name + ' 커리어 시작';
+      $('title-progress').textContent = c.finished ? hero.rival + '를 꺾은 전설 · ' + (c.laps + 1) + '회차' : hero.name + ' · ' + yd.year + '년 · ' + RS.yearAge(c.yearIdx) + '세 · ' + RS.ERAS[yd.era].club;
+      for (const b of document.querySelectorAll('#hero-pick .hero')) b.classList.toggle('on', b.dataset.hero === c.build.hero);
       this.renderWallet($('title-wallet'));
       const ts = $('title-sprite'); ts.innerHTML = '';
-      ts.appendChild(RS.Sprites.toCanvas(RS.Sprites.ronaldo(c.yearIdx), 0, 7));
+      ts.appendChild(RS.Sprites.toCanvas(RS.Sprites.hero(c.build.hero, c.yearIdx), 0, 7));
       this.makeAttract();
+    },
+
+    // Title screen hero buttons: each hero keeps his own career; meta progress is shared.
+    pickHero(hero) {
+      if (hero === this.save.career.build.hero) return;
+      RS.switchHero(this.save, hero);
+      this.persist();
+      RS.Audio.sfx('click');
+      this.toast(RS.HEROES[hero].name + ' 커리어로 전환');
+      this.showTitle();
     },
 
     renderWallet(el) {
@@ -195,24 +207,25 @@
       $('intro-title').textContent = yd.title;
       $('intro-story').textContent = yd.story || '';
       const evo = $('intro-evo'); evo.innerHTML = '';
-      const look = RS.ronaldoLook(idx);
-      const prev = idx > 0 ? RS.ronaldoLook(idx - 1) : null;
+      const hero = this.save.career.build.hero;
+      const look = RS.heroLook(hero, idx);
+      const prev = idx > 0 ? RS.heroLook(hero, idx - 1) : null;
       if (prev && prev.key !== look.key) {
-        evo.appendChild(RS.Sprites.toCanvas(RS.Sprites.ronaldo(idx - 1), 0, 5));
+        evo.appendChild(RS.Sprites.toCanvas(RS.Sprites.hero(hero, idx - 1), 0, 5));
         const a = document.createElement('div'); a.className = 'arrow'; a.textContent = '➜'; evo.appendChild(a);
         const wrap = document.createElement('div');
-        const lab = document.createElement('div'); lab.className = 'evo-label'; lab.textContent = '날두 진화!';
+        const lab = document.createElement('div'); lab.className = 'evo-label'; lab.textContent = RS.HEROES[hero].short + ' 진화!';
         wrap.appendChild(lab);
-        wrap.appendChild(RS.Sprites.toCanvas(RS.Sprites.ronaldo(idx), 0, 6));
+        wrap.appendChild(RS.Sprites.toCanvas(RS.Sprites.hero(hero, idx), 0, 6));
         evo.appendChild(wrap);
-      } else evo.appendChild(RS.Sprites.toCanvas(RS.Sprites.ronaldo(idx), 0, 6));
+      } else evo.appendChild(RS.Sprites.toCanvas(RS.Sprites.hero(hero, idx), 0, 6));
       const stars = RS.threatStars(idx);
       const drawSquad = () => {
         const b = RS.buildForYear(this.save, idx);
         $('intro-squad').innerHTML = this.buildChips(b);
         if (!RS.isReplay(this.save, idx)) this.bindSquad($('intro-squad'), drawSquad); // replays keep that year's squad
         else for (const el of $('intro-squad').querySelectorAll('.sqbtn')) el.remove();
-        $('intro-vs').innerHTML = '⚔ 날두 전투력 <b>' + RS.powerScore(b) + '</b> &nbsp;vs&nbsp; 상대 위협도 <b>' + '★'.repeat(stars) + '☆'.repeat(5 - stars) + '</b>';
+        $('intro-vs').innerHTML = '⚔ ' + RS.HEROES[b.hero].short + ' 전투력 <b>' + RS.powerScore(b) + '</b> &nbsp;vs&nbsp; 상대 위협도 <b>' + '★'.repeat(stars) + '☆'.repeat(5 - stars) + '</b>';
       };
       drawSquad();
       $('intro-boss').textContent = (yd.final ? '최종 보스: ' : '시즌 보스: ') + yd.boss.name + ' (' + RS.BOSS_TYPES[yd.boss.type].sig + ') · 1분 버티면 등장';
@@ -433,8 +446,10 @@
     showVictory(w, out) {
       this.show('victory');
       const ws = $('win-sprites'); ws.innerHTML = '';
-      ws.appendChild(RS.Sprites.toCanvas(RS.Sprites.ronaldo(RS.YEARS.length - 1), 0, 8));
-      const ms = RS.Sprites.toCanvas(RS.Sprites.messi(1), 0, 5); ms.style.opacity = '0.7'; ms.style.transform = 'rotate(80deg)';
+      const hero = this.save.career.build.hero;
+      ws.appendChild(RS.Sprites.toCanvas(RS.Sprites.hero(hero, RS.YEARS.length - 1), 0, 8));
+      const fallen = RS.Sprites.boss(RS.YEARS[RS.YEARS.length - 1].boss.type, RS.YEARS.length - 1);
+      const ms = RS.Sprites.toCanvas(fallen, 0, 5); ms.style.opacity = '0.7'; ms.style.transform = 'rotate(80deg)';
       ws.appendChild(ms);
       $('win-stats').innerHTML = '';
       const add = (v, l) => { const d = document.createElement('div'); d.className = 'stat'; d.innerHTML = '<b></b><span></span>'; d.querySelector('b').textContent = v; d.querySelector('span').textContent = l; $('win-stats').appendChild(d); };
@@ -546,7 +561,7 @@
           case 'revive': RS.Audio.siuu(); break;
           case 'dead': RS.Audio.sfx('dead'); break;
           case 'clear': this.banner('시즌 클리어! SIUU!'); RS.Audio.sfx('cheer'); this.renderer.shake = 0.5; break;
-          case 'victory': this.banner('메시 격파!!!'); RS.Audio.sfx('cheer'); this.renderer.shake = 0.8; break;
+          case 'victory': this.banner(RS.HEROES[w.hero].rival + ' 격파!!!'); RS.Audio.sfx('cheer'); this.renderer.shake = 0.8; break;
         }
       }
       w.events.length = 0;
@@ -641,6 +656,7 @@
       $('btn-res-menu').onclick = () => this.showTitle();
       $('btn-win-menu').onclick = () => this.showTitle();
       $('btn-win-new').onclick = () => { RS.newCareer(this.save); this.persist(); this.showTitle(); };
+      for (const b of document.querySelectorAll('#hero-pick .hero')) b.onclick = () => this.pickHero(b.dataset.hero);
       for (const b of document.querySelectorAll('[data-back]')) b.onclick = () => this.showTitle();
       for (const b of document.querySelectorAll('[data-home]')) b.onclick = () => this.showTitle();
       window.addEventListener('keydown', (e) => {

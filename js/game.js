@@ -5,23 +5,28 @@
   const TAU = Math.PI * 2;
 
   // ================================================================ Build (persistent across years in a career)
-  RS.newBuild = function () {
+  RS.newBuild = function (hero) {
+    hero = RS.HEROES[hero] ? hero : 'ronaldo';
+    const start = RS.HEROES[hero].startSkill;
     return {
       level: 1, xp: 0,
-      skills: { kick: 1 }, skillOrder: ['kick'],
+      skills: { [start]: 1 }, skillOrder: [start],
       passives: {}, passiveOrder: [],
-      evolved: {},
+      evolved: {}, // id -> true, or the evolution variant name for skills with several (orbit: 'count' | 'size')
       teammates: [], // on the pitch [{id, lv}], at most MAX_MATES
       bench: [], // bench warmers [{id, lv}], at most MAX_BENCH (weak passive synergy)
       coachCards: [], // card ids, stack for the career
       bonusHp: 0, bonusReroll: 0, // boss rewards (permanent for the career)
-      hero: 'ronaldo'
+      hero
     };
   };
+  // Skills / passives a hero may take (hero-locked entries name their hero).
+  RS.skillFor = (id, hero) => { const h = RS.SKILLS[id].hero; return !h || h === hero; };
+  RS.passiveFor = (id, hero) => { const h = RS.PASSIVES[id].hero; return !h || h === hero; };
   RS.cloneBuild = (b) => JSON.parse(JSON.stringify(b));
   // Fill missing fields (old saves).
   RS.normalizeBuild = function (b) {
-    const d = RS.newBuild();
+    const d = RS.newBuild(b && b.hero);
     if (!b || typeof b !== 'object') return d;
     for (const k of Object.keys(d)) if (b[k] === undefined) b[k] = d[k];
     b.skillOrder = b.skillOrder.filter((id) => RS.SKILLS[id] && b.skills[id]);
@@ -95,7 +100,7 @@
 
   RS.skillStats = function (id, lv, evolved) {
     const s = RS.SKILLS[id];
-    if (evolved) return s.evo;
+    if (evolved) return (s.evos && s.evos[evolved] && s.evos[evolved].stats) || s.evo;
     return s.lv[Math.max(0, Math.min(s.lv.length, lv) - 1)];
   };
 
@@ -207,7 +212,8 @@
       case 'skill': { const s = RS.SKILLS[c.id]; return Object.assign(c, { name: s.name, icon: s.icon, desc: s.desc, tag: '새 스킬', hint: RS.evoHint(build, c.id) }); }
       case 'skillUp': { const s = RS.SKILLS[c.id]; const nl = build.skills[c.id] + 1;
         return Object.assign(c, { name: s.name, icon: s.icon, desc: s.ups[nl - 1], tag: 'Lv.' + nl + (nl === RS.SKILL_MAX ? ' MAX' : ''), hint: RS.evoHint(build, c.id) }); }
-      case 'evolve': { const s = RS.SKILLS[c.id]; return Object.assign(c, { name: s.evoName, icon: s.evoIcon, desc: s.evoDesc, tag: '진화!', hint: s.name + ' + ' + RS.PASSIVES[s.passive].name }); }
+      case 'evolve': { const s = RS.SKILLS[c.id]; const v = c.variant && s.evos && s.evos[c.variant];
+        return Object.assign(c, { name: v ? v.name : s.evoName, icon: v ? v.icon : s.evoIcon, desc: v ? v.desc : s.evoDesc, tag: '진화!', hint: s.name + ' + ' + RS.PASSIVES[s.passive].name }); }
       case 'passive': { const p = RS.PASSIVES[c.id]; return Object.assign(c, { name: p.name, icon: p.icon, desc: p.desc, tag: '새 패시브', hint: RS.passiveHint(build, c.id) }); }
       case 'passiveUp': { const p = RS.PASSIVES[c.id]; const nl = build.passives[c.id] + 1;
         return Object.assign(c, { name: p.name, icon: p.icon, desc: p.desc, tag: 'Lv.' + nl + (nl === RS.PASSIVE_MAX ? ' MAX' : ''), hint: RS.passiveHint(build, c.id) }); }
@@ -225,13 +231,18 @@
     n = n || 3;
     const pool = [];
     const out = [];
-    for (const id of RS.availableEvolutions(build)) if (out.length < 1) out.push({ kind: 'evolve', id });
+    const hero = build.hero || 'ronaldo';
+    for (const id of RS.availableEvolutions(build)) if (out.length < 1) {
+      const evos = RS.SKILLS[id].evos;
+      if (evos) for (const v in evos) out.push({ kind: 'evolve', id, variant: v }); // the player picks the path
+      else out.push({ kind: 'evolve', id });
+    }
     for (const id of build.skillOrder) if (build.skills[id] < RS.SKILL_MAX) pool.push({ kind: 'skillUp', id, w: 3 });
     if (build.skillOrder.length < RS.MAX_SKILLS) {
-      for (const id in RS.SKILLS) if (!build.skills[id]) pool.push({ kind: 'skill', id, w: 1.7 });
+      for (const id in RS.SKILLS) if (!build.skills[id] && RS.skillFor(id, hero)) pool.push({ kind: 'skill', id, w: 1.7 });
     }
     for (const id of build.passiveOrder) if (build.passives[id] < RS.PASSIVE_MAX) pool.push({ kind: 'passiveUp', id, w: 2 });
-    for (const id in RS.PASSIVES) if (RS.canTakePassive(build, id)) {
+    for (const id in RS.PASSIVES) if (RS.canTakePassive(build, id) && RS.passiveFor(id, hero)) {
       // Paired passives come up much more often once the skill is high level (evolution path).
       const sid = build.skillOrder.find((k) => RS.SKILLS[k].passive === id);
       const w = sid ? (build.skills[sid] >= RS.SKILL_MAX - 1 ? 6 : 2.4) : 0.9;
@@ -247,6 +258,7 @@
       pool.splice(pool.indexOf(c), 1);
       out.push({ kind: c.kind, id: c.id });
     }
+    out.length = Math.min(out.length, Math.max(n, 2));
     if (out.length < n) out.push({ kind: 'heal', id: 'heal' });
     if (out.length < n) out.push({ kind: 'gold', id: 'gold' });
     return out.map((c) => describe(c, build));
@@ -261,9 +273,10 @@
       case 'skillUp':
         if (!build.skills[c.id] || build.skills[c.id] >= RS.SKILL_MAX) return false;
         build.skills[c.id]++; return true;
-      case 'evolve':
+      case 'evolve': {
         if (!RS.availableEvolutions(build).includes(c.id)) return false;
-        build.evolved[c.id] = true; return true;
+        const evos = RS.SKILLS[c.id].evos;
+        build.evolved[c.id] = evos ? (evos[c.variant] ? c.variant : Object.keys(evos)[0]) : true; return true; }
       case 'passive':
         if (!RS.canTakePassive(build, c.id)) return false;
         build.passives[c.id] = 1; build.passiveOrder.push(c.id); return true;
@@ -494,7 +507,7 @@
       e.tier = k >= 2 / 3 ? 2 : k >= 1 / 3 ? 1 : 0;
       e.xp = def.xp; e.ranged = !!def.ranged; e.shootT = 1.5 + this.rng() * 2;
       e.stun = 0; e.kx = 0; e.ky = 0; e.flash = -1; e.elite = !!opt.elite; e.boss = false; e.ai = null;
-      e.invuln = false; e.tele = null; e.lineVx = 0; e.lineVy = 0; e.life = 0; e.dHit = -9; e.face = 1; e.charging = false;
+      e.invuln = false; e.tele = null; e.lineVx = 0; e.lineVy = 0; e.life = 0; e.dHit = -9; e.face = 1; e.charging = false; e.orbT = 0;
       e.anim = this.rng() * 10; e.minion = !!opt.minion;
       e.mini = !!def.mini; e.name = def.name;
       if (e.elite) { e.maxHp = e.hp = e.hp * 9; e.r = Math.round(e.r * 1.5); e.dmg = Math.round(e.dmg * 1.4); e.xp *= 12; e.speed *= 1.1; }
@@ -523,7 +536,7 @@
       e.dmg = Math.round(bt.dmg * this.tune.bossDmgMul);
       e.xp = 40;
       e.name = yd.boss.name;
-      e.ai = { kind: yd.boss.type, cool: 1.8, act: null, last: null, phase: 1, keep: yd.boss.type === 'messi' ? 70 : 0, strafe: 1, history: [] };
+      e.ai = { kind: yd.boss.type, cool: 1.8, act: null, last: null, phase: 1, keep: RS.FINAL[yd.boss.type] ? 70 : 0, strafe: 1, history: [] };
       this.boss = e;
       this.emit('boss', { name: e.name, final: !!yd.final });
       return e;
@@ -743,7 +756,7 @@
       for (const id of b.skillOrder) {
         const ws = this.wstate[id] || (this.wstate[id] = { timer: 0.3 + this.rng() * 0.5, tick: 0 });
         const evo = !!b.evolved[id];
-        const s = RS.skillStats(id, b.skills[id], evo);
+        const s = RS.skillStats(id, b.skills[id], b.evolved[id]); // the variant name picks the evolution path
         if (id === 'bicycle' && evo) { // permanent tornado aura
           ws.tick -= dt;
           ws.angle = (ws.angle || 0) + dt * 9;
@@ -754,10 +767,42 @@
           continue;
         }
         if (id === 'stepover') { this.updateStepover(ws, s, evo, dt); continue; }
+        if (id === 'orbit') { this.updateOrbit(ws, s, dt); continue; }
         ws.timer -= dt;
         if (ws.timer > 0) continue;
         const fired = this.fire(id, s, evo);
         ws.timer = fired ? s.cd * st.cd : 0.2;
+      }
+    }
+
+    // 메시's golden balls: `count` balls circle the player at `radius`; each enemy they touch takes damage once per
+    // `cd` seconds (bigger balls cover more ground). Positions are kept in this.orbs for the renderer.
+    updateOrbit(ws, s, dt) {
+      const p = this.player, st = this.stats;
+      ws.angle = (ws.angle || 0) + dt * s.speed;
+      const R = s.radius * st.area, ballR = 4 * s.size, n = s.count;
+      const orbs = this.orbs || (this.orbs = []);
+      orbs.length = n;
+      for (let i = 0; i < n; i++) {
+        const a = ws.angle + i * Math.PI * 2 / n;
+        const o = orbs[i] || (orbs[i] = { x: 0, y: 0, r: 0 });
+        o.x = p.x + Math.cos(a) * R; o.y = p.y + Math.sin(a) * R; o.r = ballR;
+      }
+      const reach = R + ballR + 20;
+      for (const e of this.enemies) {
+        if (!e.alive) continue;
+        if (Math.abs(e.x - p.x) > reach + e.r || Math.abs(e.y - p.y) > reach + e.r) continue;
+        if (e.orbT > this.t) continue;
+        for (let i = 0; i < n; i++) {
+          const o = orbs[i];
+          const rr = o.r + e.r;
+          if ((e.x - o.x) ** 2 + (e.y - o.y) ** 2 < rr * rr) {
+            e.orbT = this.t + s.cd * st.cd;
+            const d = Math.hypot(e.x - p.x, e.y - p.y) || 1;
+            this.damageEnemy(e, s.dmg, { knock: s.knock || 20, kx: (e.x - p.x) / d, ky: (e.y - p.y) / d });
+            break;
+          }
+        }
       }
     }
 
@@ -1281,21 +1326,20 @@
     bossTarget(e) { return RS.BOSS_FIGHT_SECONDS * RS.BOSS_TYPES[this.yearDef.boss.type].fight * this.tune.bossFight; }
 
     bossActions(e) {
-      const ai = e.ai;
-      if (ai.kind !== 'messi') return RS.BOSS_TYPES[ai.kind].actions;
-      return ai.phase === 1 ? RS.MESSI.phase1 : RS.MESSI.phase2;
+      const ai = e.ai, fin = RS.FINAL[ai.kind];
+      if (!fin) return RS.BOSS_TYPES[ai.kind].actions;
+      return ai.phase === 1 ? fin.phase1 : fin.phase2;
     }
 
     bossAI(e, dt, dx, dy, d) {
-      const ai = e.ai;
-      const isMessi = ai.kind === 'messi';
-      if (isMessi && ai.phase === 1 && e.hp <= e.maxHp * 0.5) {
+      const ai = e.ai, fin = RS.FINAL[ai.kind];
+      if (fin && ai.phase === 1 && e.hp <= e.maxHp * 0.5) {
         ai.phase = 2;
         ai.act = { kind: 'roar', t: 0, stage: 0, n: 0 };
         e.invuln = true;
         e.tele = null;
         this.emit('rage');
-        this.emit('banner', { text: '메시 분노! 2페이즈' });
+        this.emit('banner', { text: fin.rageText });
       }
       if (e.bossDmgIn && e.calibrated < RS.BOSS_CALIBRATE_AT.length && this.t - e.firstHitT >= RS.BOSS_CALIBRATE_AT[e.calibrated]) { e.calibrated++; this.calibrateBoss(e); }
       if (ai.act) { this.runBossAct(e, ai.act, dt, dx, dy, d); return; }
@@ -1328,7 +1372,8 @@
       const ai = e.ai;
       ai.act = null;
       e.tele = null;
-      ai.cool = RS.BOSS_TYPES[ai.kind].cool * (ai.kind === 'messi' && ai.phase === 2 ? RS.MESSI.rageCool : 1) * this.tune.bossCool;
+      const fin = RS.FINAL[ai.kind];
+      ai.cool = RS.BOSS_TYPES[ai.kind].cool * (fin && ai.phase === 2 ? fin.rageCool : 1) * this.tune.bossCool;
     }
 
     // 준보스: walks at the player; every few seconds a telegraphed charge (red line, then a fast run that hits
@@ -1375,9 +1420,10 @@
       a.t += dt;
       const aim = Math.atan2(dy, dx);
       const pdmg = Math.round(e.dmg * 0.75);
-      const isMessi = e.ai.kind === 'messi';
+      const fin = RS.FINAL[e.ai.kind];
+      const isMessi = !!fin;
       const rage = isMessi && e.ai.phase === 2;
-      const ball = isMessi ? 'mball' : 'ball';
+      const ball = fin ? fin.ball : 'ball';
       const k = this.tune.bossDensity; // fewer bullets in the first years
       switch (a.kind) {
         case 'roar':
@@ -1388,7 +1434,7 @@
             p.x += (p.x - e.x) / n * 30; p.y += (p.y - e.y) / n * 30;
             for (const o of this.enemies) if (o !== e && o.alive && !o.boss) o.stun = Math.max(o.stun, 0.6);
           }
-          if (a.t >= 1.6) { e.invuln = false; e.speed *= RS.MESSI.rageSpeed; this.endAct(e); }
+          if (a.t >= 1.6) { e.invuln = false; e.speed *= fin.rageSpeed; this.endAct(e); }
           break;
         // Dashes: 'dash' aims where the player will be; 'cut' runs across the player's escape path;
         // 'dribble'/'dribble3' are 메시's (3 chained in rage).
@@ -1491,7 +1537,7 @@
             if (a.t >= tele) {
               e.tele = null; a.stage = 1; a.t = 0;
               const offs = isMessi && !rage ? [0] : [0, -0.12, 0.12];
-              for (const off of offs) this.enemyShot(isMessi ? 'mball' : 'ball', e.x, e.y, a.dir + off, speed, Math.round(pdmg * (off ? 0.9 : 1.2)), 4, 0, { power: true });
+              for (const off of offs) this.enemyShot(ball, e.x, e.y, a.dir + off, speed, Math.round(pdmg * (off ? 0.9 : 1.2)), 4, 0, { power: true });
               this.emit('sfx', { name: 'shoot' });
             }
           } else if (a.t > 0.4) this.endAct(e);
@@ -1538,7 +1584,7 @@
             const n = isMessi ? 4 : 6 + Math.min(6, Math.floor(this.yearIdx / 3));
             for (let i = 0; i < n; i++) {
               const ang = i / n * TAU;
-              this.spawnEnemy(isMessi ? 'minimessi' : 'grunt', e.x + Math.cos(ang) * 30, e.y + Math.sin(ang) * 30, { minion: true });
+              this.spawnEnemy(fin ? fin.minion : 'grunt', e.x + Math.cos(ang) * 30, e.y + Math.sin(ang) * 30, { minion: true });
             }
             a.n = 1;
             this.addFx('shock', e.x, e.y, { r: 36, dur: 0.4, color: '#ffffff' });

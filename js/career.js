@@ -18,6 +18,7 @@
         finished: false,
         laps: 0
       },
+      careers: {}, // parked careers of the other heroes (see RS.switchHero)
       meta: { coins: 0, ballons: 0, upgrades: {}, ballonYears: [], muted: false, totalKills: 0, wins: 0 }
     };
   };
@@ -36,9 +37,29 @@
     s.version = 1;
     s.career.build = RS.normalizeBuild(s.career.build);
     for (const k of Object.keys(s.career.snapshots || {})) s.career.snapshots[k] = RS.normalizeBuild(s.career.snapshots[k]);
+    s.careers = s.careers && typeof s.careers === 'object' ? s.careers : {}; // parked careers of the other heroes
+    RS.selectHero(s.career.build.hero);
     s.career.yearIdx = Math.max(0, Math.min(RS.YEARS.length - 1, s.career.yearIdx | 0));
     for (const k of Object.keys(s.meta.upgrades)) if (!RS.META[k]) delete s.meta.upgrades[k];
     return s;
+  };
+
+  // Switch the active career to another hero. The current career is parked under save.careers[hero] and the
+  // other hero's parked career (or a fresh one) becomes save.career. Meta (coins, 발롱도르, shop) is shared.
+  RS.switchHero = function (save, hero) {
+    hero = RS.HEROES[hero] ? hero : 'ronaldo';
+    const cur = save.career.build.hero;
+    if (cur === hero) { RS.selectHero(hero); return save.career; }
+    save.careers = save.careers || {};
+    save.careers[cur] = save.career;
+    let next = save.careers[hero];
+    if (!next) { next = RS.newSave().career; next.build = RS.newBuild(hero); }
+    else { next.build = RS.normalizeBuild(next.build); next.build.hero = hero; }
+    delete save.careers[hero];
+    save.career = next;
+    RS.selectHero(hero);
+    save.career.yearIdx = Math.max(0, Math.min(RS.YEARS.length - 1, save.career.yearIdx | 0));
+    return save.career;
   };
 
   RS.writeSave = function (storage, save) {
@@ -214,7 +235,9 @@
   // New career lap after beating 메시 (meta upgrades are kept).
   RS.newCareer = function (save) {
     const laps = save.career.laps + (save.career.finished ? 1 : 0);
+    const hero = save.career.build.hero;
     save.career = RS.newSave().career;
+    save.career.build = RS.newBuild(hero);
     save.career.laps = laps;
   };
 

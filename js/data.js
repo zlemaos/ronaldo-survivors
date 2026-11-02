@@ -40,7 +40,7 @@
   // Each skill: lv[] holds stats for level 1..max; evo holds evolved stats. passive = paired passive for evolution.
   RS.SKILLS = {
     kick: {
-      name: '축구공 킥', icon: '⚽', passive: 'boots', evoName: '황금 발롱볼', evoIcon: '🏆',
+      name: '축구공 킥', icon: '⚽', passive: 'boots', hero: 'ronaldo', evoName: '황금 발롱볼', evoIcon: '🏆',
       desc: '가장 가까운 적에게 축구공을 찬다.',
       evoDesc: '황금 공이 적 사이를 튕기며 관통한다.',
       ups: ['', '공이 1번 튕긴다', '공 +1', '관통 +1, 피해 증가', '피해 증가, 튕김 +1', '피해·관통 크게 증가, 연사 증가'],
@@ -55,7 +55,7 @@
       evo: { dmg: 40, cd: 0.6, count: 3, pierce: 3, bounce: 4, speed: 280, r: 5 }
     },
     knuckle: {
-      name: '무회전 프리킥', icon: '🎯', passive: 'freekick', evoName: '무회전 대포알', evoIcon: '💥',
+      name: '무회전 프리킥', icon: '🎯', passive: 'freekick', hero: 'ronaldo', evoName: '무회전 대포알', evoIcon: '💥',
       desc: '흔들리며 날아가 적을 꿰뚫는 무회전 슛.',
       evoDesc: '거대한 대포알이 모든 적을 꿰뚫는다.',
       ups: ['', '피해 증가', '관통 +1', '슛 +1', '관통 +1, 피해 증가', '피해 크게 증가'],
@@ -130,7 +130,7 @@
       evo: { dmg: 48, cd: 0.9, dirs: 6, pierce: 5, speed: 250, r: 4, critBonus: 0.2 }
     },
     siuu: {
-      name: 'SIUU 함성', icon: '📣', passive: 'charisma', evoName: '월드 SIUU', evoIcon: '🌍',
+      name: 'SIUU 함성', icon: '📣', passive: 'charisma', hero: 'ronaldo', evoName: '월드 SIUU', evoIcon: '🌍',
       desc: '함성 충격파로 주변 적을 기절시킨다.',
       evoDesc: '경기장을 뒤흔드는 함성. 넉백하고 체력을 회복한다.',
       ups: ['', '범위 증가', '기절 시간 증가', '피해 증가', '쿨타임 감소', '범위·기절 크게 증가'],
@@ -143,6 +143,26 @@
         { dmg: 20, cd: 5.0, radius: 96, stun: 1.6 }
       ],
       evo: { dmg: 50, cd: 4.0, radius: 150, stun: 2.4, knock: 220, heal: 4 }
+    },
+    // 메시 only: golden balls circle him instead of projectiles. Two evolutions: 8 balls or one ball 8× the size.
+    orbit: {
+      name: '발롱도르 공', icon: '🏆', passive: 'ballon', hero: 'messi', evoName: '8발롱도르', evoIcon: '🌕',
+      desc: '황금 공이 메시 주위를 돌며 닿는 적을 때린다.',
+      evoDesc: '공 8개 또는 8배 크기의 공.',
+      ups: ['', '공 +1', '공이 커진다', '공 +1', '공 +1, 피해 증가', '공이 더 커진다, 피해 증가'],
+      lv: [
+        { dmg: 9, cd: 0.4, count: 1, size: 1, speed: 3.4, radius: 34 },
+        { dmg: 10, cd: 0.4, count: 2, size: 1, speed: 3.4, radius: 34 },
+        { dmg: 12, cd: 0.4, count: 2, size: 1.5, speed: 3.5, radius: 36 },
+        { dmg: 13, cd: 0.38, count: 3, size: 1.5, speed: 3.6, radius: 36 },
+        { dmg: 16, cd: 0.36, count: 4, size: 1.5, speed: 3.8, radius: 38 },
+        { dmg: 20, cd: 0.34, count: 4, size: 2, speed: 4.0, radius: 40 }
+      ],
+      evo: { dmg: 30, cd: 0.3, count: 8, size: 1.6, speed: 4.4, radius: 44 },
+      evos: {
+        count: { name: '8발롱도르공', icon: '🟡', desc: '황금 공 8개가 쉴 새 없이 돈다.', stats: { dmg: 30, cd: 0.3, count: 8, size: 1.6, speed: 4.4, radius: 44 } },
+        size: { name: '8발롱도르', icon: '🌕', desc: '하나의 거대한 공(8배)이 모든 것을 쓸어버린다.', stats: { dmg: 46, cd: 0.32, count: 1, size: 8, speed: 2.6, radius: 46, knock: 90 } }
+      }
     }
   };
   RS.SKILL_MAX = 6;
@@ -160,7 +180,8 @@
     fitness: { name: '체력 단련', icon: '💪', desc: '최대 체력 +20', mods: { hp: 20 } },
     trap: { name: '볼 트래핑', icon: '🧲', desc: '아이템 흡수 범위 +30%', mods: { magnet: 0.30 } },
     recovery: { name: '회복 루틴', icon: '💤', desc: '초당 체력 +0.25', mods: { regen: 0.25 } },
-    icebath: { name: '얼음 목욕', icon: '🧊', desc: '받는 피해 -1', mods: { armor: 1 } }
+    icebath: { name: '얼음 목욕', icon: '🧊', desc: '받는 피해 -1', mods: { armor: 1 } },
+    ballon: { name: '발롱도르 수집', icon: '🏆', desc: '공격력 +6%, 범위 +6%', mods: { dmg: 0.06, area: 0.06 }, hero: 'messi' }
   };
   RS.PASSIVE_MAX = 5;
 
@@ -208,6 +229,31 @@
       kit: { main: '#c41e2a', alt: '#1f7a3a', shorts: '#1f7a3a', socks: '#c41e2a', pattern: 'sash' },
       theme: { g1: '#2f6f33', g2: '#2a662e', line: '#dff0da', edge: '#163a19', night: true },
       foe: ['#8cc8f0', '#f4f4f4']
+    },
+    // ---- 메시 career eras
+    barcelona: {
+      club: '바르셀로나 청홍군단', short: '바르셀로나',
+      kit: { main: '#a50044', alt: '#004d98', shorts: '#004d98', socks: '#004d98', pattern: 'stripes' },
+      theme: { g1: '#44953f', g2: '#3c893a', line: '#eaf5e4', edge: '#2c6a2b', night: false },
+      foe: ['#f0f0f0', '#7a1020']
+    },
+    paris: {
+      club: '파리 에펠군단', short: '파리',
+      kit: { main: '#1b2a5a', alt: '#da291c', shorts: '#1b2a5a', socks: '#1b2a5a', pattern: 'sash' },
+      theme: { g1: '#3a843a', g2: '#337733', line: '#e2f2dc', edge: '#245724', night: true },
+      foe: ['#8ec3ea', '#c0c0c0']
+    },
+    miami: {
+      club: '마이애미 핑크군단', short: '마이애미',
+      kit: { main: '#f7b5cd', alt: '#231f20', shorts: '#f7b5cd', socks: '#f7b5cd', pattern: 'trim' },
+      theme: { g1: '#5a9c3c', g2: '#529236', line: '#fff4f8', edge: '#c88aa8', night: false },
+      foe: ['#1a7a3e', '#e0c040']
+    },
+    argentina: {
+      club: '아르헨티나 대표팀', short: '대표팀',
+      kit: { main: '#75aadb', alt: '#ffffff', shorts: '#1a1a2e', socks: '#ffffff', pattern: 'stripes' },
+      theme: { g1: '#2f6f33', g2: '#2a662e', line: '#dff0da', edge: '#163a19', night: true },
+      foe: ['#1d4fa8', '#f4f4f4']
     }
   };
 
@@ -280,6 +326,57 @@
       { id: 'mt_last', name: '라스트 댄스', icon: '💃', desc: '공격력 +15%', mods: { dmg: 0.15 } },
       { id: 'mt_cap', name: '주장 완장', icon: '©️', desc: '동료 공격력 +15%, 받는 피해 -1', mods: { teamDmg: 0.15, armor: 1 } },
       { id: 'mt_boss', name: '결승전 집중', icon: '🎯', desc: '보스에게 주는 피해 +20%', mods: { bossDmg: 0.20 } }
+    ] },
+    // ---- 메시 career coaches
+    rijkaard: { name: '레이카르 감독', tag: '첫 스승, 자유 축구', look: { hair: '#1a1a1a', suit: '#2b2b3a' }, cards: [
+      { id: 'rk_free', name: '자유 축구', icon: '🕊️', desc: '공격력 +8%', mods: { dmg: 0.08 } },
+      { id: 'rk_wing', name: '오른쪽 윙 배치', icon: '🏃', desc: '이동속도 +6%', mods: { moveSpeed: 0.06 } },
+      { id: 'rk_calm', name: '느긋한 리더십', icon: '😌', desc: '초당 체력 +0.3', mods: { regen: 0.3 } }
+    ] },
+    pep: { name: '대머리 교수', tag: '티키타카 설계자', look: { hair: '#e8c0a0', suit: '#1a1a1a' }, cards: [
+      { id: 'pep_tiki', name: '티키타카', icon: '🔁', desc: '동료 쿨타임 -12%', mods: { teamCd: -0.12 } },
+      { id: 'pep_false9', name: '가짜 9번', icon: '9️⃣', desc: '공격력 +10%', mods: { dmg: 0.10 } },
+      { id: 'pep_press', name: '6초 압박', icon: '⏱️', desc: '쿨타임 -6%', mods: { cd: -0.06 } }
+    ] },
+    tito: { name: '티토 감독', tag: '91골 시즌의 조력자', look: { hair: '#3a3a3a', suit: '#24304a' }, cards: [
+      { id: 'tito_91', name: '91골의 해', icon: '🔥', desc: '치명타 확률 +6%', mods: { crit: 0.06 } },
+      { id: 'tito_heart', name: '뜨거운 심장', icon: '❤️', desc: '최대 체력 +20', mods: { hp: 20 } },
+      { id: 'tito_pass', name: '패스 길 열기', icon: '↔️', desc: '공격 범위 +8%', mods: { area: 0.08 } }
+    ] },
+    tata: { name: '타타 감독', tag: '아르헨 동향 감독', look: { hair: '#5a5a5a', suit: '#2a2a2a' }, cards: [
+      { id: 'tata_link', name: '아르헨 연결고리', icon: '🔗', desc: '동료 공격력 +12%', mods: { teamDmg: 0.12 } },
+      { id: 'tata_sun', name: '마이애미 햇살', icon: '🌴', desc: '초당 체력 +0.4', mods: { regen: 0.4 } },
+      { id: 'tata_cup', name: '컵 결승 집중', icon: '🏆', desc: '보스에게 주는 피해 +12%', mods: { bossDmg: 0.12 } }
+    ] },
+    luis: { name: '루초 감독', tag: 'MSN 트레블', look: { hair: '#2a2a2a', suit: '#1e1e2e' }, cards: [
+      { id: 'lu_msn', name: 'MSN 삼각편대', icon: '🔺', desc: '동료 공격력 +15%', mods: { teamDmg: 0.15 } },
+      { id: 'lu_counter', name: '직선 역습', icon: '⚡', desc: '투사체 속도 +12%', mods: { projSpeed: 0.12 } },
+      { id: 'lu_treble', name: '트레블 정신', icon: '3️⃣', desc: '공격력 +10%', mods: { dmg: 0.10 } }
+    ] },
+    valverde: { name: '발베르 감독', tag: '실리의 개미', look: { hair: '#6a6a6a', suit: '#222' }, cards: [
+      { id: 'va_442', name: '실리 4-4-2', icon: '🧱', desc: '받는 피해 -1', mods: { armor: 1 } },
+      { id: 'va_600', name: '600골 기념', icon: '🎉', desc: '공격력 +8%', mods: { dmg: 0.08 } },
+      { id: 'va_captain', name: '주장 완장', icon: '©️', desc: '최대 체력 +15, 경험치 +5%', mods: { hp: 15, xp: 0.05 } }
+    ] },
+    koeman: { name: '쿠만 감독', tag: '대포알 슛의 전설', look: { hair: '#d9c9a0', suit: '#2a2a3a' }, cards: [
+      { id: 'ko_fax', name: '뷔로팩스', icon: '📠', desc: '코인 획득 +20%', mods: { gold: 0.20 } },
+      { id: 'ko_young', name: '유스 발탁', icon: '🌱', desc: '경험치 +12%', mods: { xp: 0.12 } },
+      { id: 'ko_cannon', name: '대포알 슛', icon: '💣', desc: '투사체 속도 +10%, 공격력 +5%', mods: { projSpeed: 0.10, dmg: 0.05 } }
+    ] },
+    poch: { name: '포체 감독', tag: '파리의 별 관리자', look: { hair: '#3a3a3a', suit: '#1b2a5a' }, cards: [
+      { id: 'po_eiffel', name: '에펠탑 야경', icon: '🗼', desc: '공격 범위 +10%', mods: { area: 0.10 } },
+      { id: 'po_stars', name: '별들의 팀', icon: '⭐', desc: '동료 공격력 +12%', mods: { teamDmg: 0.12 } },
+      { id: 'po_press', name: '전방 압박', icon: '🔥', desc: '쿨타임 -5%', mods: { cd: -0.05 } }
+    ] },
+    scaloni: { name: '스칼로 감독', tag: '월드컵 사령탑', look: { hair: '#2a2a2a', suit: '#75aadb' }, cards: [
+      { id: 'sc_family', name: '가족 같은 팀', icon: '👨‍👩‍👦', desc: '동료 쿨타임 -10%, 최대 체력 +10', mods: { teamCd: -0.10, hp: 10 } },
+      { id: 'sc_cup', name: '월드컵 정신', icon: '🏆', desc: '보스에게 주는 피해 +15%', mods: { bossDmg: 0.15 } },
+      { id: 'sc_calm', name: '침착한 결승', icon: '🧊', desc: '받는 피해 -1', mods: { armor: 1 } }
+    ] },
+    mascherano: { name: '마스체 감독', tag: '투지의 작은 대장', look: { hair: '#1a1a1a', suit: '#f7b5cd' }, cards: [
+      { id: 'mc_fight', name: '투지', icon: '💢', desc: '공격력 +8%', mods: { dmg: 0.08 } },
+      { id: 'mc_lead', name: '동료 리더십', icon: '🗣️', desc: '동료 공격력 +10%', mods: { teamDmg: 0.10 } },
+      { id: 'mc_shield', name: '서포터스 실드', icon: '🛡️', desc: '최대 체력 +20', mods: { hp: 20 } }
     ] }
   };
 
@@ -333,7 +430,30 @@
     bentoz: { name: '사막 거미 벤투', role: 'keeper', era: 'riyadh', hair: '#111111', skin: '#9a6a48' },
     dias: { name: '철벽 디아스', role: 'defender', era: 'national', hair: '#111111', skin: '#c99a73' },
     brunopt: { name: '대표팀 브루노', role: 'mid', era: 'national', hair: '#3a2a1a', skin: '#e3b48c' },
-    leaozinho: { name: '번개 레앙', role: 'striker', era: 'national', hair: '#111111', skin: '#6a4430' }
+    leaozinho: { name: '번개 레앙', role: 'striker', era: 'national', hair: '#111111', skin: '#6a4430' },
+    // ---- 메시 career teammates
+    iniestar: { name: '돈 안드레스', role: 'mid', era: 'barcelona', hair: '#3a3a3a', skin: '#f0c8a2' },
+    xavino: { name: '패스 머신 샤비노', role: 'mid', era: 'barcelona', hair: '#2a1a10', skin: '#e8b892' },
+    puyolion: { name: '사자머리 푸욜', role: 'defender', era: 'barcelona', hair: '#4a3020', skin: '#e0ac84' },
+    valdes: { name: '발데스 수문장', role: 'keeper', era: 'barcelona', hair: '#1a1a1a', skin: '#e8b892' },
+    alvesrun: { name: '질주 알베스', role: 'winger', era: 'barcelona', hair: '#111111', skin: '#9a6a48' },
+    suarezbite: { name: '이빨 수아레', role: 'striker', era: 'barcelona', hair: '#1a1a1a', skin: '#e0ac84' },
+    neytrick: { name: '묘기 네이', role: 'winger', era: 'barcelona', hair: '#2a1a10', skin: '#c8956a' },
+    etoocheetah: { name: '치타 에투', role: 'striker', era: 'barcelona', hair: '#111111', skin: '#5a3a26' },
+    busquetsorch: { name: '조율사 부스케', role: 'mid', era: 'barcelona', hair: '#1a1a1a', skin: '#e3b48c' },
+    stegenwall: { name: '벽 테어슈', role: 'keeper', era: 'barcelona', hair: '#c9a46a', skin: '#f1c9a5' },
+    mbaflash: { name: '번개 음바', role: 'striker', era: 'paris', hair: '#111111', skin: '#8a5a3a' },
+    donnarum: { name: '거인 돈나룸', role: 'keeper', era: 'paris', hair: '#3a2a1a', skin: '#e8b892' },
+    verratino: { name: '꼬마 조율사 베라', role: 'mid', era: 'paris', hair: '#1a1a1a', skin: '#e3b48c' },
+    hakimiwing: { name: '측면 하키미', role: 'winger', era: 'paris', hair: '#111111', skin: '#a8714a' },
+    albamiami: { name: '마이애미 알바', role: 'defender', era: 'miami', hair: '#1a1a1a', skin: '#e0ac84' },
+    busquetsmia: { name: '마이애미 조율사', role: 'mid', era: 'miami', hair: '#1a1a1a', skin: '#e3b48c' },
+    suarezmia: { name: '마이애미 이빨', role: 'striker', era: 'miami', hair: '#1a1a1a', skin: '#e0ac84' },
+    dibugk: { name: '수호자 디부', role: 'keeper', era: 'argentina', hair: '#1a1a1a', skin: '#e0ac84' },
+    dimariangel: { name: '천사 디마리', role: 'winger', era: 'argentina', hair: '#3a2a1a', skin: '#e8b892' },
+    julianfin: { name: '해결사 훌리안', role: 'striker', era: 'argentina', hair: '#2a1a10', skin: '#f0c8a2' },
+    otamendiwall: { name: '기둥 오타멘', role: 'defender', era: 'argentina', hair: '#1a1a1a', skin: '#e0ac84' },
+    enzomid: { name: '중원 엔조', role: 'mid', era: 'argentina', hair: '#1a1a1a', skin: '#e8b892' }
   };
 
   // ---------------------------------------------------------------- Enemies
@@ -344,13 +464,14 @@
     ref: { name: '심판', hp: 18, speed: 34, dmg: 6, r: 6, xp: 2, sprite: 'ref', ranged: true },
     press: { name: '기자', hp: 9, speed: 95, dmg: 5, r: 5, xp: 1, sprite: 'press', line: true },
     minimessi: { name: '꼬마 메시', hp: 30, speed: 70, dmg: 8, r: 5, xp: 2, sprite: 'minimessi' },
+    miniron: { name: '꼬마 날두', hp: 32, speed: 64, dmg: 8, r: 5, xp: 2, sprite: 'miniron' },
     // mini-bosses (준보스): big, drawn at 1.5x with an HP bar, telegraphed charge / slam, chest drops
     brute: { name: '거구 주장', hp: 150, speed: 30, dmg: 14, r: 13, xp: 14, sprite: 'tank', mini: true, acts: ['charge', 'slam'] },
     enforcer: { name: '집행관 미드필더', hp: 95, speed: 46, dmg: 12, r: 10, xp: 10, sprite: 'grunt', mini: true, acts: ['charge', 'charge', 'slam'] }
   };
   RS.MINI_TYPES = ['brute', 'enforcer'];
   // manual slide (슬라이딩 버튼): invulnerable dash with a gradient trail; cooldown per hero
-  RS.SLIDE = { speed: 420, dur: 0.28, dmg: 12, cd: { ronaldo: 5, messi: 3 } };
+  RS.SLIDE = { speed: 420, dur: 0.28, dmg: 12, cd: { ronaldo: 5, messi: 3 } }; // 메시: quicker feet, shorter cooldown
 
   // Season bosses — archetypes reused with parody names per year.
   // Each archetype has its own signature so fights feel different:
@@ -363,14 +484,23 @@
     striker: { hp: 420, fight: 1, speed: 42, r: 12, dmg: 12, actions: ['snipe', 'burst', 'dash', 'snipe', 'burst'], cool: 1.8, sprite: 'bstriker', sig: '강슛 저격·연사' },
     referee: { hp: 400, fight: 1, speed: 36, r: 12, dmg: 10, actions: ['cards', 'pslam', 'summon', 'cards', 'wall'], cool: 1.9, sprite: 'bref', sig: '카드 세례·소환' },
     giant: { hp: 640, fight: 1.15, speed: 25, r: 18, dmg: 18, actions: ['pslam', 'ring', 'slam', 'wall', 'pslam'], cool: 2.0, sprite: 'bgiant', sig: '지면 강타·링' },
-    messi: { hp: 700, fight: 1.4, speed: 70, r: 9, dmg: 18, actions: [], cool: 1.25, sprite: 'messi', sig: '드리블·감아차기·발리' } // the final: a long duel
+    messi: { hp: 700, fight: 1.4, speed: 70, r: 9, dmg: 18, actions: [], cool: 1.25, sprite: 'messi', sig: '드리블·감아차기·발리' }, // the final: a long duel
+    ronaldo: { hp: 720, fight: 1.4, speed: 62, r: 10, dmg: 18, actions: [], cool: 1.25, sprite: 'ronaldo', sig: '무회전·헤딩 강타·SIUU' } // 메시 career final
   };
-  // 메시: phase 1 → roar at 50 % HP → phase 2 rage.
-  RS.MESSI = {
-    phase1: ['dribble', 'curl', 'volley', 'snipe', 'encircle'],
-    phase2: ['dribble3', 'curl', 'volley2', 'encircle', 'snipe', 'summon'],
-    rageCool: 0.62, rageSpeed: 1.3
+  // Final bosses: phase 1 → roar at 50 % HP → phase 2 rage (two action lists per boss).
+  RS.FINAL = {
+    messi: {
+      phase1: ['dribble', 'curl', 'volley', 'snipe', 'encircle'],
+      phase2: ['dribble3', 'curl', 'volley2', 'encircle', 'snipe', 'summon'],
+      rageCool: 0.62, rageSpeed: 1.3, rageText: '메시 분노! 2페이즈', ball: 'mball', minion: 'minimessi'
+    },
+    ronaldo: {
+      phase1: ['dash', 'snipe', 'pslam', 'burst', 'wall'],
+      phase2: ['dash', 'burst', 'pslam', 'snipe', 'ring', 'summon'],
+      rageCool: 0.65, rageSpeed: 1.25, rageText: 'SIUU! 날두 2페이즈', ball: 'ball', minion: 'miniron'
+    }
   };
+  RS.MESSI = RS.FINAL.messi;
 
   // Boss HP: base HP for the year; after BOSS_CALIBRATE_AT seconds of fighting the boss is topped up so the
   // player's measured damage rate on it gives roughly BOSS_FIGHT_SECONDS × fight (see World.calibrateBoss).
@@ -414,6 +544,47 @@
     Y(2025, 'riyadh', 'desert', '네이션스리그 두 번째 우승', 'maestro', '무적함대 지휘자', '네이션스리그 결승에서 무적함대를 꺾고 두 번째 우승.'),
     Y(2026, 'national', 'marti', '마지막 월드컵 — 최종 결전', 'messi', '메시', '마지막 월드컵. 20년을 함께 달려온 영원한 라이벌, 메시와의 최종 결전.', { final: true })
   ];
+  // 메시 career: debut at 17 in 2004 → the last World Cup against 날두.
+  RS.YEARS_MESSI = [
+    Y(2004, 'barcelona', 'rijkaard', '17세 프로 데뷔', 'keeper', '더비 상대 수문장', '바르셀로나에서 17세에 데뷔. 첫 더비, 골문엔 베테랑 수문장이 버티고 있다.'),
+    Y(2005, 'barcelona', 'rijkaard', '첫 리그 우승, 청소년 월드컵 우승', 'tackler', '네덜란드 U-20 수비대장', '첫 리그 우승과 청소년 월드컵 우승. 결승에서 맞선 네덜란드 수비대장이 다시 온다.'),
+    Y(2006, 'barcelona', 'rijkaard', '유럽 정상, 부상으로 결승 결장', 'giant', '파리 결승의 런던 거인', '유럽 정상에 섰지만 부상으로 결승을 벤치에서 봤다. 그날 런던 팀의 거인 센터백과 싸운다.'),
+    Y(2007, 'barcelona', 'rijkaard', '마라도나 재현 골', 'maestro', '헤타페 중원 지휘자', '하프라인부터 여섯 명을 제친 마라도나 재현 골. 그 경기 상대 지휘자가 복수를 노린다.'),
+    Y(2008, 'barcelona', 'pep', '베이징 올림픽 금메달', 'striker', '나이지리아 폭격기', '베이징 올림픽 결승. 나이지리아의 폭격기를 꺾고 금메달.'),
+    Y(2009, 'barcelona', 'pep', '6관왕, 첫 발롱도르', 'keeper', '로마 결승 수문장', '한 해 6관왕. 로마 결승에서 헤딩골을 내준 수문장이 설욕을 노린다. 첫 발롱도르.', { ballon: true }),
+    Y(2010, 'barcelona', 'pep', '월드컵 8강 탈락, 두 번째 발롱도르', 'giant', '독일 전차 센터백', '남아공 월드컵 8강에서 독일 전차에 0-4. 그 센터백을 넘어야 한다.', { ballon: true }),
+    Y(2011, 'barcelona', 'pep', '웸블리 결승, 세 번째 발롱도르', 'referee', '엘 클라시코 주심', '웸블리 결승골로 유럽 정상. 클라시코마다 카드를 꺼내던 주심이 상대다.', { ballon: true }),
+    Y(2012, 'barcelona', 'tito', '한 해 91골', 'tackler', '거친 수비대장', '한 해 91골 세계 기록. 매 경기 발목을 노린 거친 수비대장과 맞붙는다.', { ballon: true }),
+    Y(2013, 'barcelona', 'tata', '햄스트링 부상의 해', 'tackler', '부상 유발 백태클러', '반복된 햄스트링 부상. 백태클러를 피하며 버텨야 한다.'),
+    Y(2014, 'barcelona', 'luis', '브라질 월드컵 준우승', 'giant', '마라카낭 결승 독일 거인', '마라카낭 결승 연장 실점. 골든볼을 들고도 웃지 못한 밤, 독일 거인과 재대결.'),
+    Y(2015, 'barcelona', 'luis', 'MSN 트레블, 다섯 번째 발롱도르', 'keeper', '베를린 결승 토리노 수문장', 'MSN 삼각편대로 트레블. 베를린 결승의 토리노 수문장을 넘는다.', { ballon: true }),
+    Y(2016, 'barcelona', 'luis', '코파 결승 실축, 은퇴 번복', 'keeper', '코파 결승 칠레 수문장', '코파 결승 승부차기 실축 후 대표팀 은퇴 선언, 그리고 번복. 칠레 수문장과 다시 맞선다.'),
+    Y(2017, 'barcelona', 'valverde', '600골, 유니폼 세리머니', 'referee', '베르나베우 주심', '원정 클라시코 600번째 골과 유니폼 세리머니. 그 밤의 주심이 카드를 꺼낸다.'),
+    Y(2018, 'barcelona', 'valverde', '주장 완장, 러시아 월드컵 16강', 'striker', '프랑스 번개 스트라이커', '주장 완장을 찼지만 러시아 월드컵 16강에서 프랑스의 번개에 무너졌다.'),
+    Y(2019, 'barcelona', 'valverde', '여섯 번째 발롱도르, 안필드 참사', 'maestro', '안필드 압박 지휘자', '여섯 번째 발롱도르. 하지만 안필드에서 3-0 리드를 날린 밤, 압박의 지휘자와 재대결.', { ballon: true }),
+    Y(2020, 'barcelona', 'koeman', '뷔로팩스 이적 요청', 'referee', '뷔로팩스 회장단', '팩스로 이적을 요청했지만 막혔다. 계약서를 흔드는 회장단이 상대다.'),
+    Y(2021, 'paris', 'poch', '코파 우승, 파리행, 일곱 번째 발롱도르', 'giant', '마라카낭 결승 브라질 거인', '마라카낭에서 브라질을 꺾고 첫 성인 대표팀 우승. 눈물의 작별 뒤 파리행.', { ballon: true }),
+    Y(2022, 'argentina', 'scaloni', '카타르 월드컵 우승', 'striker', '결승 해트트릭 폭격기', '카타르 결승, 상대 폭격기의 해트트릭을 넘어 승부차기 끝에 월드컵 우승.'),
+    Y(2023, 'miami', 'tata', '마이애미행, 여덟 번째 발롱도르', 'maestro', '리그스컵 결승 지휘자', '마이애미행 첫 대회 우승. 리그스컵 결승 상대 지휘자와의 대결. 여덟 번째 발롱도르.', { ballon: true }),
+    Y(2024, 'argentina', 'scaloni', '코파 아메리카 2연패', 'tackler', '결승 콜롬비아 수비대장', '코파 결승에서 발목 부상으로 눈물. 콜롬비아 수비대장을 넘어 2연패.'),
+    Y(2025, 'miami', 'mascherano', '서포터스 실드', 'keeper', 'MLS 결승 수문장', 'MLS 정규리그 1위 서포터스 실드. 결승 무대의 수문장과 승부.'),
+    Y(2026, 'argentina', 'scaloni', '마지막 월드컵 — 최종 결전', 'ronaldo', '호날두', '마지막 월드컵. 20년을 함께 달려온 영원한 라이벌, 호날두와의 최종 결전.', { final: true })
+  ];
+  // Playable heroes. selectHero() points RS.YEARS / DEBUT / BIRTH at the chosen career (one career at a time).
+  RS.HEROES = {
+    ronaldo: { name: '호날두', short: '날두', moveMul: 1, startSkill: 'kick', years: RS.YEARS, debut: 2002, birth: 1985, desc: '투사체 공격 · 슬라이딩 5초', rival: '메시' },
+    messi: { name: '메시', short: '메시', moveMul: 1.22, startSkill: 'orbit', years: RS.YEARS_MESSI, debut: 2004, birth: 1987, desc: '빠른 발 · 회전하는 발롱도르 공 · 슬라이딩 3초', rival: '호날두' }
+  };
+  RS.YEARS_RONALDO = RS.YEARS;
+  RS.HERO = 'ronaldo';
+  RS.selectHero = function (hero) {
+    const h = RS.HEROES[hero] ? hero : 'ronaldo';
+    RS.HERO = h;
+    RS.YEARS = RS.HEROES[h].years;
+    RS.DEBUT_YEAR = RS.HEROES[h].debut;
+    RS.BIRTH_YEAR = RS.HEROES[h].birth;
+    return h;
+  };
   RS.DEBUT_YEAR = 2002;
   RS.BIRTH_YEAR = 1985;
 

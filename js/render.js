@@ -75,7 +75,7 @@
         if (!e.alive) continue;
         const sx = e.x - camX, sy = e.y - camY;
         if (sx < -20 || sy < -20 || sx > V.w + 20 || sy > V.h + 20) continue;
-        L.drawImage(shd, Math.round(sx - 6), Math.round(sy + e.r * (e.boss && e.sprite !== 'messi' ? 1.7 : 1.1) + 1));
+        L.drawImage(shd, Math.round(sx - 6), Math.round(sy + e.r * (e.boss && !RS.FINAL[e.sprite] ? 1.7 : 1.1) + 1));
       }
       L.drawImage(shd, Math.round(p.x - camX - 6), Math.round(p.y - camY + 7));
 
@@ -97,6 +97,9 @@
           L.strokeStyle = 'rgba(126,200,255,' + (0.5 + 0.5 * Math.sin(w.t * 20)) + ')';
           L.lineWidth = 2; L.beginPath(); L.arc(Math.round(sx), Math.round(sy), e.r + 6, 0, TAU); L.stroke();
         }
+        // enemies pressing against the hero go translucent so he never disappears inside a pile
+        const near = !e.boss && !e.mini && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 < 18 * 18;
+        if (near) L.globalAlpha = 0.55;
         if (e.elite || e.mini) {
           L.drawImage(img, Math.round(sx - spr.w * 0.75), Math.round(sy - spr.h * 0.75), Math.round(spr.w * 1.5), Math.round(spr.h * 1.5));
           if (e.mini) { // 준보스 HP bar + name tag
@@ -105,13 +108,14 @@
             L.fillStyle = e.charging ? '#ffd23a' : '#ff5a3a'; L.fillRect(Math.round(sx - bw / 2), by, Math.round(bw * ratio), 3);
           }
         } else L.drawImage(img, dx, dy);
+        if (near) L.globalAlpha = 1;
         if (e.stun > 0 && !e.boss) {
           L.fillStyle = '#ffe14a';
           const a = w.t * 8 + e.uid;
           L.fillRect(Math.round(sx + Math.cos(a) * 4), Math.round(dy - 1), 1, 1);
           L.fillRect(Math.round(sx - Math.cos(a) * 4), Math.round(dy), 1, 1);
         }
-        if (e.boss && e.sprite === 'messi' && e.ai && e.ai.phase === 2) {
+        if (e.boss && e.ai && RS.FINAL[e.ai.kind] && e.ai.phase === 2) {
           L.strokeStyle = 'rgba(255,80,60,0.6)'; L.lineWidth = 1;
           L.beginPath(); L.arc(Math.round(sx), Math.round(sy), e.r + 3 + Math.sin(w.t * 12) * 1.5, 0, TAU); L.stroke();
         }
@@ -136,6 +140,21 @@
       // player
       this.drawPlayer(L, w, camX, camY);
 
+      // 메시's orbiting golden balls (drawn under the projectiles, with a soft shadow)
+      if (w.orbs && w.orbs.length && w.build.skills.orbit) {
+        for (const o of w.orbs) {
+          const sx = o.x - camX, sy = o.y - camY;
+          if (sx < -40 || sy < -40 || sx > V.w + 40 || sy > V.h + 40) continue;
+          L.fillStyle = 'rgba(0,0,0,0.22)';
+          L.beginPath(); L.ellipse(Math.round(sx), Math.round(sy + o.r + 3), o.r * 0.9, o.r * 0.35, 0, 0, TAU); L.fill();
+          L.fillStyle = '#b07a10';
+          L.beginPath(); L.arc(Math.round(sx), Math.round(sy), o.r + 1, 0, TAU); L.fill();
+          L.fillStyle = '#ffd84a';
+          L.beginPath(); L.arc(Math.round(sx), Math.round(sy), o.r, 0, TAU); L.fill();
+          L.fillStyle = '#fff3b0';
+          L.beginPath(); L.arc(Math.round(sx - o.r * 0.3), Math.round(sy - o.r * 0.3), Math.max(1, o.r * 0.35), 0, TAU); L.fill();
+        }
+      }
       // projectiles
       for (const pr of w.projs) {
         if (!pr.alive) continue;
@@ -199,7 +218,7 @@
 
     drawPlayer(L, w, camX, camY) {
       const p = w.player, S = RS.Sprites;
-      const spr = S.ronaldo(w.yearIdx);
+      const spr = S.hero(w.hero, w.yearIdx);
       // frames 0-3 run, 4 kick, 5 heading jump; running adds a 1-px bob
       const step = Math.floor(p.animT * 10);
       const fi = p.jump > 0 ? 5 : p.kickT > 0 ? 4 : p.moving ? step % 4 : 0;
@@ -218,15 +237,30 @@
         L.strokeStyle = 'rgba(200,240,255,0.55)'; L.lineWidth = 2;
         for (let i = 0; i < 3; i++) { L.beginPath(); L.arc(sx, sy + jumpY, R - i * 6, a0 + i * 2.1, a0 + i * 2.1 + 1.2); L.stroke(); }
       }
+      // hero spotlight: a soft light pool and a pulsing gold ring under the feet, always under the sprite
+      const fy = sy + jumpY + (spr.h >> 1) - 3;
+      const pulse = 0.5 + 0.5 * Math.sin(w.t * 5);
+      const g = L.createRadialGradient(sx, fy, 2, sx, fy, 22);
+      g.addColorStop(0, 'rgba(255,240,180,0.18)'); g.addColorStop(1, 'rgba(255,240,180,0)');
+      L.fillStyle = g; L.beginPath(); L.ellipse(sx, fy, 22, 11, 0, 0, TAU); L.fill();
+      L.strokeStyle = 'rgba(255,216,74,' + (0.55 + 0.35 * pulse) + ')'; L.lineWidth = 1.5;
+      L.beginPath(); L.ellipse(sx, fy, 10 + pulse, 4.5 + pulse * 0.5, 0, 0, TAU); L.stroke();
       if (!blink) {
         const img = p.hurtT > 0 ? (p.face < 0 ? fr.wf : fr.w) : (p.face < 0 ? fr.f : fr.n);
         L.drawImage(img, sx - (spr.w >> 1), sy - (spr.h >> 1));
       }
-      // hp bar
-      const hpw = 16, ratio = Math.max(0, p.hp / w.stats.maxHp);
-      L.fillStyle = 'rgba(0,0,0,0.6)'; L.fillRect(sx - hpw / 2 - 1, sy + (spr.h >> 1) + 1 + jumpY, hpw + 2, 4);
+      // marker above the head: a gold chevron that bobs, so the hero is findable even inside a crowd
+      const my = sy - (spr.h >> 1) - 6 + Math.round(Math.sin(w.t * 6) * 1.5);
+      L.fillStyle = '#1a1208';
+      L.beginPath(); L.moveTo(sx - 4, my - 5); L.lineTo(sx + 4, my - 5); L.lineTo(sx, my); L.closePath(); L.fill();
+      L.fillStyle = '#ffd84a';
+      L.beginPath(); L.moveTo(sx - 3, my - 4); L.lineTo(sx + 3, my - 4); L.lineTo(sx, my - 1); L.closePath(); L.fill();
+      // hp bar (wider than the 준보스 bars, framed in gold)
+      const hpw = 18, ratio = Math.max(0, p.hp / w.stats.maxHp);
+      L.fillStyle = 'rgba(255,216,74,0.9)'; L.fillRect(sx - hpw / 2 - 2, sy + (spr.h >> 1) + 1 + jumpY, hpw + 4, 6);
+      L.fillStyle = 'rgba(0,0,0,0.75)'; L.fillRect(sx - hpw / 2 - 1, sy + (spr.h >> 1) + 2 + jumpY, hpw + 2, 4);
       L.fillStyle = ratio > 0.5 ? '#4ae06a' : ratio > 0.25 ? '#ffc93a' : '#ff4a4a';
-      L.fillRect(sx - hpw / 2, sy + (spr.h >> 1) + 2 + jumpY, Math.round(hpw * ratio), 2);
+      L.fillRect(sx - hpw / 2, sy + (spr.h >> 1) + 3 + jumpY, Math.round(hpw * ratio), 2);
     }
 
     drawRescue(L, w, camX, camY) {
@@ -295,7 +329,7 @@
             break;
           }
           case 'ghost': case 'mghost': case 'bghost': {
-            const spr = f.kind === 'ghost' ? S.ronaldo(w.yearIdx) : f.kind === 'mghost' ? S.mate(f.id, w.yearIdx) : S.boss(f.sprite, w.yearIdx);
+            const spr = f.kind === 'ghost' ? S.hero(w.hero, w.yearIdx) : f.kind === 'mghost' ? S.mate(f.id, w.yearIdx) : S.boss(f.sprite, w.yearIdx);
             L.globalAlpha = 0.45 * (1 - k);
             L.drawImage(f.face < 0 ? spr.frames[0].f : spr.frames[0].n, sx - (spr.w >> 1), sy - (spr.h >> 1));
             L.globalAlpha = 1; break;

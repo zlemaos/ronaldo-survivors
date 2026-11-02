@@ -107,11 +107,13 @@
   }
 
   // Render a char grid with palette + per-pixel kit pattern. Adds outline. Returns canvas.
+  // opt.glow: a second, bright outline ring outside the dark one (the player's "I am the hero" halo).
   function paint(rows, pal, opt) {
     opt = opt || {};
     const sc = opt.scale || 1;
+    const pad = opt.glow ? 2 : 1;
     const h = rows.length, w = Math.max(...rows.map((r) => r.length));
-    const W = (w + 2) * sc, H = (h + 2) * sc;
+    const W = (w + pad * 2) * sc, H = (h + pad * 2) * sc;
     const c = canvas(W, H);
     const x = c.getContext('2d');
     const fill = [];
@@ -130,19 +132,40 @@
         if (!col) continue;
         fill.push([i, j]);
         x.fillStyle = col;
-        x.fillRect((i + 1) * sc, (j + 1) * sc, sc, sc);
+        x.fillRect((i + pad) * sc, (j + pad) * sc, sc, sc);
       }
     }
-    // outline
+    // outline (4-neighbour ring), then the optional glow ring (8-neighbour, one step further out)
     const on = new Set(fill.map(([i, j]) => i + ',' + j));
+    const ring = [];
     x.fillStyle = opt.white ? 'rgba(255,255,255,0.9)' : (opt.outline || 'rgba(16,12,10,0.95)');
     for (const [i, j] of fill) {
       for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const ni = i + di, nj = j + dj;
-        if (!on.has(ni + ',' + nj)) x.fillRect((ni + 1) * sc, (nj + 1) * sc, sc, sc);
+        const ni = i + di, nj = j + dj, key = ni + ',' + nj;
+        if (!on.has(key)) { on.add(key); ring.push([ni, nj]); x.fillRect((ni + pad) * sc, (nj + pad) * sc, sc, sc); }
+      }
+    }
+    if (opt.glow) {
+      x.fillStyle = opt.white ? 'rgba(255,255,255,0.9)' : opt.glow;
+      for (const [i, j] of ring) {
+        for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+          const ni = i + di, nj = j + dj, key = ni + ',' + nj;
+          if (!on.has(key)) { on.add(key); x.fillRect((ni + pad) * sc, (nj + pad) * sc, sc, sc); }
+        }
       }
     }
     return c;
+  }
+  // Enemy kits are pulled toward a dull slate tone so the vivid, gold-ringed hero reads at a glance.
+  function dull(pal) {
+    const p = Object.assign({}, pal);
+    const mix = (hex, k) => {
+      const n = parseInt(hex.slice(1), 16), t = [0x3a, 0x40, 0x48];
+      const f = (v, i) => Math.round(v + (t[i] - v) * k);
+      return '#' + [f(n >> 16, 0), f((n >> 8) & 255, 1), f(n & 255, 2)].map((v) => v.toString(16).padStart(2, '0')).join('');
+    };
+    for (const k of ['K', 'k2', 'S', 'W', 'H', 's']) if (p[k] && p[k][0] === '#') p[k] = mix(p[k], k === 's' ? 0.2 : 0.38);
+    return p;
   }
 
   function flip(c) {
@@ -174,8 +197,9 @@
   function get(key, build) { return cache[key] || (cache[key] = build()); }
 
   // ---------------------------------------------------------------- 날두 evolves by year
-  RS.ronaldoLook = function (yearIdx) {
-    const y = RS.YEARS[yearIdx];
+  // `yd` may be given explicitly (the 날두 boss in a 메시 career is drawn from his own last year).
+  RS.ronaldoLook = function (yearIdx, yd) {
+    const y = yd || RS.YEARS[yearIdx];
     const era = RS.ERAS[y.era];
     const hair = y.year <= 2004 ? 'young' : y.year <= 2010 ? 'slick' : y.year <= 2022 ? 'fade' : 'veteran';
     return {
@@ -185,20 +209,36 @@
       key: 'ron|' + hair + '|' + y.era + '|' + (y.year >= 2008) + '|' + (y.year >= 2016)
     };
   };
+  // 메시 keeps his look; the kit follows the club, gold boots from the first 발롱도르, armband as captain.
+  RS.messiLook = function (yearIdx, yd) {
+    const y = yd || RS.YEARS[yearIdx];
+    const era = RS.ERAS[y.era];
+    return {
+      hair: 'messi', kit: era.kit,
+      goldBoots: y.year >= 2009,
+      armband: y.year >= 2018,
+      key: 'mes|' + y.era + '|' + (y.year >= 2009) + '|' + (y.year >= 2018)
+    };
+  };
+  RS.heroLook = (hero, yearIdx, yd) => hero === 'messi' ? RS.messiLook(yearIdx, yd) : RS.ronaldoLook(yearIdx, yd);
 
   function kitPal(kit, extra) {
     return Object.assign({ K: kit.main, k2: kit.alt, S: kit.shorts, W: kit.socks }, extra || {});
   }
 
   RS.Sprites = {
-    ronaldo(yearIdx, scale) {
-      const L = RS.ronaldoLook(yearIdx);
+    ronaldo(yearIdx, scale, yd) { return RS.Sprites.hero('ronaldo', yearIdx, scale, yd); },
+    // Player sprite for a hero: frames 0-3 run cycle, 4 kick pose, 5 heading jump (see Renderer.drawPlayer)
+    hero(hero, yearIdx, scale, yd) {
+      const L = RS.heroLook(hero, yearIdx, yd);
       return get(L.key + '|' + (scale || 1), () => {
-        // frames 0-3 run cycle, 4 kick pose, 5 heading jump (see Renderer.drawPlayer)
         const frames = person(L.hair).concat(person(L.hair, 'kick'), person(L.hair, 'head'));
         if (L.armband) for (const f of frames) f[7] = f[7].slice(0, 2) + 'A' + f[7].slice(3);
-        const pal = kitPal(L.kit, { H: '#20140c', h: '#e8c870', B: L.goldBoots ? '#f0c030' : '#222', A: '#ffd400', s: '#d9a27a' });
-        return makeSprite(frames, pal, { pattern: L.kit.pattern, collar: 6, scale: scale || 1 });
+        const pal = hero === 'messi'
+          ? kitPal(L.kit, { H: '#4a3020', b: '#4a3020', B: L.goldBoots ? '#f0c030' : '#f0f0f0', A: '#75aadb', s: '#e8b48e' })
+          : kitPal(L.kit, { H: '#20140c', h: '#e8c870', B: L.goldBoots ? '#f0c030' : '#222', A: '#ffd400', s: '#d9a27a' });
+        // the hero alone carries a gold halo outline: instantly separable from the crowd
+        return makeSprite(frames, pal, { pattern: L.kit.pattern, collar: 6, scale: scale || 1, glow: '#ffd84a' });
       });
     },
     messi(scale) {
@@ -216,7 +256,8 @@
         const pal = def.role === 'keeper'
           ? { K: '#2fd36b', k2: '#1a1a1a', S: '#1a1a1a', W: '#2fd36b', H: def.hair, s: def.skin, C: '#1a1a1a', B: '#222' }
           : kitPal(era.kit, { H: def.hair, s: def.skin, f: def.hair });
-        return makeSprite(person(hair), pal, { pattern: def.role === 'keeper' ? 'trim' : era.kit.pattern, collar: 6 });
+        // teammates: a thin green ring so "ours" reads apart from the dull enemy crowd without rivalling the hero
+        return makeSprite(person(hair), pal, { pattern: def.role === 'keeper' ? 'trim' : era.kit.pattern, collar: 6, glow: 'rgba(80,230,130,0.85)' });
       });
     },
     coach(coachId, scale) {
@@ -230,7 +271,7 @@
       tier = tier || 0;
       return get('en|' + type + '|' + RS.YEARS[yearIdx].era + '|' + tier, () => {
         const o = (opt) => Object.assign({}, opt, tier ? { outline: TIER_OUTLINE[tier] } : {});
-        const P = (pal) => tiered(pal, tier);
+        const P = (pal) => tiered(dull(pal), tier);
         switch (type) {
           case 'grunt': return makeSprite(person('short'), P({ K: foe[0], k2: '#ffffff', S: '#20202a', W: foe[0], H: '#3a2a1a' }), o({ pattern: 'trim', collar: 6 }));
           case 'runner': return makeSprite(person('long'), P({ K: foe[1], k2: '#202020', S: '#f4f4f4', W: foe[1], H: '#6a4a2a', s: '#c99070' }), o({ pattern: 'trim', collar: 6 }));
@@ -238,6 +279,7 @@
           case 'ref': return makeSprite(person('bald').map((f) => { f = f.slice(); f[8] = '..s.KKKKK.Y..'; f[9] = '..s.KKKKK.Y..'; return f; }), P({ K: '#151515', k2: '#151515', S: '#151515', W: '#151515', s: '#e7b48c' }), o({}));
           case 'press': return makeSprite(person('cap').map((f) => { f = f.slice(); f[7] = '..sKKKKKKKCC.'; f[8] = '..sKKKKKKKCW.'; return f; }), P({ K: '#6e6e78', k2: '#6e6e78', S: '#30303a', W: '#30303a', C: '#2a2a2a', H: '#111' }), o({}));
           case 'minimessi': return makeSprite(person('messi'), P({ K: '#8cc8f0', k2: '#f6f6f6', S: '#1a1a2e', W: '#f6f6f6', H: '#4a3020', b: '#4a3020' }), { pattern: 'stripes', outline: '#123a6a' });
+          case 'miniron': return makeSprite(person('fade'), P({ K: '#c41e2a', k2: '#1f7a3a', S: '#1f7a3a', W: '#c41e2a', H: '#20140c', B: '#f0c030' }), { pattern: 'sash', outline: '#5a0a10' });
         }
         return null;
       });
@@ -254,6 +296,7 @@
           case 'bref': return makeSprite(person('bald').map((f) => { f = f.slice(); f[8] = '..s.KKKKK.R..'; f[9] = '..s.KKKKK.R..'; return f; }), { K: '#111', k2: '#111', S: '#111', W: '#111', R: '#e01b1b' }, { scale: sc });
           case 'bgiant': return makeSprite([0, 1].map((i) => TANK.concat(TANK_LEGS[i])), { K: era.foe[1], k2: '#111', S: '#111', W: era.foe[1], H: '#111', s: '#c98a66' }, { pattern: 'trim', collar: 5, scale: sc });
           case 'messi': return RS.Sprites.messi(1);
+          case 'ronaldo': { const ry = RS.YEARS_RONALDO; return RS.Sprites.hero('ronaldo', ry.length - 1, 1, ry[ry.length - 1]); }
         }
         return null;
       });
