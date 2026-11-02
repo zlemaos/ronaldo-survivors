@@ -3,18 +3,38 @@
 (function (RS) {
   'use strict';
 
+  // People are 13 px wide and 16 px tall (5 head + 8 body + 3 legs); the renderer shows them at 5x on a phone.
+  const pad = (r) => '.' + r + '.'; // the 11-wide hair templates sit centred on the 13-wide body
   const BODY = [
-    '....sss....',
-    '..KKKKKKK..',
-    '.sKKKKKKKs.',
-    '.sKKKKKKKs.',
-    '.s.KKKKK.s.',
-    '...SSSSS...'
+    '.....sss.....',
+    '...KKKKKKK...',
+    '..sKKKKKKKs..',
+    '..sKKKKKKKs..',
+    '..sKKKKKKKs..',
+    '..s.KKKKK.s..',
+    '....SSSSS....',
+    '....SSSSS....'
   ];
+  // run cycle: contact, stride, pass, stride
   const LEGS = [
-    ['...SS.SS...', '...ss.ss...', '...WW.WW...', '...BB.BB...'],
-    ['..SS...SS..', '..ss...ss..', '..WW...WW..', '.BB.....BB.']
+    ['....WW.WW....', '....WW.WW....', '....BB.BB....'],
+    ['...WW...WW...', '...WW...WW...', '..BB.....BB..'],
+    ['.....WWW.....', '....WW.WW....', '....BB.BB....'],
+    ['...WW...WW...', '..WW.....WW..', '..BB.....BB..']
   ];
+  // poses: a kick (front leg swung forward) and a heading jump (arms up, knees tucked)
+  const KICK_LEGS = ['....WW..WWW..', '....BB....WBB', '.............'];
+  const HEAD_BODY = [
+    '..s..sss..s..',
+    '..sKKKKKKKs..',
+    '..KKKKKKKKK..',
+    '...KKKKKKK...',
+    '...KKKKKKK...',
+    '....KKKKK....',
+    '....SSSSS....',
+    '....SSSSS....'
+  ];
+  const HEAD_LEGS = ['...WWW.WWW...', '....BB.BB....', '.............'];
   const HAIR = {
     young: ['...hHhHh...', '..HhHHhHH..', '..HHsssss..', '..Hssesse..', '...sssss...'],
     slick: ['....HHHH...', '..HHHHHHH..', '..HHsssss..', '..Hssesse..', '...sssss...'],
@@ -36,14 +56,30 @@
     '.KKKKKKKKKKKKK.',
     'sKKKKKKKKKKKKKs',
     'sKKKKKKKKKKKKKs',
+    'sKKKKKKKKKKKKKs',
     'ss.KKKKKKKKK.ss',
     '...SSSSSSSSS...',
+    '...SSSS.SSSS...',
     '...SSSS.SSSS...'
   ];
   const TANK_LEGS = [
     ['....sss.sss....', '....WWW.WWW....', '...BBBB.BBBB...'],
     ['...sss...sss...', '...WWW...WWW...', '..BBBB...BBBB..']
   ];
+  // Darken a #rrggbb colour by k (0..1).
+  function darken(hex, k) {
+    const n = parseInt(hex.slice(1), 16);
+    const f = (v) => Math.max(0, Math.round(v * (1 - k)));
+    return '#' + [f(n >> 16), f((n >> 8) & 255), f(n & 255)].map((v) => v.toString(16).padStart(2, '0')).join('');
+  }
+  // Later-wave enemies (tier 1, 2) wear darker kits and a red outline so "they got stronger" is visible.
+  function tiered(pal, tier) {
+    if (!tier) return pal;
+    const p = Object.assign({}, pal);
+    for (const k of ['K', 'k2', 'S', 'W']) if (p[k] && p[k][0] === '#') p[k] = darken(p[k], tier === 2 ? 0.3 : 0.15);
+    return p;
+  }
+  const TIER_OUTLINE = [null, 'rgba(60,10,10,0.95)', 'rgba(140,10,10,0.95)'];
   const SMALL = {
     ball: ['.WWW.', 'WWBWW', 'WBBBW', 'WWBWW', '.WWW.'],
     ball7: ['..WWW..', '.WWBWW.', 'WWBBBWW', 'WBBBBBW', 'WWBBBWW', '.WWBWW.', '..WWW..'],
@@ -126,9 +162,12 @@
     return { frames, w: frames[0].n.width, h: frames[0].n.height };
   }
 
-  function person(hair, legsVariant) {
-    const head = HAIR[hair] || HAIR.short;
-    return [0, 1].map((fi) => head.concat(BODY, LEGS[fi]));
+  // pose: undefined → 4 run frames; 'kick' / 'head' → one posed frame
+  function person(hair, pose) {
+    const head = (HAIR[hair] || HAIR.short).map(pad);
+    if (pose === 'kick') return [head.concat(BODY, KICK_LEGS)];
+    if (pose === 'head') return [head.concat(HEAD_BODY, HEAD_LEGS)];
+    return LEGS.map((legs) => head.concat(BODY, legs));
   }
 
   const cache = {};
@@ -155,8 +194,9 @@
     ronaldo(yearIdx, scale) {
       const L = RS.ronaldoLook(yearIdx);
       return get(L.key + '|' + (scale || 1), () => {
-        const frames = person(L.hair);
-        if (L.armband) for (const f of frames) f[7] = f[7].slice(0, 1) + 'A' + f[7].slice(2);
+        // frames 0-3 run cycle, 4 kick pose, 5 heading jump (see Renderer.drawPlayer)
+        const frames = person(L.hair).concat(person(L.hair, 'kick'), person(L.hair, 'head'));
+        if (L.armband) for (const f of frames) f[7] = f[7].slice(0, 2) + 'A' + f[7].slice(3);
         const pal = kitPal(L.kit, { H: '#20140c', h: '#e8c870', B: L.goldBoots ? '#f0c030' : '#222', A: '#ffd400', s: '#d9a27a' });
         return makeSprite(frames, pal, { pattern: L.kit.pattern, collar: 6, scale: scale || 1 });
       });
@@ -181,20 +221,23 @@
     },
     coach(coachId, scale) {
       const c = RS.COACHES[coachId];
-      return get('coach|' + coachId + '|' + scale, () => makeSprite([HAIR.short.concat(BODY, LEGS[0])],
+      return get('coach|' + coachId + '|' + scale, () => makeSprite(person('short').slice(0, 1),
         { K: c.look.suit, k2: '#f4f4f4', S: c.look.suit, W: '#222', H: c.look.hair, B: '#111' }, { pattern: 'trim', collar: 6, scale }));
     },
-    enemy(type, yearIdx) {
+    enemy(type, yearIdx, tier) {
       const era = RS.ERAS[RS.YEARS[yearIdx].era];
       const foe = era.foe;
-      return get('en|' + type + '|' + RS.YEARS[yearIdx].era, () => {
+      tier = tier || 0;
+      return get('en|' + type + '|' + RS.YEARS[yearIdx].era + '|' + tier, () => {
+        const o = (opt) => Object.assign({}, opt, tier ? { outline: TIER_OUTLINE[tier] } : {});
+        const P = (pal) => tiered(pal, tier);
         switch (type) {
-          case 'grunt': return makeSprite(person('short'), { K: foe[0], k2: '#ffffff', S: '#20202a', W: foe[0], H: '#3a2a1a' }, { pattern: 'trim', collar: 6 });
-          case 'runner': return makeSprite(person('long'), { K: foe[1], k2: '#202020', S: '#f4f4f4', W: foe[1], H: '#6a4a2a', s: '#c99070' }, { pattern: 'trim', collar: 6 });
-          case 'tank': return makeSprite([0, 1].map((i) => TANK.concat(TANK_LEGS[i])), { K: foe[0], k2: '#111', S: '#20202a', W: foe[0], H: '#111', s: '#b07a56' }, { pattern: 'trim', collar: 5 });
-          case 'ref': return makeSprite(person('bald').map((f) => { f = f.slice(); f[8] = '.s.KKKKK.Y.'; f[9] = '.s.KKKKK.Y.'; return f; }), { K: '#151515', k2: '#151515', S: '#151515', W: '#151515', s: '#e7b48c' });
-          case 'press': return makeSprite(person('cap').map((f) => { f = f.slice(); f[7] = '.sKKKKKKKCC'; f[8] = '.sKKKKKKKCW'; return f; }), { K: '#6e6e78', k2: '#6e6e78', S: '#30303a', W: '#30303a', C: '#2a2a2a', H: '#111' });
-          case 'minimessi': return makeSprite(person('messi'), { K: '#8cc8f0', k2: '#f6f6f6', S: '#1a1a2e', W: '#f6f6f6', H: '#4a3020', b: '#4a3020' }, { pattern: 'stripes', outline: '#123a6a' });
+          case 'grunt': return makeSprite(person('short'), P({ K: foe[0], k2: '#ffffff', S: '#20202a', W: foe[0], H: '#3a2a1a' }), o({ pattern: 'trim', collar: 6 }));
+          case 'runner': return makeSprite(person('long'), P({ K: foe[1], k2: '#202020', S: '#f4f4f4', W: foe[1], H: '#6a4a2a', s: '#c99070' }), o({ pattern: 'trim', collar: 6 }));
+          case 'tank': return makeSprite([0, 1].map((i) => TANK.concat(TANK_LEGS[i])), P({ K: foe[0], k2: '#111', S: '#20202a', W: foe[0], H: '#111', s: '#b07a56' }), o({ pattern: 'trim', collar: 5 }));
+          case 'ref': return makeSprite(person('bald').map((f) => { f = f.slice(); f[8] = '..s.KKKKK.Y..'; f[9] = '..s.KKKKK.Y..'; return f; }), P({ K: '#151515', k2: '#151515', S: '#151515', W: '#151515', s: '#e7b48c' }), o({}));
+          case 'press': return makeSprite(person('cap').map((f) => { f = f.slice(); f[7] = '..sKKKKKKKCC.'; f[8] = '..sKKKKKKKCW.'; return f; }), P({ K: '#6e6e78', k2: '#6e6e78', S: '#30303a', W: '#30303a', C: '#2a2a2a', H: '#111' }), o({}));
+          case 'minimessi': return makeSprite(person('messi'), P({ K: '#8cc8f0', k2: '#f6f6f6', S: '#1a1a2e', W: '#f6f6f6', H: '#4a3020', b: '#4a3020' }), { pattern: 'stripes', outline: '#123a6a' });
         }
         return null;
       });
@@ -208,7 +251,7 @@
           case 'btackler': return makeSprite(person('fade'), { K: '#7a1020', k2: '#f0c040', S: '#111', W: '#7a1020', H: '#111', f: '#5a3a2a' }, { pattern: 'trim', collar: 6, scale: sc });
           case 'bmaestro': return makeSprite(person('long'), { K: '#1b3f92', k2: '#9b1b3a', S: '#1b3f92', W: '#1b3f92', H: '#2a1a10' }, { pattern: 'stripes', scale: sc });
           case 'bstriker': return makeSprite(person('slick'), { K: '#ff7a1a', k2: '#1a1a1a', S: '#1a1a1a', W: '#ff7a1a', H: '#e2c068' }, { pattern: 'trim', collar: 6, scale: sc });
-          case 'bref': return makeSprite(person('bald').map((f) => { f = f.slice(); f[8] = '.s.KKKKK.R.'; f[9] = '.s.KKKKK.R.'; return f; }), { K: '#111', k2: '#111', S: '#111', W: '#111', R: '#e01b1b' }, { scale: sc });
+          case 'bref': return makeSprite(person('bald').map((f) => { f = f.slice(); f[8] = '..s.KKKKK.R..'; f[9] = '..s.KKKKK.R..'; return f; }), { K: '#111', k2: '#111', S: '#111', W: '#111', R: '#e01b1b' }, { scale: sc });
           case 'bgiant': return makeSprite([0, 1].map((i) => TANK.concat(TANK_LEGS[i])), { K: era.foe[1], k2: '#111', S: '#111', W: era.foe[1], H: '#111', s: '#c98a66' }, { pattern: 'trim', collar: 5, scale: sc });
           case 'messi': return RS.Sprites.messi(1);
         }
@@ -244,9 +287,9 @@
     },
     shadow() {
       return get('shadow', () => {
-        const c = canvas(9, 4); const x = c.getContext('2d');
+        const c = canvas(13, 5); const x = c.getContext('2d');
         x.fillStyle = 'rgba(0,0,0,0.28)';
-        x.fillRect(2, 0, 5, 1); x.fillRect(1, 1, 7, 2); x.fillRect(2, 3, 5, 1);
+        x.fillRect(3, 0, 7, 1); x.fillRect(1, 1, 11, 3); x.fillRect(3, 4, 7, 1);
         return c;
       });
     },

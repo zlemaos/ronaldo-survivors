@@ -14,7 +14,8 @@ test('years span debut at 17 to the present and end with 메시', () => {
     if (i) assert.equal(y.year, RS.YEARS[i - 1].year + 1, 'one stage per year');
     assert.ok(RS.ERAS[y.era] && RS.COACHES[y.coach] && RS.BOSS_TYPES[y.boss.type]);
     const t = RS.yearTuning(i);
-    assert.ok(t.duration >= 90 && t.duration <= 180, 'stage length fits a phone session');
+    assert.equal(t.duration, 60, 'one minute per season, then the boss');
+    assert.ok(t.rampHp > 0 && t.rampDmg >= 0 && t.rampSpeed > 0, 'enemies toughen inside the stage');
   });
 });
 

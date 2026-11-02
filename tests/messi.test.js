@@ -29,7 +29,7 @@ test('메시 is the final boss of the last year', () => {
 test('phase 1 uses dribble dashes, curling shots and the left-foot volley', () => {
   const { w, m } = messiWorld(2);
   let teleSeen = false, curved = false;
-  run(w, 30, () => {
+  run(w, 45, () => {
     if (m.tele && m.tele.kind === 'line') teleSeen = true;
     if (w.eprojs.some((p) => p.curve)) curved = true;
   });

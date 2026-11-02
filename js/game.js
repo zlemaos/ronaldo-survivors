@@ -27,6 +27,20 @@
     return b;
   };
 
+  // One number the player can watch grow: skills, evolutions, passives, teammates and level.
+  RS.powerScore = function (b) {
+    let s = b.level * 2;
+    for (const id of b.skillOrder) s += b.skills[id] * 10 + (b.evolved[id] ? 40 : 0);
+    for (const id of b.passiveOrder) s += b.passives[id] * 8;
+    for (const m of b.teammates) s += 6 + m.lv * 5;
+    return Math.round(s);
+  };
+  // Threat of a season on a 1–5 star scale (enemy HP multiplier of the year).
+  RS.threatStars = function (idx) {
+    const h = RS.yearTuning(idx).hpMul;
+    return Math.max(1, Math.min(5, Math.ceil(Math.log2(h + 1))));
+  };
+
   RS.xpToNext = function (level) {
     return Math.floor(6 + level * 5 + Math.max(0, level - 12) * 6 + Math.max(0, level - 30) * 14 + Math.max(0, level - 50) * 30);
   };
@@ -236,8 +250,8 @@
       this.phase = 'play'; // play | levelup | chest | clear | dead | victory
       this.saves = 0; this.dmgTaken = 0; this.bossDmgTaken = 0; this.hits = 0; this.minHp = Infinity;
       this.dpsHist = []; this._lastSec = 0; this._lastDmg = 0; this.bossT = 0; this.swapChoices = null;
-      this.player = { x: 0, y: 0, vx: 0, vy: 0, r: 6, hp: 100, iframe: 0, dirx: 1, diry: 0, face: 1, moving: false,
-        dash: null, jump: 0, animT: 0, revived: false, hurtT: 0 };
+      this.player = { x: 0, y: 0, vx: 0, vy: 0, r: 7, hp: 100, iframe: 0, dirx: 1, diry: 0, face: 1, moving: false,
+        dash: null, jump: 0, animT: 0, revived: false, hurtT: 0, kickT: 0, dustT: 0 };
       this.enemies = []; this.enemyPool = [];
       this.projs = []; this.projPool = [];
       this.eprojs = [];
@@ -291,13 +305,17 @@
       const s = [];
       s.push({ t: T * 0.22, kind: 'rescue' });
       if (idx >= 1) s.push({ t: T * 0.3, kind: 'press' });
+      s.push({ t: T / 3, kind: 'wave2' });
       s.push({ t: T * 0.4, kind: 'elite' });
       s.push({ t: T * 0.5, kind: 'circle' });
+      s.push({ t: T * 2 / 3, kind: 'wave3' });
       s.push({ t: T * 0.75, kind: 'elite' });
       if (idx >= 4) s.push({ t: T * 0.82, kind: 'press' });
       s.push({ t: T, kind: 'boss' });
       return s;
     }
+    // 0 → 1 over the stage: enemies spawned later are tougher (see spawnEnemy).
+    ramp() { return Math.min(1, this.t / this.stageTime); }
 
     // ------------------------------------------------------------ main step
     update(dt, input) {
@@ -370,12 +388,14 @@
           if (e) { e.lineVx = vx; e.lineVy = vy; e.life = 9; }
         }
         this.emit('banner', { text: '기자단 돌격!' });
-      } else if (kind === 'boss') this.spawnBoss();
+      } else if (kind === 'wave2') { this.emit('wave', { n: 2 }); this.emit('banner', { text: '⚡ 2차 공세 — 상대가 거세진다' }); }
+      else if (kind === 'wave3') { this.emit('wave', { n: 3 }); this.emit('banner', { text: '🔥 총공세 — 버텨라!' }); }
+      else if (kind === 'boss') this.spawnBoss();
     }
 
     updateSpawns(dt) {
       const prog = Math.min(1, this.t / this.stageTime);
-      const rate = this.tune.spawnRate * (0.9 + 1.8 * prog) * (this.bossSpawned ? 0.45 : 1);
+      const rate = this.tune.spawnRate * (0.9 + 1.8 * prog) * (this.bossSpawned ? 0.3 : 1); // the boss fight stays about the boss
       this.spawnAcc = Math.min(6, this.spawnAcc + rate * dt);
       const R = this.spawnRadius();
       while (this.spawnAcc >= 1) {
@@ -394,10 +414,12 @@
       const def = RS.ENEMIES[type];
       const e = this.enemyPool.pop() || {};
       const tu = this.tune;
+      const k = this.ramp(); // later in the stage: tougher, faster, and drawn with a darker tint
       e.uid = UID++; e.type = type; e.sprite = def.sprite; e.x = x; e.y = y; e.alive = true;
-      e.r = def.r; e.speed = def.speed * tu.speedMul * (0.9 + this.rng() * 0.2);
-      e.maxHp = e.hp = Math.round(def.hp * tu.hpMul);
-      e.dmg = Math.round(def.dmg * tu.dmgMul);
+      e.r = def.r; e.speed = def.speed * tu.speedMul * (1 + tu.rampSpeed * k) * (0.9 + this.rng() * 0.2);
+      e.maxHp = e.hp = Math.round(def.hp * tu.hpMul * (1 + tu.rampHp * k));
+      e.dmg = Math.round(def.dmg * tu.dmgMul * (1 + tu.rampDmg * k));
+      e.tier = k >= 2 / 3 ? 2 : k >= 1 / 3 ? 1 : 0;
       e.xp = def.xp; e.ranged = !!def.ranged; e.shootT = 1.5 + this.rng() * 2;
       e.stun = 0; e.kx = 0; e.ky = 0; e.flash = -1; e.elite = !!opt.elite; e.boss = false; e.ai = null;
       e.invuln = false; e.tele = null; e.lineVx = 0; e.lineVy = 0; e.life = 0; e.dHit = -9; e.face = 1;
@@ -424,7 +446,7 @@
       e.dmg = Math.round(bt.dmg * this.tune.bossDmgMul);
       e.xp = 40;
       e.name = yd.boss.name;
-      e.ai = { kind: yd.boss.type, cool: 1.8, act: null, last: null, phase: 1, keep: yd.boss.type === 'messi' ? 105 : 0, strafe: 1, history: [] };
+      e.ai = { kind: yd.boss.type, cool: 1.8, act: null, last: null, phase: 1, keep: yd.boss.type === 'messi' ? 70 : 0, strafe: 1, history: [] };
       this.boss = e;
       this.emit('boss', { name: e.name, final: !!yd.final });
       return e;
@@ -502,6 +524,7 @@
       p.iframe = Math.max(0, p.iframe - dt);
       p.hurtT = Math.max(0, p.hurtT - dt);
       p.jump = Math.max(0, p.jump - dt);
+      p.kickT = Math.max(0, p.kickT - dt);
       if (this.stats.regen > 0) p.hp = Math.min(this.stats.maxHp, p.hp + this.stats.regen * dt);
       let ix = input.x || 0, iy = input.y || 0;
       const m = Math.hypot(ix, iy);
@@ -512,6 +535,11 @@
         p.dirx = ix / n; p.diry = iy / n;
         if (Math.abs(ix) > 0.1) p.face = ix > 0 ? 1 : -1;
         p.animT += dt * (0.6 + Math.min(1, m));
+        p.dustT -= dt;
+        if (p.dustT <= 0 && !p.dash) { // little dust puffs behind the running feet
+          p.dustT = 0.14;
+          this.addFx('dust', p.x - p.dirx * 5 + (this.rng() - 0.5) * 4, p.y + 7, { dur: 0.35, vx: -p.dirx * 12, vy: -6 });
+        }
       }
       if (p.dash) {
         const d = p.dash;
@@ -642,7 +670,9 @@
             const spread = i >= tg.length ? (i - tg.length + 1) * 0.25 * (i % 2 ? 1 : -1) : 0;
             const a = Math.atan2(e.y - p.y, e.x - p.x) + spread;
             this.spawnProj(evo ? 'golden' : 'ball', p.x, p.y, a, s.speed * st.projSpeed, { dmg: s.dmg, pierce: s.pierce, bounce: s.bounce, r: s.r, life: 1.5 });
+            if (i === 0 && Math.abs(Math.cos(a)) > 0.2) p.face = Math.cos(a) > 0 ? 1 : -1;
           }
+          p.kickT = 0.2;
           this.emit('sfx', { name: 'kick' });
           return true;
         }
@@ -831,8 +861,11 @@
         const k = e.boss ? o.knock * 0.15 : e.elite ? o.knock * 0.4 : o.knock;
         e.kx += (o.kx || 0) * k; e.ky += (o.ky || 0) * k;
       }
-      if (o.stun && !e.boss) e.stun = Math.max(e.stun, e.elite ? o.stun * 0.5 : o.stun); // bosses are stun-immune
+      if (o.stun && !e.boss) e.stun = Math.max(e.stun, o.stun * (e.elite ? 0.5 : 1)); // bosses are stun-immune
       this.addText(e.x, e.y - e.r, res.dmg, res.crit);
+      // impact spark: a few shards flying away from the hit direction (crits bigger and golden)
+      if (this.fx.length < 120) this.addFx('hit', e.x, e.y - 2, { dur: res.crit ? 0.3 : 0.2, kx: o.kx || 0, ky: o.ky || 0, crit: res.crit, seed: this.rng() * 6.28 });
+      if (res.crit) { this.emit('sfx', { name: 'crit' }); if (e.boss) this.emit('shake', { k: 0.08 }); }
       if (e.hp <= 0) this.killEnemy(e);
       return res.dmg;
     }
@@ -863,7 +896,8 @@
       if (r < 0.035) this.dropPickup('coin', e.x + 4, e.y, 1);
       else if (r < 0.035 + 1 / 130) this.dropPickup('heal', e.x, e.y, 1);
       else if (r < 0.035 + 1 / 130 + 1 / 420) this.dropPickup('magnet', e.x, e.y, 1);
-      this.addFx('poof', e.x, e.y, { dur: 0.25 });
+      this.addFx('poof', e.x, e.y, { dur: 0.3, big: e.elite || e.type === 'tank', seed: this.rng() * 6.28 });
+      this.emit('sfx', { name: 'kill' });
     }
 
     mergeGem(v) {
@@ -1429,6 +1463,7 @@
     openLevelUp() {
       this.phase = 'levelup';
       this.choices = RS.makeChoices(this.build, this.rng, this.yearIdx, 3);
+      this.addFx('levelburst', this.player.x, this.player.y, { dur: 0.7, follow: true });
       this.emit('levelup', { level: this.build.level });
     }
 
@@ -1511,6 +1546,7 @@
 
     // ------------------------------------------------------------ results
     exportBuild() { return RS.cloneBuild(this.build); }
+    power() { return RS.powerScore(this.build); }
     result() {
       const cleared = this.phase === 'clear' || this.phase === 'victory';
       const base = this.coinsPicked + this.kills / 8 + (cleared ? 40 + 8 * this.yearIdx : 0);

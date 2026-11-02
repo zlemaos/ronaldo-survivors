@@ -123,7 +123,11 @@ Hair: frosted curls (≤2004) → slick (≤2010) → fade (≤2022) → fade + 
 Ballon d'Or years (2008, 2013, 2014, 2016, 2017): first clear grants one 발롱도르. 2026 is `final: true` → 메시.
 
 Per-year tuning is derived from the index (`RS.yearTuning`): enemy HP `1 + 0.55i + 0.03i²`, damage `1 + 0.1i`,
-spawn rate `2 + 0.16i`/s, stage length `min(150, 95 + 3i)` s (final: 100 s before 메시), XP per kill `1 + 0.16i`.
+spawn rate `2.3 + 0.18i`/s (debut year ×0.55), stage length 60 s for every year (then the boss), XP per kill `1 + 0.16i`.
+Inside a stage enemies toughen with elapsed time (`rampHp` 0.35, `rampDmg` 0.2, `rampSpeed` 0.1 at the end) and carry a
+visible tier (0/1/2 by thirds of the minute: darker kit, red outline); banners mark the 2nd and 3rd wave. Spawning drops to
+30 % once the boss is out so the fight stays about the boss. `RS.powerScore(build)` is the HUD "⚔ 전투력" number and
+`RS.threatStars(idx)` the 1–5 ★ threat shown on the year intro.
 Enemy mix adds 태클러 (2003+), 거구 센터백 (2005+), 심판 (2007+, throws cards); 기자단 lines sweep across.
 
 ### Boss attacks (anti-kiting, all telegraphed)
@@ -145,7 +149,7 @@ fewer bullets (`bossDensity`) and slower cooldowns.
 ### Boss HP and fight length
 Boss HP starts at `max(base × bossHpMul, recent total DPS × 0.25 × target)`. At 2, 6, 12, 20 and 30 s after the
 boss first takes damage, HP is rescaled (up or down, never below base) so the damage rate measured on the boss gives
-a fight of about `45 s × fight` (메시 ×1.3, debut year ×0.7). The HP bar keeps its fraction, so the change is
+a fight of about `22 s × fight` (메시 ×1.3, debut year ×0.7). The HP bar keeps its fraction, so the change is
 invisible. This removes the power creep of the carried-over build: late bosses no longer melt in 7 s.
 
 ### 메시 (final boss)
@@ -195,7 +199,11 @@ Coins per run: picked coins + kills/8 + clear bonus (40 + 8 × year index), × c
 
 ## Rendering and performance
 
-- World is drawn into a low-res canvas (≈200 × 420 world px on a phone) at an integer scale and upscaled once with
+- People are 13 × 16 px templates (`js/sprites.js`): 4 run frames plus a kick pose and a heading-jump pose for 날두;
+  bosses are drawn at 2×. The renderer picks scale `round(min(devW/156, devH/280))` → 5× on a 390-px phone (날두 ≈ 45 CSS px).
+- Effects (`World.fx`): impact shards on every hit (crits golden, with a flash cross), kill bursts, dust behind the running
+  feet, ball trails, level-up ring, boss telegraphs, screen shake (hurt, wave, crit on boss, clear), low-HP red vignette.
+- World is drawn into a low-res canvas (≈156 × 338 world px on a phone) at an integer scale and upscaled once with
   smoothing off: crisp pixels and cheap fills. Damage numbers and the joystick are drawn afterwards at device resolution.
 - Sprites are pre-rendered to canvases once (normal, flipped, white flash). Enemies use object pools; collision and
   targeting use a spatial hash (typed-array linked lists, no per-frame allocation). Separation runs on half the crowd per
@@ -203,9 +211,14 @@ Coins per run: picked coins + kills/8 + clear bonus (40 + 8 × year index), × c
 - Fixed 1/60 s simulation step with at most 4 catch-up steps per frame; the game pauses on tab hide.
 
 ## Audio
-`assets/audio/siuu.mp3` plays through an `HTMLAudioElement` (works on `file://`) on: evolutions, season boss kills /
-year clears, the 메시 win, and a revive. It is primed inside the first tap so mobile browsers allow later plays.
-Everything else is short WebAudio chiptune (rate-limited). Mute buttons on the title, HUD and pause menu (saved).
+One WebAudio graph for everything: SFX bus (gain = 효과음 slider) and SIUU → compressor → output. `assets/audio/siuu.mp3`
+is decoded into the graph (on `file://`, where fetch is impossible, an `HTMLAudioElement` fallback plays it) on:
+evolutions, season boss kills / year clears, the 메시 win, and a revive. The graph is unlocked inside the first tap and
+resumed on every tap and on returning to the tab. iOS: `navigator.audioSession.type = 'playback'` when available, else the
+graph is routed through a hidden `<audio>` element, so the ringer switch does not silence the effects. SFX are short
+synthesised chiptune with ±6 % random pitch, rate-limited per name (kick thump+slap, hit, crit, kill, climbing gem
+arpeggio, coin, hurt, low-HP heartbeat, level-up, chest, evolve, wave alarm, boss, crowd cheer…). Pause menu: 효과음 / SIUU
+sliders (saved in localStorage) and a 소리 테스트 button.
 
 ## How to add content
 

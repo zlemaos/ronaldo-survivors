@@ -25,6 +25,7 @@
       <div class="hud-left">
         <div id="hud-year">2002 · 17세</div>
         <div class="hud-small"><span id="hud-kills">0</span> 처치 · <span id="hud-coins">0</span> 코인</div>
+        <div class="hud-small hud-power">⚔ 전투력 <span id="hud-power">0</span></div>
       </div>
       <div id="hud-time">0:00</div>
       <div class="hud-right">
@@ -35,6 +36,7 @@
     <div id="bossbar" class="hidden"><div class="bossname" id="boss-name">보스</div><div class="bossbar-bg"><div id="boss-fill"></div></div></div>
     <div id="banner" class="hidden"></div>
   </div>
+  <div id="vignette" class="hidden" aria-hidden="true"></div>
 
   <!-- Overlays during play -->
   <div id="levelup" class="overlay hidden">
@@ -58,6 +60,11 @@
       <div id="pause-build" class="build"></div>
       <button id="btn-resume" class="btn primary">계속하기</button>
       <button id="btn-pause-mute" class="btn">🔊 소리</button>
+      <div class="sliders">
+        <label>효과음 <input type="range" id="vol-sfx" min="0" max="100" step="5"></label>
+        <label>SIUU <input type="range" id="vol-siu" min="0" max="100" step="5"></label>
+        <button id="btn-sound-test" class="btn small">🔈 소리 테스트</button>
+      </div>
       <button id="btn-quit" class="btn ghost">경기 포기하고 나가기</button>
     </div>
   </div>
@@ -147,6 +154,7 @@
       <h2 id="intro-title"></h2>
       <div id="intro-evo" class="intro-evo"></div>
       <div id="intro-squad" class="build"></div>
+      <div class="vs" id="intro-vs"></div>
       <div class="sub" id="intro-boss"></div>
       <button id="btn-kickoff" class="btn primary big">킥오프!</button>
       <button class="btn ghost small" data-home>메뉴로</button>

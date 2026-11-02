@@ -46,14 +46,29 @@ test('strong bot clears every career year before the final', () => {
   assert.equal(c.save.career.yearIdx, LAST);
 });
 
-test('season boss fights last a real fight (≈30-90 s) in every era', () => {
+test('season boss fights are short but real (≈12-45 s) after the one-minute stage', () => {
   const fights = getCareer().years.filter((y) => y.phase === 'clear').map((y) => y.bossT);
   const sorted = fights.slice().sort((a, b) => a - b);
   const median = sorted[Math.floor(sorted.length / 2)];
-  assert.ok(median >= 28 && median <= 90, 'median boss fight ' + median.toFixed(1) + ' s');
-  for (const f of fights) assert.ok(f >= 8 && f <= 150, 'boss fight ' + f.toFixed(1) + ' s');
-  const inBand = fights.filter((f) => f >= 20 && f <= 100).length;
-  assert.ok(inBand / fights.length >= 0.75, inBand + '/' + fights.length + ' fights in 20-100 s');
+  assert.ok(median >= 12 && median <= 45, 'median boss fight ' + median.toFixed(1) + ' s');
+  for (const f of fights) assert.ok(f >= 5 && f <= 80, 'boss fight ' + f.toFixed(1) + ' s');
+  const inBand = fights.filter((f) => f >= 8 && f <= 60).length;
+  assert.ok(inBand / fights.length >= 0.75, inBand + '/' + fights.length + ' fights in 8-60 s');
+});
+
+test('a season (stage + boss) fits in about two minutes', () => {
+  const years = getCareer().years.filter((y) => y.phase === 'clear');
+  for (const y of years) assert.ok(y.t >= 60 && y.t <= 140, RS.YEARS[y.idx].year + ' took ' + y.t.toFixed(0) + ' s');
+});
+
+test('enemies spawned late in a stage are tougher than early ones (visible tier)', () => {
+  const w = new RS.World({ yearIdx: 3, seed: 9 });
+  const early = w.spawnEnemy('grunt', 300, 0);
+  w.t = w.stageTime; // end of the minute
+  const late = w.spawnEnemy('grunt', 300, 0);
+  assert.ok(late.maxHp > early.maxHp && late.dmg >= early.dmg && late.speed > early.speed * 1.02);
+  assert.equal(early.tier, 0);
+  assert.equal(late.tier, 2);
 });
 
 test('early season bosses can land hits on a perfect kiter', () => {

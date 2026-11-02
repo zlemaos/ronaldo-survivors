@@ -338,7 +338,7 @@
   // Boss HP: base HP for the year; after BOSS_CALIBRATE_AT seconds of fighting the boss is topped up so the
   // player's measured damage rate on it gives roughly BOSS_FIGHT_SECONDS × fight (see World.calibrateBoss).
   // Bosses are stun-immune.
-  RS.BOSS_FIGHT_SECONDS = 45;
+  RS.BOSS_FIGHT_SECONDS = 22; // one-minute stages: the season boss is a short, sharp fight
   RS.BOSS_CALIBRATE_AT = [2, 6, 12, 20, 30]; // seconds after the boss first takes damage
   RS.bossHp = (bt, tune) => Math.round(bt.hp * tune.bossHpMul);
   RS.keeperRadius = (lv) => 20 + 3 * lv;
@@ -387,9 +387,11 @@
       hpMul: 1 + 0.55 * idx + 0.03 * idx * idx,
       dmgMul: (1 + 0.1 * idx) * gentle,
       speedMul: 1 + 0.008 * idx,
-      spawnRate: (2.0 + 0.16 * idx) * (idx === 0 ? 0.65 : 1),
+      spawnRate: (2.3 + 0.18 * idx) * (idx === 0 ? 0.55 : 1),
       maxAlive: Math.min(420, 150 + 12 * idx),
-      duration: y.final ? 100 : Math.min(150, 95 + 3 * idx),
+      duration: 60, // one minute per season, then the boss
+      // inside a stage enemies visibly toughen: by the end they have this much more HP / damage / speed
+      rampHp: 0.35, rampDmg: 0.2 * gentle, rampSpeed: 0.1,
       xpMul: 1 + 0.16 * idx,
       bossHpMul: 1 + 0.55 * idx + 0.03 * idx * idx,
       bossDmgMul: (1 + 0.12 * idx) * gentle,

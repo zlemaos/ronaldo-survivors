@@ -50,6 +50,7 @@
       this.world = null;
       this.input.enabled = false;
       $('hud').classList.add('hidden');
+      $('vignette').classList.add('hidden'); this.hud.low = false;
       for (const o of document.querySelectorAll('.overlay')) o.classList.add('hidden');
       this.show('title');
       const c = this.save.career;
@@ -203,7 +204,9 @@
       } else evo.appendChild(RS.Sprites.toCanvas(RS.Sprites.ronaldo(idx), 0, 6));
       const b = RS.buildForYear(this.save, idx);
       $('intro-squad').innerHTML = this.buildChips(b);
-      $('intro-boss').textContent = (yd.final ? '최종 보스: ' : '시즌 보스: ') + yd.boss.name;
+      const stars = RS.threatStars(idx);
+      $('intro-vs').innerHTML = '⚔ 날두 전투력 <b>' + RS.powerScore(b) + '</b> &nbsp;vs&nbsp; 상대 위협도 <b>' + '★'.repeat(stars) + '☆'.repeat(5 - stars) + '</b>';
+      $('intro-boss').textContent = (yd.final ? '최종 보스: ' : '시즌 보스: ') + yd.boss.name + ' · 1분 버티면 등장';
       $('btn-kickoff').onclick = () => { RS.Audio.sfx('click'); this.play(idx); };
     },
 
@@ -339,6 +342,7 @@
       this.state = 'menu';
       this.input.enabled = false;
       $('hud').classList.add('hidden');
+      $('vignette').classList.add('hidden'); this.hud.low = false;
       for (const o of document.querySelectorAll('.overlay')) o.classList.add('hidden');
       if (w.phase === 'victory') return this.showVictory(w, out);
       this.show('result');
@@ -470,7 +474,9 @@
         switch (e.type) {
           case 'sfx': RS.Audio.sfx(e.name); break;
           case 'siuu': RS.Audio.siuu(); break;
-          case 'levelup': RS.Audio.sfx('levelup'); break;
+          case 'levelup': RS.Audio.sfx('levelup'); this.renderer.shake = Math.max(this.renderer.shake, 0.1); $('hud-power').parentElement.classList.remove('bump'); void $('hud-power').offsetWidth; $('hud-power').parentElement.classList.add('bump'); break;
+          case 'shake': this.renderer.shake = Math.max(this.renderer.shake, e.k || 0.1); break;
+          case 'wave': RS.Audio.sfx('wave'); this.renderer.shake = Math.max(this.renderer.shake, 0.12); break;
           case 'chest': RS.Audio.sfx('chest'); break;
           case 'evolve': RS.Audio.sfx('evolve'); this.renderer.shake = 0.2; break;
           case 'hurt': RS.Audio.sfx('hurt'); this.renderer.shake = 0.12; if (navigator.vibrate) try { navigator.vibrate(15); } catch (er) { /* ignore */ } break;
@@ -488,8 +494,8 @@
           case 'elite': this.banner('엘리트 등장! 보물 상자를 노려라'); break;
           case 'revive': RS.Audio.siuu(); break;
           case 'dead': RS.Audio.sfx('dead'); break;
-          case 'clear': this.banner('시즌 클리어! SIUU!'); break;
-          case 'victory': this.banner('메시 격파!!!'); break;
+          case 'clear': this.banner('시즌 클리어! SIUU!'); RS.Audio.sfx('cheer'); this.renderer.shake = 0.5; break;
+          case 'victory': this.banner('메시 격파!!!'); RS.Audio.sfx('cheer'); this.renderer.shake = 0.8; break;
         }
       }
       w.events.length = 0;
@@ -507,6 +513,10 @@
       this.setText('yr', $('hud-year'), w.yearDef.year + ' · ' + RS.yearAge(w.yearIdx) + '세');
       this.setText('k', $('hud-kills'), String(w.kills));
       this.setText('c', $('hud-coins'), String(Math.round(w.coinsPicked)));
+      this.setText('pw', $('hud-power'), String(w.power()));
+      const low = w.phase === 'play' && w.player.hp / w.stats.maxHp < 0.25;
+      if (this.hud.low !== low) { this.hud.low = low; $('vignette').classList.toggle('hidden', !low); }
+      if (low && !this.paused) RS.Audio.sfx('heart');
       let tstr;
       if (!w.bossSpawned) { const r = Math.max(0, Math.ceil(w.stageTime - w.t)); tstr = Math.floor(r / 60) + ':' + String(r % 60).padStart(2, '0'); }
       else tstr = 'BOSS';
@@ -544,6 +554,13 @@
       $('btn-mute').onclick = () => this.toggleMute();
       $('btn-mute-hud').onclick = (e) => { e.stopPropagation(); this.toggleMute(); };
       $('btn-pause-mute').onclick = () => this.toggleMute();
+      for (const [id, key] of [['vol-sfx', 'sfx'], ['vol-siu', 'siu']]) {
+        const el = $(id);
+        el.value = String(Math.round(RS.Audio.vol[key] * 100));
+        el.oninput = () => { RS.Audio.setVolume(key, +el.value / 100); };
+        el.onchange = () => { RS.Audio.unlock(); RS.Audio.sfx(key === 'siu' ? 'click' : 'kick'); if (key === 'siu') RS.Audio.siuu(); };
+      }
+      $('btn-sound-test').onclick = () => RS.Audio.test();
       $('btn-pause').onclick = (e) => { e.stopPropagation(); this.pause(true); };
       $('btn-resume').onclick = () => this.pause(false);
       $('btn-quit').onclick = () => {

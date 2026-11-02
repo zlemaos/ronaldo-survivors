@@ -21,7 +21,8 @@
       const dpr = Math.min(window.devicePixelRatio || 1, 3);
       const devW = Math.round(cssW * dpr), devH = Math.round(cssH * dpr);
       this.dpr = dpr;
-      this.scale = Math.max(1, Math.round(Math.min(devW / 200, devH / 360)));
+      // a 390-px phone gets 5x (16-px people ≈ 45 CSS px tall), a 1080p desktop 4x
+      this.scale = Math.max(1, Math.round(Math.min(devW / 156, devH / 280)));
       this.view.w = Math.ceil(devW / this.scale);
       this.view.h = Math.ceil(devH / this.scale);
       this.canvas.width = devW; this.canvas.height = devH;
@@ -74,18 +75,18 @@
         if (!e.alive) continue;
         const sx = e.x - camX, sy = e.y - camY;
         if (sx < -20 || sy < -20 || sx > V.w + 20 || sy > V.h + 20) continue;
-        L.drawImage(shd, Math.round(sx - 4), Math.round(sy + e.r * (e.boss && e.sprite !== 'messi' ? 1.7 : 1.1)));
+        L.drawImage(shd, Math.round(sx - 6), Math.round(sy + e.r * (e.boss && e.sprite !== 'messi' ? 1.7 : 1.1) + 1));
       }
-      L.drawImage(shd, Math.round(p.x - camX - 4), Math.round(p.y - camY + 7));
+      L.drawImage(shd, Math.round(p.x - camX - 6), Math.round(p.y - camY + 7));
 
       // enemies
       for (const e of w.enemies) {
         if (!e.alive) continue;
         const sx = e.x - camX, sy = e.y - camY;
         if (sx < -30 || sy < -40 || sx > V.w + 30 || sy > V.h + 40) continue;
-        const spr = e.boss ? S.boss(e.sprite, w.yearIdx) : S.enemy(e.sprite, w.yearIdx);
+        const spr = e.boss ? S.boss(e.sprite, w.yearIdx) : S.enemy(e.sprite, w.yearIdx, e.tier);
         if (!spr) continue;
-        const fr = spr.frames[e.stun > 0 ? 0 : (Math.floor(e.anim * 7) & 1)];
+        const fr = spr.frames[e.stun > 0 ? 0 : (Math.floor(e.anim * 8) % spr.frames.length)];
         const img = e.flash > 0 ? (e.face < 0 ? fr.wf : fr.w) : (e.face < 0 ? fr.f : fr.n);
         const dx = Math.round(sx - spr.w / 2), dy = Math.round(sy - spr.h / 2);
         if (e.elite) {
@@ -114,8 +115,8 @@
       for (const m of w.mates) {
         const spr = S.mate(m.id, w.yearIdx);
         const sx = m.x - camX, sy = m.y - camY;
-        L.drawImage(shd, Math.round(sx - 4), Math.round(sy + 7));
-        const fr = spr.frames[Math.floor(m.anim * 7) & 1];
+        L.drawImage(shd, Math.round(sx - 6), Math.round(sy + 7));
+        const fr = spr.frames[Math.floor(m.anim * 8) % spr.frames.length];
         L.drawImage(m.face < 0 ? fr.f : fr.n, Math.round(sx - spr.w / 2), Math.round(sy - spr.h / 2));
         if (m.role === 'keeper') {
           L.strokeStyle = 'rgba(80,255,150,' + (m.punch > 0 ? 0.7 : 0.18) + ')';
@@ -134,10 +135,13 @@
         if (!pr.alive) continue;
         const it = S.item(pr.kind === 'ball' ? 'ball' : pr.kind);
         const sx = Math.round(pr.x - camX), sy = Math.round(pr.y - camY);
-        if (pr.kind === 'cannon' || pr.kind === 'golden' || pr.kind === 'shot') {
-          L.fillStyle = pr.kind === 'golden' ? 'rgba(255,215,80,0.35)' : 'rgba(255,140,40,0.35)';
-          L.fillRect(Math.round(sx - pr.vx * 0.03) - 2, Math.round(sy - pr.vy * 0.03) - 2, 4, 4);
-        }
+        if (sx < -20 || sy < -20 || sx > V.w + 20 || sy > V.h + 20) continue;
+        // motion trail: two fading dots behind every ball (hot colours for the power shots)
+        const hot = pr.kind === 'cannon' || pr.kind === 'golden' || pr.kind === 'shot';
+        L.fillStyle = pr.kind === 'golden' ? 'rgba(255,215,80,0.5)' : hot ? 'rgba(255,140,40,0.5)' : 'rgba(255,255,255,0.35)';
+        L.fillRect(Math.round(sx - pr.vx * 0.025) - 1, Math.round(sy - pr.vy * 0.025) - 1, hot ? 3 : 2, hot ? 3 : 2);
+        L.fillStyle = pr.kind === 'golden' ? 'rgba(255,215,80,0.25)' : hot ? 'rgba(255,140,40,0.25)' : 'rgba(255,255,255,0.18)';
+        L.fillRect(Math.round(sx - pr.vx * 0.05) - 1, Math.round(sy - pr.vy * 0.05) - 1, 2, 2);
         L.drawImage(it.n, sx - (it.w >> 1), sy - (it.h >> 1));
       }
       for (const ep of w.eprojs) {
@@ -190,10 +194,18 @@
     drawPlayer(L, w, camX, camY) {
       const p = w.player, S = RS.Sprites;
       const spr = S.ronaldo(w.yearIdx);
-      const fr = spr.frames[p.moving ? (Math.floor(p.animT * 9) & 1) : 0];
+      // frames 0-3 run, 4 kick, 5 heading jump; running adds a 1-px bob
+      const step = Math.floor(p.animT * 10);
+      const fi = p.jump > 0 ? 5 : p.kickT > 0 ? 4 : p.moving ? step % 4 : 0;
+      const fr = spr.frames[fi];
+      const bob = p.moving && fi < 4 && (step % 2) ? 1 : 0;
       const blink = p.iframe > 0 && !p.dash && Math.floor(w.t * 20) % 2 === 0;
-      const jumpY = p.jump > 0 ? Math.round(Math.sin((1 - p.jump / 0.35) * Math.PI) * 10) : 0;
+      const jumpY = (p.jump > 0 ? Math.round(Math.sin((1 - p.jump / 0.35) * Math.PI) * 14) : 0) + bob;
       const sx = Math.round(p.x - camX), sy = Math.round(p.y - camY) - jumpY;
+      if (p.jump > 0) { // the ball he is about to head, rising with him
+        const it = S.item('ball');
+        L.drawImage(it.n, sx + p.face * 7 - (it.w >> 1), sy - (spr.h >> 1) - 4);
+      }
       if (w.build.evolved.bicycle) { // tornado aura
         const R = RS.SKILLS.bicycle.evo.radius * w.stats.area;
         const a0 = (w.wstate.bicycle && w.wstate.bicycle.angle) || 0;
@@ -282,10 +294,42 @@
             L.drawImage(f.face < 0 ? spr.frames[0].f : spr.frames[0].n, sx - (spr.w >> 1), sy - (spr.h >> 1));
             L.globalAlpha = 1; break;
           }
-          case 'poof':
-            L.fillStyle = 'rgba(255,255,255,' + (0.7 * (1 - k)) + ')';
-            for (let i = 0; i < 4; i++) { const a = i * 1.57 + 0.6; L.fillRect(Math.round(sx + Math.cos(a) * 6 * k), Math.round(sy + Math.sin(a) * 6 * k), 2, 2); }
+          case 'poof': { // kill burst: shards fly out and fall, with a quick flash ring
+            const n = f.big ? 10 : 6, R = f.big ? 16 : 10;
+            for (let i = 0; i < n; i++) {
+              const a = (f.seed || 0) + i * (TAU / n);
+              const px = sx + Math.cos(a) * R * k, py = sy + Math.sin(a) * R * k + 14 * k * k;
+              L.fillStyle = i % 2 ? 'rgba(255,255,255,' + (0.9 * (1 - k)) + ')' : 'rgba(255,214,90,' + (0.9 * (1 - k)) + ')';
+              L.fillRect(Math.round(px), Math.round(py), k < 0.5 ? 2 : 1, k < 0.5 ? 2 : 1);
+            }
+            if (k < 0.35) { L.strokeStyle = 'rgba(255,255,255,' + (1 - k / 0.35) + ')'; L.lineWidth = 1; L.beginPath(); L.arc(sx, sy, 3 + R * k * 2, 0, TAU); L.stroke(); }
             break;
+          }
+          case 'hit': { // impact shards pushed along the hit direction
+            const n = f.crit ? 6 : 3, sp = f.crit ? 18 : 11;
+            L.fillStyle = f.crit ? 'rgba(255,214,60,' + (1 - k) + ')' : 'rgba(255,255,255,' + (0.9 * (1 - k)) + ')';
+            for (let i = 0; i < n; i++) {
+              const a = Math.atan2(f.ky, f.kx) + (i - (n - 1) / 2) * 0.55 + (f.seed || 0) * 0.1;
+              L.fillRect(Math.round(sx + Math.cos(a) * sp * k), Math.round(sy + Math.sin(a) * sp * k), f.crit ? 2 : 1, f.crit ? 2 : 1);
+            }
+            if (f.crit && k < 0.4) { L.fillStyle = 'rgba(255,255,255,' + (1 - k / 0.4) + ')'; L.fillRect(sx - 4, sy - 1, 8, 2); L.fillRect(sx - 1, sy - 4, 2, 8); }
+            break;
+          }
+          case 'dust':
+            L.fillStyle = 'rgba(230,230,210,' + (0.5 * (1 - k)) + ')';
+            L.fillRect(Math.round(sx + (f.vx || 0) * k), Math.round(sy + (f.vy || 0) * k), k < 0.5 ? 2 : 1, k < 0.5 ? 2 : 1);
+            L.fillRect(Math.round(sx + (f.vx || 0) * k * 0.6 + 2), Math.round(sy + (f.vy || 0) * k * 0.4), 1, 1);
+            break;
+          case 'levelburst': { // rising sparks and an expanding ring around 날두
+            L.strokeStyle = 'rgba(255,230,120,' + (1 - k) + ')'; L.lineWidth = 2;
+            L.beginPath(); L.arc(sx, sy, 6 + 26 * k, 0, TAU); L.stroke();
+            for (let i = 0; i < 8; i++) {
+              const a = i * (TAU / 8) + k * 2;
+              L.fillStyle = i % 2 ? 'rgba(255,255,255,' + (1 - k) + ')' : 'rgba(255,214,60,' + (1 - k) + ')';
+              L.fillRect(Math.round(sx + Math.cos(a) * (8 + 14 * k)), Math.round(sy - 24 * k + Math.sin(a) * 6), 2, 2);
+            }
+            break;
+          }
           case 'spark':
             L.fillStyle = 'rgba(255,200,80,' + (1 - k) + ')'; L.fillRect(sx - 3, sy - 3, 6, 6); break;
           case 'save':
@@ -327,7 +371,8 @@
         if (tx.t > 0.6) continue;
         const k = tx.t / 0.6;
         const x = (tx.x - camX) * s, y = (tx.y - camY - k * 10) * s;
-        const size = tx.crit ? Math.round(base * 1.35) : base;
+        const pop = 1 + 0.6 * Math.max(0, 1 - k * 5); // quick scale-in on the first frames
+        const size = Math.round((tx.crit ? base * 1.6 : base) * pop);
         C.font = '900 ' + size + 'px "Galmuri11", "DungGeunMo", system-ui, sans-serif';
         C.globalAlpha = 1 - k * k;
         C.lineWidth = Math.max(2, s * 0.9); C.strokeStyle = '#111';
