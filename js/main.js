@@ -726,6 +726,16 @@
         else this.startYear(c.yearIdx);
       };
       $('btn-years').onclick = () => this.showYears();
+      // Restart the active hero's career (e.g. a 메시 career saved before the youth seasons, to make the
+      // growth-hormone choice). Coins, 발롱도르 and 훈련장 upgrades are shared meta and stay.
+      $('btn-restart').onclick = () => {
+        const h = RS.HEROES[this.save.career.build.hero];
+        if (!window.confirm(h.name + ' 커리어를 처음부터 다시 시작할까요?\n지금 커리어(연도·스킬·동료)는 사라지고, 코인·발롱도르·훈련장 강화는 그대로 남습니다.')) return;
+        RS.newCareer(this.save);
+        this.persist();
+        this.showTitle();
+        this.toast(h.name + ' 커리어를 처음부터 시작합니다');
+      };
       $('btn-shop').onclick = () => this.showShop();
       $('btn-howto').onclick = () => this.show('howto');
       $('btn-mute').onclick = () => this.toggleMute();

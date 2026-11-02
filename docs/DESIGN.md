@@ -195,7 +195,9 @@ invisible. This removes the power creep of the carried-over build: late bosses n
   - `dingyo` (2004): 딩요 joins the squad and teaches one of: 엘라스티코 (a `gift` move never dealt at level-ups; a
     full skill bar gets "모든 스킬 Lv.+1" instead), 노룩 패스 or 즐기는 축구 (lasting mods, stored like coach cards).
 - Old saves: career schema `v: 2` (`RS.migrateCareer`). A 메시 career saved before the youth seasons shifts its year
-  indices past them (youth marked cleared), keeps its snapshots and is treated (`hgh: true`).
+  indices past them (youth marked cleared), keeps its snapshots and is treated (`hgh: true`). To play the youth and
+  make the growth-hormone choice, the player uses 🔄 처음부터 on the year screen (`RS.newCareer`: the active hero's
+  career restarts; coins, 발롱도르 and 훈련장 upgrades stay).
 - Move speed ×1.22, slide cooldown 3 s (날두 5 s).
 - No projectiles: starts with `orbit` (발롱도르 공) — `count` golden balls circle at `radius`, each enemy touched takes
   `dmg` every `cd` s (per-enemy timer `e.orbT`). Lv.1→6: 1→4 balls, size 1→2×. Evolution with the 발롱도르 수집 passive
