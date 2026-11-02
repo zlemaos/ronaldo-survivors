@@ -29,12 +29,14 @@
       </div>
       <div id="hud-time">0:00</div>
       <div class="hud-right">
+        <button id="btn-speed" class="icon-btn speed" aria-label="게임 속도">1x</button>
         <button id="btn-mute-hud" class="icon-btn" aria-label="소리 켜기/끄기">🔊</button>
         <button id="btn-pause" class="icon-btn" aria-label="일시정지">⏸</button>
       </div>
     </div>
     <div id="bossbar" class="hidden"><div class="bossname" id="boss-name">보스</div><div class="bossbar-bg"><div id="boss-fill"></div></div></div>
     <div id="banner" class="hidden"></div>
+    <button id="btn-slide" class="slide-btn" aria-label="슬라이딩"><span class="cd" id="slide-cd"></span><span class="lb">🛝<br>슬라이딩</span></button>
   </div>
   <div id="vignette" class="hidden" aria-hidden="true"></div>
 
@@ -152,6 +154,7 @@
       <div class="year-big" id="intro-year">2002</div>
       <div class="sub" id="intro-club"></div>
       <h2 id="intro-title"></h2>
+      <p class="story" id="intro-story"></p>
       <div id="intro-evo" class="intro-evo"></div>
       <div id="intro-squad" class="build"></div>
       <div class="vs" id="intro-vs"></div>

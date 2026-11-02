@@ -65,9 +65,9 @@
         L.drawImage(it.n, sx - (it.w >> 1), sy - (it.h >> 1) + bob);
       }
 
-      // boss telegraphs (under units)
+      // boss / 준보스 telegraphs (under units)
       const b = w.boss;
-      if (b && b.alive && b.tele) this.drawTele(L, b.tele, camX, camY, w.t);
+      for (const e of w.enemies) if (e.alive && e.tele) this.drawTele(L, e.tele, camX, camY, w.t);
 
       // shadows
       const shd = S.shadow();
@@ -97,8 +97,14 @@
           L.strokeStyle = 'rgba(126,200,255,' + (0.5 + 0.5 * Math.sin(w.t * 20)) + ')';
           L.lineWidth = 2; L.beginPath(); L.arc(Math.round(sx), Math.round(sy), e.r + 6, 0, TAU); L.stroke();
         }
-        if (e.elite) { L.save(); L.translate(Math.round(sx), Math.round(sy)); L.scale(1, 1); L.drawImage(img, -Math.round(spr.w * 0.75), -Math.round(spr.h * 0.75), Math.round(spr.w * 1.5), Math.round(spr.h * 1.5)); L.restore(); }
-        else L.drawImage(img, dx, dy);
+        if (e.elite || e.mini) {
+          L.drawImage(img, Math.round(sx - spr.w * 0.75), Math.round(sy - spr.h * 0.75), Math.round(spr.w * 1.5), Math.round(spr.h * 1.5));
+          if (e.mini) { // 준보스 HP bar + name tag
+            const bw = 26, ratio = Math.max(0, e.hp / e.maxHp), by = Math.round(sy - spr.h * 0.75) - 5;
+            L.fillStyle = 'rgba(0,0,0,0.65)'; L.fillRect(Math.round(sx - bw / 2) - 1, by - 1, bw + 2, 5);
+            L.fillStyle = e.charging ? '#ffd23a' : '#ff5a3a'; L.fillRect(Math.round(sx - bw / 2), by, Math.round(bw * ratio), 3);
+          }
+        } else L.drawImage(img, dx, dy);
         if (e.stun > 0 && !e.boss) {
           L.fillStyle = '#ffe14a';
           const a = w.t * 8 + e.uid;
@@ -313,6 +319,17 @@
               L.fillRect(Math.round(sx + Math.cos(a) * sp * k), Math.round(sy + Math.sin(a) * sp * k), f.crit ? 2 : 1, f.crit ? 2 : 1);
             }
             if (f.crit && k < 0.4) { L.fillStyle = 'rgba(255,255,255,' + (1 - k / 0.4) + ')'; L.fillRect(sx - 4, sy - 1, 8, 2); L.fillRect(sx - 1, sy - 4, 2, 8); }
+            break;
+          }
+          case 'strail': { // slide streak: a gradient ribbon fading behind the runner
+            const len = 18, nx = -(f.dx || 1), ny = -(f.dy || 0);
+            const g = L.createLinearGradient(sx, sy, sx + nx * len, sy + ny * len);
+            g.addColorStop(0, 'rgba(255,255,255,' + (0.85 * (1 - k)) + ')');
+            g.addColorStop(0.5, 'rgba(120,220,255,' + (0.55 * (1 - k)) + ')');
+            g.addColorStop(1, 'rgba(120,220,255,0)');
+            L.strokeStyle = g; L.lineWidth = 5 - 3 * k; L.lineCap = 'round';
+            L.beginPath(); L.moveTo(sx, sy); L.lineTo(sx + nx * len, sy + ny * len); L.stroke();
+            L.lineCap = 'butt';
             break;
           }
           case 'dust':

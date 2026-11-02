@@ -19,6 +19,8 @@
       this.input = new RS.Input($('game'));
       RS.Audio.init(this.save.meta.muted);
       this.bind();
+      let sp = 1; try { sp = +localStorage.getItem('rs_speed') === 2 ? 2 : 1; } catch (e) { sp = 1; }
+      this.setSpeed(sp);
       this.updateMuteButtons();
       window.addEventListener('resize', () => this.renderer.resize());
       window.addEventListener('orientationchange', () => setTimeout(() => this.renderer.resize(), 200));
@@ -190,6 +192,7 @@
       $('intro-year').textContent = yd.year;
       $('intro-club').textContent = RS.yearAge(idx) + '세 · ' + RS.ERAS[yd.era].club + (replay ? ' · 다시하기 (커리어에 영향 없음)' : '');
       $('intro-title').textContent = yd.title;
+      $('intro-story').textContent = yd.story || '';
       const evo = $('intro-evo'); evo.innerHTML = '';
       const look = RS.ronaldoLook(idx);
       const prev = idx > 0 ? RS.ronaldoLook(idx - 1) : null;
@@ -206,7 +209,7 @@
       $('intro-squad').innerHTML = this.buildChips(b);
       const stars = RS.threatStars(idx);
       $('intro-vs').innerHTML = '⚔ 날두 전투력 <b>' + RS.powerScore(b) + '</b> &nbsp;vs&nbsp; 상대 위협도 <b>' + '★'.repeat(stars) + '☆'.repeat(5 - stars) + '</b>';
-      $('intro-boss').textContent = (yd.final ? '최종 보스: ' : '시즌 보스: ') + yd.boss.name + ' · 1분 버티면 등장';
+      $('intro-boss').textContent = (yd.final ? '최종 보스: ' : '시즌 보스: ') + yd.boss.name + ' (' + RS.BOSS_TYPES[yd.boss.type].sig + ') · 1분 버티면 등장';
       $('btn-kickoff').onclick = () => { RS.Audio.sfx('click'); this.play(idx); };
     },
 
@@ -445,12 +448,13 @@
       const w = this.world;
       if (!this.paused) {
         if (w.phase === 'play') {
-          this.acc = (this.acc || 0) + dt;
+          this.acc = (this.acc || 0) + dt * (this.speed || 1); // 2x: more fixed steps per frame, same physics
           let n = 0;
           const v = this.input.vector();
           if ((v.x || v.y) && !$('tap-hint').classList.contains('hidden')) $('tap-hint').classList.add('hidden');
-          while (this.acc >= STEP && n < 4 && w.phase === 'play') { w.update(STEP, v); this.acc -= STEP; n++; }
-          if (n >= 4) this.acc = 0;
+          const maxSteps = 4 * (this.speed || 1);
+          while (this.acc >= STEP && n < maxSteps && w.phase === 'play') { w.update(STEP, v); this.acc -= STEP; n++; }
+          if (n >= maxSteps) this.acc = 0;
         } else {
           this.acc = 0;
           w.update(dt, null); // fx only
@@ -477,6 +481,9 @@
           case 'levelup': RS.Audio.sfx('levelup'); this.renderer.shake = Math.max(this.renderer.shake, 0.1); $('hud-power').parentElement.classList.remove('bump'); void $('hud-power').offsetWidth; $('hud-power').parentElement.classList.add('bump'); break;
           case 'shake': this.renderer.shake = Math.max(this.renderer.shake, e.k || 0.1); break;
           case 'wave': RS.Audio.sfx('wave'); this.renderer.shake = Math.max(this.renderer.shake, 0.12); break;
+          case 'mini': RS.Audio.sfx('warn'); break;
+          case 'miniKill': RS.Audio.sfx('chest'); this.toast(e.name + ' 격파!'); break;
+          case 'slide': this.renderer.shake = Math.max(this.renderer.shake, 0.05); break;
           case 'chest': RS.Audio.sfx('chest'); break;
           case 'evolve': RS.Audio.sfx('evolve'); this.renderer.shake = 0.2; break;
           case 'hurt': RS.Audio.sfx('hurt'); this.renderer.shake = 0.12; if (navigator.vibrate) try { navigator.vibrate(15); } catch (er) { /* ignore */ } break;
@@ -503,6 +510,12 @@
     },
 
     setText(key, el, v) { if (this.hud[key] !== v) { this.hud[key] = v; el.textContent = v; } },
+    setSpeed(s) {
+      this.speed = s;
+      $('btn-speed').textContent = s + 'x';
+      $('btn-speed').classList.toggle('on', s === 2);
+      try { localStorage.setItem('rs_speed', String(s)); } catch (e) { /* ignore */ }
+    },
     updateHud() {
       const w = this.world;
       const b = w.build;
@@ -514,6 +527,9 @@
       this.setText('k', $('hud-kills'), String(w.kills));
       this.setText('c', $('hud-coins'), String(Math.round(w.coinsPicked)));
       this.setText('pw', $('hud-power'), String(w.power()));
+      const cdMax = w.slideCooldown(), cdLeft = w.player.slideCd;
+      const cdPct = Math.round(cdLeft / cdMax * 100);
+      if (this.hud.cd !== cdPct) { this.hud.cd = cdPct; $('slide-cd').style.height = cdPct + '%'; $('btn-slide').classList.toggle('ready', cdPct === 0); }
       const low = w.phase === 'play' && w.player.hp / w.stats.maxHp < 0.25;
       if (this.hud.low !== low) { this.hud.low = low; $('vignette').classList.toggle('hidden', !low); }
       if (low && !this.paused) RS.Audio.sfx('heart');
@@ -562,6 +578,10 @@
       }
       $('btn-sound-test').onclick = () => RS.Audio.test();
       $('btn-pause').onclick = (e) => { e.stopPropagation(); this.pause(true); };
+      $('btn-speed').onclick = (e) => { e.stopPropagation(); this.setSpeed(this.speed === 2 ? 1 : 2); };
+      const slide = (e) => { if (e) { e.preventDefault(); e.stopPropagation(); } if (this.state === 'play' && this.world && !this.paused && this.world.slide()) RS.Audio.sfx('dash'); };
+      $('btn-slide').addEventListener('pointerdown', slide);
+      window.addEventListener('keydown', (e) => { if ((e.code === 'Space' || e.key === 'Shift') && this.state === 'play') { e.preventDefault(); slide(); } });
       $('btn-resume').onclick = () => this.pause(false);
       $('btn-quit').onclick = () => {
         this.paused = false;

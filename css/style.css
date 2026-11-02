@@ -33,6 +33,18 @@ canvas#game { position: fixed; inset: 0; display: block; image-rendering: pixela
 #hud-year { font-weight: 900; font-size: 14px; }
 .hud-small { font-size: 12px; color: #e8f0e6; }
 .hud-power { color: var(--gold); font-weight: 800; }
+.icon-btn.speed { font-size: 15px; font-weight: 900; }
+.icon-btn.speed.on { border-color: var(--gold); color: var(--gold); }
+/* 슬라이딩 button: thumb-reach, bottom right, with a cooldown fill rising from the bottom */
+.slide-btn { position: fixed; right: calc(var(--sar) + 16px); bottom: calc(var(--sab, 0px) + 22px); width: 78px; height: 78px; border-radius: 50%;
+  border: 3px solid rgba(255,255,255,0.75); background: rgba(10,40,20,0.7); color: #fff; font-weight: 900; font-size: 12px; line-height: 1.1;
+  pointer-events: auto; overflow: hidden; padding: 0; box-shadow: 0 4px 14px rgba(0,0,0,0.5); touch-action: manipulation; }
+.slide-btn .cd { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: rgba(255,255,255,0.28); }
+.slide-btn .lb { position: relative; display: block; font-size: 12px; }
+.slide-btn .lb::first-line { font-size: 22px; }
+.slide-btn.ready { border-color: var(--gold); box-shadow: 0 0 16px rgba(255,210,58,0.55), 0 4px 14px rgba(0,0,0,0.5); }
+.slide-btn:active { transform: scale(0.94); }
+.story { color: #e8f0e6; font-size: 14px; line-height: 1.5; margin: 4px 0 8px; }
 .hud-power.bump { animation: pop 0.3s ease-out; }
 /* low-HP red pulse around the screen edge */
 #vignette { position: fixed; inset: 0; pointer-events: none; z-index: 5; box-shadow: inset 0 0 90px 30px rgba(220,30,30,0.55); animation: heartbeat 0.8s ease-in-out infinite; }

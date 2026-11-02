@@ -251,7 +251,8 @@
       this.saves = 0; this.dmgTaken = 0; this.bossDmgTaken = 0; this.hits = 0; this.minHp = Infinity;
       this.dpsHist = []; this._lastSec = 0; this._lastDmg = 0; this.bossT = 0; this.swapChoices = null;
       this.player = { x: 0, y: 0, vx: 0, vy: 0, r: 7, hp: 100, iframe: 0, dirx: 1, diry: 0, face: 1, moving: false,
-        dash: null, jump: 0, animT: 0, revived: false, hurtT: 0, kickT: 0, dustT: 0 };
+        dash: null, jump: 0, animT: 0, revived: false, hurtT: 0, kickT: 0, dustT: 0, slideCd: 0 };
+      this.hero = opt.hero || (opt.build && opt.build.hero) || 'ronaldo';
       this.enemies = []; this.enemyPool = [];
       this.projs = []; this.projPool = [];
       this.eprojs = [];
@@ -304,6 +305,8 @@
       const T = this.stageTime, idx = this.yearIdx;
       const s = [];
       s.push({ t: T * 0.22, kind: 'rescue' });
+      // mini-boss waves (the debut year gets two late ones so a newcomer can learn the controls first)
+      for (const f of (idx === 0 ? [0.78, 0.95] : [0.2, 0.45, 0.7, 0.9])) s.push({ t: T * f, kind: 'mini' });
       if (idx >= 1) s.push({ t: T * 0.3, kind: 'press' });
       s.push({ t: T / 3, kind: 'wave2' });
       s.push({ t: T * 0.4, kind: 'elite' });
@@ -388,6 +391,16 @@
           if (e) { e.lineVx = vx; e.lineVy = vy; e.life = 9; }
         }
         this.emit('banner', { text: '기자단 돌격!' });
+      } else if (kind === 'mini') {
+        const n = this.tune.minis;
+        const base = this.rng() * TAU, R = this.spawnRadius() * 0.9;
+        for (let i = 0; i < n; i++) {
+          const a = base + i * (TAU / n);
+          const type = this.rng.pick(RS.MINI_TYPES);
+          this.spawnEnemy(type, this.player.x + Math.cos(a) * R, this.player.y + Math.sin(a) * R, { mini: true });
+        }
+        this.emit('mini', { n });
+        this.emit('banner', { text: n > 1 ? '⚠️ 준보스 ' + n + '명 등장!' : '⚠️ 준보스 등장!' });
       } else if (kind === 'wave2') { this.emit('wave', { n: 2 }); this.emit('banner', { text: '⚡ 2차 공세 — 상대가 거세진다' }); }
       else if (kind === 'wave3') { this.emit('wave', { n: 3 }); this.emit('banner', { text: '🔥 총공세 — 버텨라!' }); }
       else if (kind === 'boss') this.spawnBoss();
@@ -422,9 +435,14 @@
       e.tier = k >= 2 / 3 ? 2 : k >= 1 / 3 ? 1 : 0;
       e.xp = def.xp; e.ranged = !!def.ranged; e.shootT = 1.5 + this.rng() * 2;
       e.stun = 0; e.kx = 0; e.ky = 0; e.flash = -1; e.elite = !!opt.elite; e.boss = false; e.ai = null;
-      e.invuln = false; e.tele = null; e.lineVx = 0; e.lineVy = 0; e.life = 0; e.dHit = -9; e.face = 1;
+      e.invuln = false; e.tele = null; e.lineVx = 0; e.lineVy = 0; e.life = 0; e.dHit = -9; e.face = 1; e.charging = false;
       e.anim = this.rng() * 10; e.minion = !!opt.minion;
+      e.mini = !!def.mini; e.name = def.name;
       if (e.elite) { e.maxHp = e.hp = e.hp * 9; e.r = Math.round(e.r * 1.5); e.dmg = Math.round(e.dmg * 1.4); e.xp *= 12; e.speed *= 1.1; }
+      if (e.mini) { // 준보스: scales with the year, acts like a small boss (telegraphed charge / slam)
+        e.maxHp = e.hp = Math.round(e.hp * (1 + 0.25 * this.yearIdx));
+        e.ai = { kind: 'mini', cool: 1.6 + this.rng(), act: null, acts: def.acts, n: 0 };
+      }
       this.enemies.push(e);
       return e;
     }
@@ -525,6 +543,7 @@
       p.hurtT = Math.max(0, p.hurtT - dt);
       p.jump = Math.max(0, p.jump - dt);
       p.kickT = Math.max(0, p.kickT - dt);
+      p.slideCd = Math.max(0, p.slideCd - dt);
       if (this.stats.regen > 0) p.hp = Math.min(this.stats.maxHp, p.hp + this.stats.regen * dt);
       let ix = input.x || 0, iy = input.y || 0;
       const m = Math.hypot(ix, iy);
@@ -553,6 +572,7 @@
           if ((e.x - p.x) ** 2 + (e.y - p.y) ** 2 < rr * rr) { d.hits.add(e.uid); this.damageEnemy(e, d.dmg, { knock: 90, kx: d.dx, ky: d.dy }); }
         }
         if (Math.floor(d.t * 60) % 3 === 0) this.addFx('ghost', p.x, p.y, { dur: 0.25, face: p.face });
+        if (d.slide) this.addFx('strail', p.x, p.y + 4, { dur: 0.3, dx: d.dx, dy: d.dy, k: d.t / d.dur }); // gradient streak
         if (d.t >= d.dur) {
           if (d.burst) this.shock(d.sx, d.sy, d.burst * this.stats.area, d.dmg, { color: '#c9a0ff', knock: 120 });
           p.dash = null;
@@ -567,6 +587,23 @@
       p.vx += (vx - p.vx) * Math.min(1, dt * 8);
       p.vy += (vy - p.vy) * Math.min(1, dt * 8);
     }
+
+    // 슬라이딩 버튼: an invulnerable dash in the move direction (or facing) with a gradient trail. Returns false
+    // while on cooldown. Enemies on the path take a little damage and are knocked aside.
+    slide() {
+      const p = this.player;
+      if (this.phase !== 'play' || p.dash || p.slideCd > 0) return false;
+      let dx = p.dirx, dy = p.diry;
+      if (!p.moving) { dx = p.face; dy = 0; }
+      const n = Math.hypot(dx, dy) || 1;
+      p.dash = { dx: dx / n, dy: dy / n, speed: RS.SLIDE.speed, dur: RS.SLIDE.dur, t: 0, dmg: RS.SLIDE.dmg, hits: new Set(), slide: true, sx: p.x, sy: p.y };
+      p.slideCd = this.slideCooldown();
+      p.iframe = Math.max(p.iframe, RS.SLIDE.dur + 0.1);
+      this.emit('sfx', { name: 'dash' });
+      this.emit('slide');
+      return true;
+    }
+    slideCooldown() { return RS.SLIDE.cd[this.hero] || RS.SLIDE.cd.ronaldo; }
 
     hurtPlayer(dmg, src) {
       const p = this.player;
@@ -608,8 +645,9 @@
       ds.length = 0;
       for (const e of this.enemies) {
         if (!e.alive) continue;
-        const d = (e.x - p.x) ** 2 + (e.y - p.y) ** 2;
-        if (d > md) continue;
+        let d = (e.x - p.x) ** 2 + (e.y - p.y) ** 2;
+        if (d > md * (e.boss ? 1.6 : 1)) continue;
+        if (e.boss || e.mini) d *= e.boss ? 0.2 : 0.55; // big targets pull the auto-aim: fights stay about them
         if (out.length < k) { out.push(e); ds.push(d); }
         else {
           let wi = 0;
@@ -858,11 +896,12 @@
       if (e.boss) { if (!e.bossDmgIn) e.firstHitT = this.t; e.bossDmgIn += res.dmg; }
       if (e.flash <= -0.06) e.flash = 0.06; // flicker, never stuck white under constant fire
       if (o.knock) {
-        const k = e.boss ? o.knock * 0.15 : e.elite ? o.knock * 0.4 : o.knock;
+        const k = e.boss ? o.knock * 0.15 : e.mini ? o.knock * 0.3 : e.elite ? o.knock * 0.4 : o.knock;
         e.kx += (o.kx || 0) * k; e.ky += (o.ky || 0) * k;
       }
-      if (o.stun && !e.boss) e.stun = Math.max(e.stun, o.stun * (e.elite ? 0.5 : 1)); // bosses are stun-immune
-      this.addText(e.x, e.y - e.r, res.dmg, res.crit);
+      if (o.stun && !e.boss) e.stun = Math.max(e.stun, o.stun * (e.elite || e.mini ? 0.5 : 1)); // bosses are stun-immune
+      // damage numbers only where they matter (crits, bosses, 준보스, elites) — plain hits show the spark only
+      if (res.crit || e.boss || e.mini || e.elite) this.addText(e.x, e.y - e.r, res.dmg, res.crit);
       // impact spark: a few shards flying away from the hit direction (crits bigger and golden)
       if (this.fx.length < 120) this.addFx('hit', e.x, e.y - 2, { dur: res.crit ? 0.3 : 0.2, kx: o.kx || 0, ky: o.ky || 0, crit: res.crit, seed: this.rng() * 6.28 });
       if (res.crit) { this.emit('sfx', { name: 'crit' }); if (e.boss) this.emit('shake', { k: 0.08 }); }
@@ -892,6 +931,12 @@
       if (this.pickups.length < 420) this.dropPickup('gem', e.x, e.y, xpv);
       else this.mergeGem(xpv);
       if (e.elite) this.dropPickup('chest', e.x, e.y, 1);
+      if (e.mini) { // 준보스 reward: coins, a heal, sometimes a chest
+        for (let i = 0; i < 4; i++) this.dropPickup('coin', e.x + (this.rng() - 0.5) * 24, e.y + (this.rng() - 0.5) * 24, 2);
+        this.dropPickup(this.rng() < 0.3 ? 'chest' : 'heal', e.x, e.y + 6, 1);
+        this.addFx('boom', e.x, e.y, { r: 30, dur: 0.5 });
+        this.emit('miniKill', { name: e.name });
+      }
       const r = this.rng();
       if (r < 0.035) this.dropPickup('coin', e.x + 4, e.y, 1);
       else if (r < 0.035 + 1 / 130) this.dropPickup('heal', e.x, e.y, 1);
@@ -1054,6 +1099,7 @@
         const d = Math.sqrt(d2) || 1;
         if (e.stun > 0) e.stun -= dt;
         else if (e.boss) this.bossAI(e, dt, dx, dy, d);
+        else if (e.mini) this.miniAI(e, dt, dx, dy, d);
         else if (e.lineVx || e.lineVy) {
           e.x += e.lineVx * e.speed * dt; e.y += e.lineVy * e.speed * dt;
           e.life -= dt;
@@ -1092,9 +1138,9 @@
             e.x += sx / sd * push; e.y += sy / sd * push;
           }
         }
-        // contact damage
-        const cr = e.r + p.r - 2;
-        if (d2 < cr * cr) this.hurtPlayer(e.dmg, e);
+        // contact damage (a charging 준보스 hits harder and wider)
+        const cr = e.r + p.r - 2 + (e.charging ? 4 : 0);
+        if (d2 < cr * cr) this.hurtPlayer(e.charging ? Math.round(e.dmg * 1.5) : e.dmg, e);
         // recycle stragglers in front of the player
         if (!e.boss && !e.lineVx && !e.lineVy && d2 > recycle2) {
           let a = this.rng() * TAU;
@@ -1218,6 +1264,45 @@
       ai.act = null;
       e.tele = null;
       ai.cool = RS.BOSS_TYPES[ai.kind].cool * (ai.kind === 'messi' && ai.phase === 2 ? RS.MESSI.rageCool : 1) * this.tune.bossCool;
+    }
+
+    // 준보스: walks at the player; every few seconds a telegraphed charge (red line, then a fast run that hits
+    // hard) or a ground slam where the player is heading. Standing still is punished; a side-step dodges both.
+    miniAI(e, dt, dx, dy, d) {
+      const ai = e.ai, p = this.player;
+      if (ai.act) {
+        const a = ai.act; a.t += dt;
+        if (a.kind === 'charge') {
+          if (a.stage === 0) {
+            if (a.t < 0.45) { const tp = this.predict(0.3 + d / 260, 70); a.dir = Math.atan2(tp.y - e.y, tp.x - e.x); }
+            e.tele = { kind: 'line', x: e.x, y: e.y, a: a.dir, len: 120, p: Math.min(1, a.t / 0.65), thin: true };
+            if (a.t >= 0.65) { a.stage = 1; a.t = 0; e.tele = null; e.charging = true; this.emit('sfx', { name: 'dash' }); }
+          } else if (a.stage === 1) {
+            e.x += Math.cos(a.dir) * 260 * dt; e.y += Math.sin(a.dir) * 260 * dt;
+            if (Math.floor(a.t * 60) % 4 === 0) this.addFx('poof', e.x, e.y + e.r, { dur: 0.2 });
+            if (a.t >= 0.46) { a.stage = 2; a.t = 0; e.charging = false; }
+          } else if (a.t >= 0.4) { ai.act = null; ai.cool = 2.4 + this.rng(); }
+        } else { // slam
+          if (a.stage === 0) {
+            if (!a.spot) { a.spot = this.predict(0.7, 70); this.emit('sfx', { name: 'warn' }); }
+            e.tele = { kind: 'circles', spots: [a.spot], r: 34, p: Math.min(1, a.t / 0.8) };
+            if (a.t >= 0.8) {
+              a.stage = 1; e.tele = null;
+              this.addFx('shock', a.spot.x, a.spot.y, { r: 34, dur: 0.35, color: '#ff8a5c' });
+              this.emit('sfx', { name: 'thud' });
+              if ((p.x - a.spot.x) ** 2 + (p.y - a.spot.y) ** 2 < (34 + p.r) ** 2) this.hurtPlayer(Math.round(e.dmg * 1.3), e);
+            }
+          } else if (a.t >= 0.5) { ai.act = null; ai.cool = 2.6 + this.rng(); }
+        }
+        return;
+      }
+      e.x += dx / d * e.speed * dt; e.y += dy / d * e.speed * dt;
+      ai.cool -= dt;
+      if (ai.cool <= 0 && d < 170) {
+        const kind = ai.acts[ai.n % ai.acts.length]; ai.n++;
+        ai.act = { kind, t: 0, stage: 0, dir: Math.atan2(dy, dx) };
+        if (kind === 'charge') this.emit('sfx', { name: 'warn' });
+      }
     }
 
     runBossAct(e, a, dt, dx, dy, d) {
@@ -1352,6 +1437,33 @@
             for (let i = 0; i < 5; i++) this.enemyShot('card', e.x, e.y, aim - 0.6 + i * 0.3, 110, pdmg, 3);
             this.enemyShot('redcard', e.x, e.y, aim, 70, Math.round(pdmg * 1.8), 6, 0, { home: 1.5, turn: 1.2, life: 6 });
             a.n = 1;
+          }
+          if (a.t > 1.0) this.endAct(e);
+          break;
+        }
+        case 'wall': { // 수비벽: a line of defenders rises between the boss and the player and walks at him
+          if (a.n === 0 && a.t >= 0.4) {
+            const n = 5 + Math.min(4, Math.floor(this.yearIdx / 5));
+            const mx = e.x + dx * 0.45, my = e.y + dy * 0.45;
+            const px = -dy / d, py = dx / d;
+            for (let i = 0; i < n; i++) {
+              const off = (i - (n - 1) / 2) * 16;
+              const w = this.spawnEnemy('grunt', mx + px * off, my + py * off, { minion: true });
+              if (w) { w.hp = w.maxHp = Math.round(w.maxHp * 2.5); w.speed *= 0.8; w.stun = 0.3; }
+            }
+            a.n = 1;
+            this.addFx('shock', mx, my, { r: 40, dur: 0.4, color: '#ffffff' });
+            this.emit('sfx', { name: 'thud' });
+          }
+          if (a.t > 0.9) this.endAct(e);
+          break;
+        }
+        case 'punt': { // 펀트킥: one huge slow ball that homes for a while — walk around it
+          if (a.n === 0 && a.t >= 0.5) {
+            const tp = this.predict(0.6, 80);
+            this.enemyShot('cannon', e.x, e.y, Math.atan2(tp.y - e.y, tp.x - e.x), 105, Math.round(e.dmg * 1.6), 9, 0, { home: 1.8, turn: 1.8, life: 5, power: true });
+            a.n = 1;
+            this.emit('sfx', { name: 'thud' });
           }
           if (a.t > 1.0) this.endAct(e);
           break;

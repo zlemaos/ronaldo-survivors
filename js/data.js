@@ -15,16 +15,16 @@
       name: '축구공 킥', icon: '⚽', passive: 'boots', evoName: '황금 발롱볼', evoIcon: '🏆',
       desc: '가장 가까운 적에게 축구공을 찬다.',
       evoDesc: '황금 공이 적 사이를 튕기며 관통한다.',
-      ups: ['', '공이 1번 튕긴다', '공 +1', '관통 +1, 피해 증가', '공 +1, 튕김 +1', '피해 크게 증가, 연사 증가'],
+      ups: ['', '공이 1번 튕긴다', '공 +1', '관통 +1, 피해 증가', '피해 증가, 튕김 +1', '피해·관통 크게 증가, 연사 증가'],
       lv: [
         { dmg: 10, cd: 0.95, count: 1, pierce: 0, bounce: 0, speed: 230, r: 3 },
         { dmg: 12, cd: 0.9, count: 1, pierce: 0, bounce: 1, speed: 235, r: 3 },
         { dmg: 12, cd: 0.9, count: 2, pierce: 0, bounce: 1, speed: 240, r: 3 },
         { dmg: 15, cd: 0.85, count: 2, pierce: 1, bounce: 1, speed: 245, r: 3 },
-        { dmg: 16, cd: 0.8, count: 3, pierce: 1, bounce: 2, speed: 250, r: 3 },
-        { dmg: 20, cd: 0.72, count: 3, pierce: 1, bounce: 2, speed: 260, r: 3 }
+        { dmg: 18, cd: 0.8, count: 2, pierce: 1, bounce: 2, speed: 250, r: 3 },
+        { dmg: 24, cd: 0.72, count: 2, pierce: 2, bounce: 2, speed: 260, r: 4 }
       ],
-      evo: { dmg: 34, cd: 0.6, count: 4, pierce: 2, bounce: 4, speed: 280, r: 5 }
+      evo: { dmg: 40, cd: 0.6, count: 3, pierce: 3, bounce: 4, speed: 280, r: 5 }
     },
     knuckle: {
       name: '무회전 프리킥', icon: '🎯', passive: 'freekick', evoName: '무회전 대포알', evoIcon: '💥',
@@ -39,7 +39,7 @@
         { dmg: 38, cd: 1.65, count: 2, pierce: 5, speed: 340, r: 4 },
         { dmg: 46, cd: 1.5, count: 2, pierce: 6, speed: 350, r: 4 }
       ],
-      evo: { dmg: 90, cd: 1.25, count: 3, pierce: 999, speed: 360, r: 7 }
+      evo: { dmg: 110, cd: 1.25, count: 2, pierce: 999, speed: 360, r: 8 }
     },
     header: {
       name: '헤딩 점프', icon: '🦘', passive: 'jump', evoName: '2.56m 슈퍼 헤더', evoIcon: '🚀',
@@ -89,7 +89,7 @@
     scissors: {
       name: '시저스 킥', icon: '✂️', passive: 'finisher', evoName: '더블 시저스', evoIcon: '⚔️',
       desc: '공을 X자로 교차해 찬다.',
-      evoDesc: '8방향 교차 슛, 치명타 확률 증가.',
+      evoDesc: '6방향 교차 슛이 깊게 관통하고, 치명타 확률 증가.',
       ups: ['', '피해 증가', '방향 +2', '관통 +1', '피해 증가, 쿨타임 감소', '방향 +2'],
       lv: [
         { dmg: 12, cd: 1.6, dirs: 2, pierce: 1, speed: 210, r: 3 },
@@ -99,7 +99,7 @@
         { dmg: 21, cd: 1.25, dirs: 4, pierce: 2, speed: 230, r: 3 },
         { dmg: 23, cd: 1.2, dirs: 6, pierce: 2, speed: 235, r: 3 }
       ],
-      evo: { dmg: 40, cd: 0.9, dirs: 8, pierce: 4, speed: 250, r: 4, critBonus: 0.2 }
+      evo: { dmg: 48, cd: 0.9, dirs: 6, pierce: 5, speed: 250, r: 4, critBonus: 0.2 }
     },
     siuu: {
       name: 'SIUU 함성', icon: '📣', passive: 'charisma', evoName: '월드 SIUU', evoIcon: '🌍',
@@ -315,18 +315,27 @@
     tank: { name: '거구 센터백', hp: 48, speed: 27, dmg: 12, r: 10, xp: 4, sprite: 'tank' },
     ref: { name: '심판', hp: 18, speed: 34, dmg: 6, r: 6, xp: 2, sprite: 'ref', ranged: true },
     press: { name: '기자', hp: 9, speed: 95, dmg: 5, r: 5, xp: 1, sprite: 'press', line: true },
-    minimessi: { name: '꼬마 메시', hp: 30, speed: 70, dmg: 8, r: 5, xp: 2, sprite: 'minimessi' }
+    minimessi: { name: '꼬마 메시', hp: 30, speed: 70, dmg: 8, r: 5, xp: 2, sprite: 'minimessi' },
+    // mini-bosses (준보스): big, drawn at 1.5x with an HP bar, telegraphed charge / slam, chest drops
+    brute: { name: '거구 주장', hp: 150, speed: 30, dmg: 14, r: 13, xp: 14, sprite: 'tank', mini: true, acts: ['charge', 'slam'] },
+    enforcer: { name: '집행관 미드필더', hp: 95, speed: 46, dmg: 12, r: 10, xp: 10, sprite: 'grunt', mini: true, acts: ['charge', 'charge', 'slam'] }
   };
+  RS.MINI_TYPES = ['brute', 'enforcer'];
+  // manual slide (슬라이딩 버튼): invulnerable dash with a gradient trail; cooldown per hero
+  RS.SLIDE = { speed: 420, dur: 0.28, dmg: 12, cd: { ronaldo: 5, messi: 3 } };
 
   // Season bosses — archetypes reused with parody names per year.
+  // Each archetype has its own signature so fights feel different:
+  // keeper = dives (slams) + a defensive wall + one big punt · tackler = pure melee dashes · maestro = ball patterns
+  // striker = sniper shots + bursts · referee = cards + summons · giant = ground slams + rings
   RS.BOSS_TYPES = {
-    keeper: { hp: 520, fight: 1, speed: 30, r: 14, dmg: 14, actions: ['summon', 'pslam', 'snipe', 'curl', 'snipe'], cool: 2.0, sprite: 'bkeeper' },
-    tackler: { hp: 440, fight: 1, speed: 40, r: 12, dmg: 16, actions: ['cut', 'snipe', 'fan', 'pslam', 'dash'], cool: 1.8, sprite: 'btackler' },
-    maestro: { hp: 420, fight: 1, speed: 34, r: 12, dmg: 12, actions: ['fan', 'snipe', 'curl', 'encircle', 'ring'], cool: 1.9, sprite: 'bmaestro' },
-    striker: { hp: 420, fight: 1, speed: 42, r: 12, dmg: 12, actions: ['burst', 'snipe', 'curl', 'cut', 'snipe'], cool: 1.8, sprite: 'bstriker' },
-    referee: { hp: 400, fight: 1, speed: 36, r: 12, dmg: 10, actions: ['cards', 'snipe', 'encircle', 'curl', 'summon'], cool: 1.9, sprite: 'bref' },
-    giant: { hp: 640, fight: 1.15, speed: 25, r: 18, dmg: 18, actions: ['pslam', 'snipe', 'ring', 'encircle', 'pslam'], cool: 2.0, sprite: 'bgiant' },
-    messi: { hp: 700, fight: 1.3, speed: 70, r: 9, dmg: 16, actions: [], cool: 1.25, sprite: 'messi' }
+    keeper: { hp: 520, fight: 1, speed: 30, r: 14, dmg: 14, actions: ['pslam', 'wall', 'punt', 'pslam', 'ring'], cool: 2.0, sprite: 'bkeeper', sig: '다이빙 선방·수비벽·펀트킥' },
+    tackler: { hp: 440, fight: 1, speed: 40, r: 12, dmg: 16, actions: ['cut', 'dash', 'slam', 'cut', 'dash'], cool: 1.6, sprite: 'btackler', sig: '연속 태클 돌진' },
+    maestro: { hp: 420, fight: 1, speed: 34, r: 12, dmg: 12, actions: ['fan', 'encircle', 'curl', 'fan', 'ring'], cool: 1.9, sprite: 'bmaestro', sig: '패스 패턴·포위' },
+    striker: { hp: 420, fight: 1, speed: 42, r: 12, dmg: 12, actions: ['snipe', 'burst', 'dash', 'snipe', 'burst'], cool: 1.8, sprite: 'bstriker', sig: '강슛 저격·연사' },
+    referee: { hp: 400, fight: 1, speed: 36, r: 12, dmg: 10, actions: ['cards', 'pslam', 'summon', 'cards', 'wall'], cool: 1.9, sprite: 'bref', sig: '카드 세례·소환' },
+    giant: { hp: 640, fight: 1.15, speed: 25, r: 18, dmg: 18, actions: ['pslam', 'ring', 'slam', 'wall', 'pslam'], cool: 2.0, sprite: 'bgiant', sig: '지면 강타·링' },
+    messi: { hp: 700, fight: 2.2, speed: 70, r: 9, dmg: 18, actions: [], cool: 1.25, sprite: 'messi', sig: '드리블·감아차기·발리' } // the final: a long duel
   };
   // 메시: phase 1 → roar at 50 % HP → phase 2 rage.
   RS.MESSI = {
@@ -347,34 +356,35 @@
 
   // ---------------------------------------------------------------- Career years (debut at 17 → present)
   // Facts are kept to well-known headlines. Ballon: true = a real Ballon d'Or year, grants a 발롱도르 on first clear.
-  const Y = (year, era, coach, title, bossType, bossName, extra) =>
-    Object.assign({ year, era, coach, title, boss: { type: bossType, name: bossName } }, extra || {});
+  // story: one line that ties the season boss to that year of the career (shown on the year intro).
+  const Y = (year, era, coach, title, bossType, bossName, story, extra) =>
+    Object.assign({ year, era, coach, title, boss: { type: bossType, name: bossName }, story }, extra || {});
   RS.YEARS = [
-    Y(2002, 'lisbon', 'boloni', '17세 프로 데뷔', 'keeper', '동네 최강 수문장'),
-    Y(2003, 'manchester', 'hairdryer', '맨체스터 이적, 등번호 7', 'tackler', '프리미어 백태클러'),
-    Y(2004, 'manchester', 'hairdryer', '유로 2004 준우승', 'giant', '그리스 철벽 대장'),
-    Y(2005, 'manchester', 'hairdryer', '드리블 장인 각성', 'maestro', '런던 파란 지휘자'),
-    Y(2006, 'manchester', 'hairdryer', '월드컵과 윙크 논란', 'referee', '레드카드 주심'),
-    Y(2007, 'manchester', 'hairdryer', '첫 리그 정상', 'striker', '머지사이드 폭격기'),
-    Y(2008, 'manchester', 'hairdryer', '빗속의 유럽 정상, 첫 발롱도르', 'keeper', '모스크바 빗속 수문장', { ballon: true }),
-    Y(2009, 'madrid', 'engineer', '세계 최고 이적료로 마드리드행', 'maestro', '티키타카 지휘자 샤비뇽'),
-    Y(2010, 'madrid', 'special', '엘 클라시코 시대', 'tackler', '카탈루냐 곱슬 수비대장'),
-    Y(2011, 'madrid', 'special', '국왕컵 결승 헤더', 'giant', '바르샤 장신 피케츄'),
-    Y(2012, 'madrid', 'special', '리그 우승, 진정해 세리머니', 'referee', '엘 클라시코 주심'),
-    Y(2013, 'madrid', 'eyebrow', '두 번째 발롱도르', 'striker', '스웨덴 거인 즐라탄탄', { ballon: true }),
-    Y(2014, 'madrid', 'eyebrow', '열 번째 유럽 정상', 'keeper', '마드리드 이웃 수문장', { ballon: true }),
-    Y(2015, 'madrid', 'eyebrow', '득점 기계 모드', 'maestro', '뮌헨 전차 지휘관'),
-    Y(2016, 'madrid', 'headbutt', '유로 우승, 나방과의 결승', 'giant', '파리 결승의 나방 군단장', { ballon: true }),
-    Y(2017, 'madrid', 'headbutt', '유럽 2연패, 다섯 번째 발롱도르', 'striker', '카디프 결승 저격수', { ballon: true }),
-    Y(2018, 'turin', 'allegro', '전설의 바이시클 킥, 토리노행', 'keeper', '바이시클 킥의 증인 수문장'),
-    Y(2019, 'turin', 'smoker', '네이션스리그 초대 우승', 'tackler', '아약스 영건 대장'),
-    Y(2020, 'turin', 'maestro', '텅 빈 경기장', 'referee', 'VAR 판독관'),
-    Y(2021, 'manchester2', 'babyface', '맨체스터 귀환', 'maestro', '시끄러운 이웃 지휘관'),
-    Y(2022, 'manchester2', 'professor', '폭로 인터뷰, 다섯 번째 월드컵', 'referee', '폭로 인터뷰 기자왕'),
-    Y(2023, 'riyadh', 'desert', '사막의 별, 리야드행', 'striker', '사막 더비 에이스'),
-    Y(2024, 'riyadh', 'desert', '통산 900골 돌파', 'keeper', '유로 2024 수문장'),
-    Y(2025, 'riyadh', 'desert', '네이션스리그 두 번째 우승', 'maestro', '무적함대 지휘자'),
-    Y(2026, 'national', 'marti', '마지막 월드컵 — 최종 결전', 'messi', '메시', { final: true })
+    Y(2002, 'lisbon', 'boloni', '17세 프로 데뷔', 'keeper', '데뷔전 상대 수문장', '리스본에서 17세에 데뷔. 첫 프로 경기, 상대 골문엔 베테랑 수문장이 버티고 있다.'),
+    Y(2003, 'manchester', 'hairdryer', '맨체스터 이적, 등번호 7', 'tackler', '프리미어 백태클러', '맨체스터로 이적해 7번을 받았다. 프리미어리그의 거친 백태클이 신인을 노린다.'),
+    Y(2004, 'manchester', 'hairdryer', '유로 2004 준우승', 'giant', '그리스 철벽 대장', '안방 유로 결승에서 그리스의 철벽 수비에 무릎을 꿇었다. 그 벽을 다시 만난다.'),
+    Y(2005, 'manchester', 'hairdryer', '드리블 장인 각성', 'maestro', '런던 파란 지휘자', '드리블 장인으로 각성한 시즌. 리그 왕좌를 쥔 런던 파란 팀의 지휘자가 길을 막는다.'),
+    Y(2006, 'manchester', 'hairdryer', '월드컵과 윙크 논란', 'referee', '레드카드 주심', '월드컵 8강, 팀 동료의 퇴장과 윙크 논란. 카드를 꺼내 드는 주심이 상대다.'),
+    Y(2007, 'manchester', 'hairdryer', '첫 리그 정상', 'striker', '머지사이드 폭격기', '첫 리그 우승. 득점왕 경쟁 상대였던 머지사이드의 폭격기와 맞붙는다.'),
+    Y(2008, 'manchester', 'hairdryer', '빗속의 유럽 정상, 첫 발롱도르', 'keeper', '모스크바 빗속 수문장', '모스크바 빗속 결승 승부차기. 첫 발롱도르의 해, 그날의 수문장을 넘어야 한다.', { ballon: true }),
+    Y(2009, 'madrid', 'engineer', '세계 최고 이적료로 마드리드행', 'maestro', '티키타카 지휘자 샤비뇽', '세계 최고 이적료로 마드리드행. 라이벌 팀 티키타카의 심장과 첫 대결.'),
+    Y(2010, 'madrid', 'special', '엘 클라시코 시대', 'tackler', '카탈루냐 곱슬 수비대장', '엘 클라시코의 시대가 열렸다. 카탈루냐 곱슬머리 수비대장과의 악연이 시작된다.'),
+    Y(2011, 'madrid', 'special', '국왕컵 결승 헤더', 'giant', '바르샤 장신 피케츄', '국왕컵 결승 결승골 헤더. 바르샤의 장신 센터백을 뛰어넘은 그 밤.'),
+    Y(2012, 'madrid', 'special', '리그 우승, 진정해 세리머니', 'referee', '엘 클라시코 주심', '리그 우승과 "진정해" 세리머니. 클라시코마다 카드를 꺼내던 주심이 상대다.'),
+    Y(2013, 'madrid', 'eyebrow', '두 번째 발롱도르', 'striker', '스웨덴 거인 즐라탄탄', '월드컵 플레이오프 해트트릭으로 스웨덴 거인을 꺾고 두 번째 발롱도르.', { ballon: true }),
+    Y(2014, 'madrid', 'eyebrow', '열 번째 유럽 정상', 'keeper', '마드리드 이웃 수문장', '리스본 결승, 열 번째 유럽 정상. 같은 도시 라이벌의 수문장이 마지막 벽.', { ballon: true }),
+    Y(2015, 'madrid', 'eyebrow', '득점 기계 모드', 'maestro', '뮌헨 전차 지휘관', '득점 기계의 해. 유럽 무대에서 뮌헨 전차 군단의 지휘관과 격돌.'),
+    Y(2016, 'madrid', 'headbutt', '유로 우승, 나방과의 결승', 'giant', '파리 결승의 나방 군단장', '유로 결승, 부상으로 쓰러진 뒤 벤치에서 지휘한 우승. 나방 떼가 날아들던 파리의 밤.', { ballon: true }),
+    Y(2017, 'madrid', 'headbutt', '유럽 2연패, 다섯 번째 발롱도르', 'striker', '카디프 결승 저격수', '카디프 결승 두 골로 유럽 2연패. 다섯 번째 발롱도르.', { ballon: true }),
+    Y(2018, 'turin', 'allegro', '전설의 바이시클 킥, 토리노행', 'keeper', '바이시클 킥의 증인 수문장', '토리노 원정에서 바이시클 킥, 상대 팬까지 기립. 그 수문장이 있는 팀으로 이적했다.'),
+    Y(2019, 'turin', 'smoker', '네이션스리그 초대 우승', 'tackler', '아약스 영건 대장', '네이션스리그 초대 우승. 유럽 무대에서 암스테르담 영건 군단에 발목을 잡혔다.'),
+    Y(2020, 'turin', 'maestro', '텅 빈 경기장', 'referee', 'VAR 판독관', '관중 없는 시즌. 골을 지우는 보이지 않는 심판, VAR 판독관과 싸운다.'),
+    Y(2021, 'manchester2', 'babyface', '맨체스터 귀환', 'maestro', '시끄러운 이웃 지휘관', '12년 만의 맨체스터 귀환. 시끄러운 이웃 구단의 지휘관과 더비.'),
+    Y(2022, 'manchester2', 'professor', '폭로 인터뷰, 다섯 번째 월드컵', 'referee', '폭로 인터뷰 기자왕', '폭로 인터뷰로 구단과 결별, 다섯 번째 월드컵. 기자왕과의 설전.'),
+    Y(2023, 'riyadh', 'desert', '사막의 별, 리야드행', 'striker', '사막 더비 에이스', '사막의 별이 되어 리야드행. 사막 더비의 에이스와 득점 경쟁.'),
+    Y(2024, 'riyadh', 'desert', '통산 900골 돌파', 'keeper', '유로 2024 수문장', '통산 900골. 유로 2024 승부차기에서 실축을 막아낸 수문장과 재대결.'),
+    Y(2025, 'riyadh', 'desert', '네이션스리그 두 번째 우승', 'maestro', '무적함대 지휘자', '네이션스리그 결승에서 무적함대를 꺾고 두 번째 우승.'),
+    Y(2026, 'national', 'marti', '마지막 월드컵 — 최종 결전', 'messi', '메시', '마지막 월드컵. 20년을 함께 달려온 영원한 라이벌, 메시와의 최종 결전.', { final: true })
   ];
   RS.DEBUT_YEAR = 2002;
   RS.BIRTH_YEAR = 1985;
@@ -382,12 +392,12 @@
   // Per-year tuning derived from index so new years need no extra numbers.
   RS.yearTuning = function (idx) {
     const y = RS.YEARS[idx];
-    const gentle = idx === 0 ? 0.35 : idx === 1 ? 0.75 : 1; // first two years: phone newcomers
+    const gentle = idx === 0 ? 0.32 : idx === 1 ? 0.75 : 1; // first two years: phone newcomers
     const t = {
       hpMul: 1 + 0.55 * idx + 0.03 * idx * idx,
       dmgMul: (1 + 0.1 * idx) * gentle,
       speedMul: 1 + 0.008 * idx,
-      spawnRate: (2.3 + 0.18 * idx) * (idx === 0 ? 0.55 : 1),
+      spawnRate: (2.3 + 0.18 * idx) * (idx === 0 ? 0.5 : 1),
       maxAlive: Math.min(420, 150 + 12 * idx),
       duration: 60, // one minute per season, then the boss
       // inside a stage enemies visibly toughen: by the end they have this much more HP / damage / speed
@@ -396,13 +406,14 @@
       bossHpMul: 1 + 0.55 * idx + 0.03 * idx * idx,
       bossDmgMul: (1 + 0.12 * idx) * gentle,
       bossCool: idx === 0 ? 1.2 : 1,
-      bossDensity: Math.min(1, 0.7 + 0.1 * idx),
+      bossDensity: Math.min(0.85, 0.7 + 0.04 * idx), // fewer bullets on screen: readable fights
+      minis: 1 + Math.floor(idx / 10), // mini-bosses per wave (4 waves a stage; 2 in the debut year)
       bossFight: idx === 0 ? 0.7 : idx === 1 ? 0.85 : 1, // shorter boss fights for newcomers
       mix: [{ type: 'grunt', w: 10 }]
     };
     if (idx >= 1) t.mix.push({ type: 'runner', w: 4 + Math.min(4, idx * 0.3) });
     if (idx >= 3) t.mix.push({ type: 'tank', w: 1.2 + Math.min(2, idx * 0.1) });
-    if (idx >= 5) t.mix.push({ type: 'ref', w: 1 + Math.min(1.5, idx * 0.06) });
+    if (idx >= 7) t.mix.push({ type: 'ref', w: 0.5 + Math.min(0.6, idx * 0.03) }); // rare: ranged mobs clutter the screen
     return t;
   };
 
