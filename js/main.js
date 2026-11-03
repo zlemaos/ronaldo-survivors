@@ -3,6 +3,10 @@
   'use strict';
   const $ = (id) => document.getElementById(id);
   const STEP = 1 / 60;
+  const AUTO_LABEL = { off: '수동', semi: '반자동', full: '오토' };
+  const AUTO_HINT = { off: '✋ 직접 조작', semi: '🤖 이동·일반 카드는 AI, 중요한 선택은 내가', full: '🚀 모든 선택을 AI가 (등급 카드 → 연계 카드 순)' };
+  // a level-up hand holding one of these waits for the player in 반자동
+  const SPECIAL = (c) => c.kind === 'relic' || c.kind === 'gamble' || c.kind === 'stim';
 
   const App = {
     state: 'title', // title | play | menu
@@ -42,10 +46,59 @@
 
     // ------------------------------------------------------------ screens
     show(id) {
+      this.cancelAuto(); // a pending auto step belongs to the screen it was armed on
       for (const s of document.querySelectorAll('.screen')) s.classList.toggle('hidden', s.id !== id);
       this.screen = id;
     },
-    hideScreens() { for (const s of document.querySelectorAll('.screen')) s.classList.add('hidden'); this.screen = null; },
+
+    // ------------------------------------------------------------ auto progress (반자동 / 완전 오토)
+    autoMode() { return this.save.meta.auto || 'off'; },
+    setAuto(mode) {
+      this.save.meta.auto = RS.AUTO_MODES.includes(mode) ? mode : 'off';
+      this.persist();
+      if (this.save.meta.auto === 'off') this.cancelAuto();
+      this.updateOptions();
+    },
+    // Run fn after ms unless the screen changes first; the badge shows what is about to happen. `need`: the
+    // lowest mode that may do it ('semi' or 'full').
+    armAuto(fn, ms, label, need) {
+      const m = this.autoMode();
+      if (m === 'off' || (need === 'full' && m !== 'full')) return false;
+      this.cancelAuto();
+      const badge = $('auto-badge');
+      badge.innerHTML = '';
+      badge.append((m === 'full' ? '🚀 ' : '🤖 ') + label + ' · 누르면 수동');
+      const bar = document.createElement('span'); bar.className = 'bar'; badge.appendChild(bar);
+      badge.classList.remove('hidden');
+      bar.style.transition = 'none'; bar.style.transform = 'scaleX(1)';
+      void bar.offsetWidth;
+      bar.style.transition = 'transform ' + ms + 'ms linear'; bar.style.transform = 'scaleX(0)';
+      this._autoTm = setTimeout(() => { this._autoTm = null; badge.classList.add('hidden'); fn(); }, ms);
+      return true;
+    },
+    cancelAuto() {
+      clearTimeout(this._autoTm); this._autoTm = null;
+      const badge = $('auto-badge'); if (badge) badge.classList.add('hidden');
+    },
+    // title pickers + the HUD button
+    updateOptions() {
+      const m = this.save.meta;
+      for (const b of document.querySelectorAll('[data-diff]')) b.classList.toggle('on', b.dataset.diff === m.diff);
+      for (const b of document.querySelectorAll('[data-auto]')) b.classList.toggle('on', b.dataset.auto === m.auto);
+      const D = RS.DIFFS[m.diff] || RS.DIFFS.normal;
+      $('opt-hint').textContent = D.icon + ' ' + D.name + ': ' + D.desc + ' · ' + AUTO_HINT[m.auto || 'off'];
+      const ab = $('btn-auto');
+      ab.textContent = AUTO_LABEL[m.auto || 'off'];
+      ab.classList.toggle('on', m.auto === 'semi');
+      ab.classList.toggle('full', m.auto === 'full');
+    },
+    setDiff(k) {
+      this.save.meta.diff = RS.setDiff(k);
+      this.persist();
+      this.updateOptions();
+      this.makeAttract();
+    },
+    hideScreens() { this.cancelAuto(); for (const s of document.querySelectorAll('.screen')) s.classList.add('hidden'); this.screen = null; },
 
     showTitle() {
       this.state = 'title';
@@ -60,9 +113,10 @@
       const yd = RS.YEARS[c.yearIdx];
       const started = c.yearIdx > 0 || c.coachDone >= 0;
       const hero = RS.HEROES[c.build.hero];
-      $('btn-play').textContent = c.finished ? '🏆 커리어 완주! 다시 보기' : started ? '▶ 이어하기 · ' + yd.year + '년' : '⚽ ' + hero.name + ' 커리어 시작';
-      $('title-progress').textContent = (c.finished ? hero.rival + '를 꺾은 전설 · ' + (c.laps + 1) + '회차' : hero.name + ' · ' + yd.year + '년 · ' + RS.yearAge(c.yearIdx) + '세 · ' + RS.ERAS[yd.era].club) +
-        (RS.hardMode(c.build) ? ' · 🔥 하드 모드' : '');
+      $('btn-play').textContent = c.over ? '⚖️ 배드 엔딩 — 새 커리어로' : c.finished ? '🏆 커리어 완주! 다시 보기' : started ? '▶ 이어하기 · ' + yd.year + '년' : '⚽ ' + hero.name + ' 커리어 시작';
+      $('title-progress').textContent = (c.over ? (RS.ENDINGS[c.over] || { title: '배드 엔딩' }).title : c.finished ? hero.rival + '를 꺾은 전설 · ' + (c.laps + 1) + '회차' : hero.name + ' · ' + yd.year + '년 · ' + RS.yearAge(c.yearIdx) + '세 · ' + RS.ERAS[yd.era].club) +
+        (RS.hardMode(c.build) ? ' · 🧒 작은 몸 도전' : '');
+      this.updateOptions();
       for (const b of document.querySelectorAll('#hero-pick .hero')) b.classList.toggle('on', b.dataset.hero === c.build.hero);
       this.renderWallet($('title-wallet'));
       const ts = $('title-sprite'); ts.innerHTML = '';
@@ -155,8 +209,128 @@
     },
 
     afterEvent(idx) {
+      if (RS.needsPress(this.save, idx)) this.showPress(idx);
+      else this.afterPress(idx);
+    },
+    afterPress(idx) {
       if (RS.needsCoach(this.save, idx)) this.showCoach(idx);
       else this.afterCoach(idx);
+    },
+
+    // 기자회견 (RS.PRESS): the scene's lines type out one by one (tap: finish the line, then the next), then the
+    // answers. The chosen line is said, the odds are rolled under a burst of camera flashes, and the outcome shows.
+    showPress(idx) {
+      this.show('press');
+      const yd = RS.YEARS[idx], pr = RS.pressFor(idx), b = this.save.career.build;
+      $('pr-season').textContent = yd.year + ' · ' + RS.yearAge(idx) + '세 · ' + RS.ERAS[yd.era].club;
+      $('pr-title').textContent = '🎤 ' + pr.title;
+      $('pr-who').textContent = pr.who;
+      const hs = $('pr-hero'); hs.innerHTML = ''; hs.className = 'pr-hero';
+      hs.appendChild(RS.Sprites.toCanvas(RS.Sprites.hero(b.hero, idx, 1, null, RS.smallBody(b)), 0, 4));
+      const crowd = $('pr-crowd'); crowd.innerHTML = '';
+      for (let i = 0; i < 6; i++) { const s = document.createElement('span'); if (i % 2) s.appendChild(document.createElement('i')); crowd.appendChild(s); }
+      $('pr-cards').classList.add('hidden');
+      $('pr-result').classList.add('hidden');
+      $('pr-next').classList.remove('hidden');
+      let li = -1;
+      const next = () => {
+        if (li >= pr.lines.length) return;
+        li++;
+        if (li >= pr.lines.length) { $('pr-next').classList.add('hidden'); this.pressChoices(idx, pr); return; }
+        this.pressLine(pr.lines[li], b.hero, () => this.armAuto(next, 1100, '다음 대사', 'full'));
+      };
+      $('pr-box').onclick = () => { if (this.prTyping) this.finishType(); else next(); };
+      this.flashes(4);
+      RS.Audio.sfx('flash');
+      next();
+    },
+    pressLine(line, hero, done) {
+      const by = $('pr-by'), tx = $('pr-text');
+      const mine = line.by === RS.HEROES[hero].short;
+      by.textContent = line.inner ? line.by + ' · 속마음' : line.by;
+      by.className = 'pr-by' + (line.inner ? ' inner' : mine ? ' hero' : '');
+      tx.className = 'pr-text' + (line.inner ? ' inner' : '');
+      $('pr-hero').classList.toggle('talk', mine && !line.inner);
+      if (!mine && !line.inner) { this.flashes(2); RS.Audio.sfx('flash'); }
+      this.typeText(tx, line.text, done);
+    },
+    typeText(el, text, done) {
+      clearInterval(this._typeT);
+      let i = 0;
+      el.textContent = '';
+      this.prTyping = true;
+      this._typeFull = () => {
+        clearInterval(this._typeT);
+        el.textContent = text;
+        this.prTyping = false;
+        $('pr-hero').classList.remove('talk');
+        if (done) { const d = done; done = null; d(); }
+      };
+      this._typeT = setInterval(() => { i += 1; el.textContent = text.slice(0, i); if (i >= text.length) this._typeFull(); }, 30);
+    },
+    finishType() { if (this._typeFull) this._typeFull(); },
+    pressChoices(idx, pr) {
+      const b = this.save.career.build;
+      const cards = pr.choices.map((c) => ({ kind: 'press', icon: c.icon, name: c.name, desc: c.say, hint: c.desc, tag: c.rolls ? '🎲 확률' : '확정' }));
+      $('pr-cards').classList.remove('hidden');
+      const pick = (i) => {
+        const ch = pr.choices[i];
+        this.cancelAuto();
+        $('pr-cards').classList.add('hidden');
+        $('pr-box').onclick = () => { if (this.prTyping) this.finishType(); };
+        this.pressLine({ by: RS.HEROES[b.hero].short, text: ch.say }, b.hero, () => {
+          const out = RS.applyPress(this.save, idx, ch.id, this.rng);
+          this.persist();
+          if (ch.rolls) { this.flashes(6); RS.Audio.sfx('flash'); setTimeout(() => this.pressResult(idx, out), 950); }
+          else setTimeout(() => this.pressResult(idx, out), 420);
+        });
+      };
+      this.renderCards($('pr-cards'), cards, pick);
+      pr.choices.forEach((c, i) => { if (c.rolls && c.rolls.some((o) => o.ending)) $('pr-cards').children[i].classList.add('risk'); });
+      this.armAuto(() => pick(RS.autoPressPick(pr.choices)), 1800, 'AI가 대답을 고른다', 'full');
+    },
+    pressResult(idx, out) {
+      const r = $('pr-result');
+      r.className = 'press-result ' + out.mood;
+      $('pr-res-text').textContent = out.text;
+      const sk = { learned: ' · 새 스킬!', up: ' · 스킬 Lv.+1', full: ' · 스킬 칸이 가득 차 공격력 +5%로 대신' }[out.skill] || '';
+      $('pr-res-note').textContent = out.ending ? '⚖️ 커리어가 여기서 멈춘다…' : (out.win ? '🎉 ' : out.mood === 'bad' ? '💥 ' : '') + out.note + sk;
+      if (out.mood === 'bad') { const h = $('pr-hero'); h.classList.remove('hit'); void h.offsetWidth; h.classList.add('hit'); }
+      RS.Audio.sfx(out.ending ? 'gavel' : out.mood === 'bad' ? 'lose' : out.mood === 'sad' ? 'heart' : 'recruit');
+      const ok = $('btn-pr-ok');
+      ok.textContent = out.ending ? '판결을 듣는다' : '계속';
+      ok.onclick = () => { RS.Audio.sfx('click'); if (out.ending) this.showEnding(out.ending); else this.afterPress(idx); };
+      this.armAuto(() => ok.onclick(), out.ending ? 4000 : 2600, out.ending ? '판결로' : '다음으로', 'full');
+    },
+    flashes(n) {
+      const box = $('pr-flashes');
+      for (let i = 0; i < n; i++) {
+        setTimeout(() => {
+          const f = document.createElement('b');
+          f.style.left = (8 + Math.random() * 84) + '%'; f.style.top = (50 + Math.random() * 45) + '%';
+          box.appendChild(f);
+          setTimeout(() => f.remove(), 420);
+        }, i * 120 + Math.random() * 80);
+      }
+    },
+    // A bad ending (RS.ENDINGS) stops the career; coins, 발롱도르 and 훈련장 stay.
+    showEnding(id) {
+      this.show('ending');
+      const e = RS.ENDINGS[id] || { icon: '⚖️', title: '배드 엔딩', text: '' };
+      const b = this.save.career.build;
+      $('end-icon').textContent = e.icon;
+      $('end-title').textContent = e.title;
+      $('end-text').textContent = e.text;
+      const sp = $('end-sprite'); sp.innerHTML = '';
+      sp.appendChild(RS.Sprites.toCanvas(RS.Sprites.hero(b.hero, this.save.career.yearIdx, 1, null, RS.smallBody(b)), 0, 5));
+      RS.Audio.sfx('dead');
+      $('btn-end-new').onclick = () => {
+        RS.Audio.sfx('click');
+        RS.newCareer(this.save);
+        this.persist();
+        this.showTitle();
+        this.toast('새 커리어를 시작합니다');
+      };
     },
 
     // 메시's story choices: the growth-hormone treatment (= difficulty) and 딩요's tutoring.
@@ -170,13 +344,15 @@
       const sp = $('ev-sprite'); sp.innerHTML = '';
       sp.appendChild(RS.Sprites.toCanvas(ev.mate ? RS.Sprites.mate(ev.mate, idx) : RS.Sprites.hero(b.hero, idx, 1, null, RS.smallBody(b)), 0, 4));
       const cards = RS.eventChoices(this.save, idx);
-      this.renderCards($('ev-cards'), cards, (i) => {
+      const pick = (i) => {
         const info = RS.applyEvent(this.save, idx, cards[i]);
         this.persist();
         RS.Audio.sfx(cards[i].hgh === false ? 'boss' : 'evolve');
         this.toast(info.text + (info.mate ? ' · ' + RS.TEAMMATES[info.mate].name + ' 합류!' : ''));
         this.afterEvent(idx);
-      });
+      };
+      this.renderCards($('ev-cards'), cards, pick);
+      this.armAuto(() => pick(RS.autoEventPick(cards)), 2200, 'AI가 고른다', 'full');
     },
 
     afterCoach(idx) {
@@ -206,13 +382,16 @@
       for (const m of RS.allMates(b)) cards.push({ kind: 'swap', icon: '🔄', name: RS.TEAMMATES[m.id].name + ' 방출', desc: RS.TEAMMATES[m.id].name + ' (' + RS.mateBadge(m.id) + ') 대신 ' + nm.name + ' · Lv.' + m.lv + ' 승계' + (b.bench.includes(m) ? ' · 벤치' : ' · 선발'),
         tag: RS.mateBadge(m.id), mtier: RS.mateTier(m.id).key, hint: RS.swapVerdict(m.id, id), out: m.id, take: true });
       cards.push({ kind: 'keep', icon: '✋', name: '영입하지 않기', desc: '지금 스쿼드 그대로 간다.', tag: '유지', take: false });
-      this.renderCards($('tr-cards'), cards, (i) => {
+      const pick = (i) => {
         const c = cards[i];
         RS.applyTransfer(this.save, idx, c.take ? id : null, c.out);
         this.persist();
         if (c.take) this.toast(nm.name + ' 합류!');
         this.showTransfer(idx, offers, k + 1);
-      });
+      };
+      this.renderCards($('tr-cards'), cards, pick);
+      // 완전 오토: sign into a free place, otherwise keep the squad
+      this.armAuto(() => pick(cards[0].kind === 'recruit' ? 0 : cards.length - 1), 2000, 'AI가 고른다', 'full');
     },
 
     showCoach(idx) {
@@ -225,15 +404,17 @@
       const sp = $('coach-sprite'); sp.innerHTML = '';
       sp.appendChild(RS.Sprites.toCanvas(RS.Sprites.coach(yd.coach, 1), 0, 4));
       const cards = RS.coachChoices(this.save, idx, this.rng);
-      this.renderCards($('coach-cards'), cards.map((c) => ({
-        kind: c.id === 'recruit' ? 'recruit' : 'coach', icon: c.icon, name: c.name, desc: c.desc,
-        tag: c.id === 'recruit' || c.id === 'train' ? '동료' : '감독 카드'
-      })), (i) => {
+      const pick = (i) => {
         const info = RS.applyCoach(this.save, idx, cards[i], this.rng);
         this.persist();
         if (info.mate) this.toast(RS.TEAMMATES[info.mate].name + ' 합류!');
         this.afterCoach(idx);
-      });
+      };
+      this.renderCards($('coach-cards'), cards.map((c) => ({
+        kind: c.id === 'recruit' ? 'recruit' : 'coach', icon: c.icon, name: c.name, desc: c.desc,
+        tag: c.id === 'recruit' || c.id === 'train' ? '동료' : '감독 카드'
+      })), pick);
+      this.armAuto(() => pick(RS.autoCoachPick(cards, this.save.career.build)), 2000, 'AI가 고른다', 'full');
     },
 
     showIntro(idx) {
@@ -242,7 +423,8 @@
       const replay = RS.isReplay(this.save, idx);
       const b0 = RS.buildForYear(this.save, idx), small = RS.smallBody(b0);
       $('intro-year').textContent = yd.year;
-      $('intro-club').textContent = RS.yearAge(idx) + '세 · ' + RS.ERAS[yd.era].club + (replay ? ' · 다시하기 (커리어에 영향 없음)' : '') + (RS.hardMode(b0) ? ' · 🔥 하드 모드' : '');
+      const D = RS.DIFFS[RS.DIFF];
+      $('intro-club').textContent = RS.yearAge(idx) + '세 · ' + RS.ERAS[yd.era].club + ' · ' + D.icon + ' ' + D.name + (replay ? ' · 다시하기 (커리어에 영향 없음)' : '') + (RS.hardMode(b0) ? ' · 🧒 작은 몸 도전' : '');
       $('intro-title').textContent = yd.title;
       // 고난의 시즌 / named foe: say up front that this one is harder and why
       const tags = [];
@@ -281,6 +463,7 @@
       $('intro-boss').textContent = (yd.final ? '최종 보스: ' : '시즌 보스: ') + yd.boss.name + ' (' + RS.BOSS_TYPES[yd.boss.type].sig + ') · ' +
         (yd.twist && yd.twist.extra ? '연장까지 ' + Math.round(RS.yearTuning(idx).duration) + '초' : '1분') + ' 버티면 등장';
       $('btn-kickoff').onclick = () => { RS.Audio.sfx('click'); this.play(idx); };
+      this.armAuto(() => this.play(idx), 2200, '킥오프', 'semi');
     },
 
     buildChips(b) {
@@ -293,8 +476,10 @@
       }
       for (const id of b.passiveOrder) h += '<span class="chip">' + RS.PASSIVES[id].icon + ' ' + b.passives[id] + '</span>';
       for (const id in b.drills || {}) h += '<span class="chip">' + RS.DRILLS[id].icon + ' ' + esc(RS.DRILLS[id].name) + ' ×' + b.drills[id] + '</span>';
-      for (const id of b.relicOrder || []) { const r = RS.RELICS[id]; h += '<span class="chip t-' + r.tier + '">' + r.icon + ' ' + esc(r.name) + '</span>'; }
+      for (const id of b.relicOrder || []) { const r = RS.RELICS[id]; h += '<span class="chip t-' + r.tier + '">' + r.icon + ' ' + esc(r.name) + (r.stack ? ' ' + b.relics[id] + '/' + RS.STIM.max : '') + '</span>'; }
       if (b.coachCards.length) h += '<span class="chip">👔 감독 카드 ' + b.coachCards.length + '</span>';
+      const ft = RS.fanTier(b);
+      h += '<span class="chip">' + ft.icon + ' 민심 ' + esc(ft.name) + ' ' + (b.fans != null ? b.fans : RS.FANS.start) + (ft.key !== 'calm' ? ' · ' + esc(ft.text) : '') + '</span>';
       return h + this.squadLines(b);
     },
 
@@ -333,6 +518,7 @@
     },
 
     play(idx) {
+      this.cancelAuto();
       this.world = RS.startYear(this.save, idx, { view: this.renderer.view });
       this.world.view = this.renderer.view;
       this.playIdx = idx;
@@ -346,7 +532,7 @@
       for (const o of document.querySelectorAll('.overlay')) o.classList.add('hidden');
       $('hud').classList.remove('hidden');
       $('bossbar').classList.add('hidden');
-      $('tap-hint').classList.toggle('hidden', idx > 0);
+      $('tap-hint').classList.toggle('hidden', idx > 0 || this.autoMode() !== 'off');
       this.hud = {};
       this.banner(RS.YEARS[idx].year + ' · ' + RS.YEARS[idx].title);
     },
@@ -382,10 +568,11 @@
       const w = this.world;
       this.input.release();
       $('levelup').classList.remove('hidden');
-      // a graded or gamble card in the hand is announced in the title
-      const sp = w.choices.find((c) => c.kind === 'relic' || c.kind === 'gamble');
+      // a graded, 약물 or gamble card in the hand is announced in the title
+      const sp = w.choices.find(SPECIAL);
       const tier = sp ? sp.tier || 'gamble' : '';
-      $('lv-title').textContent = { super: '🌈 슈퍼히든 카드 등장!!', ultra: '🔥 초히든 카드 등장!', hidden: '🔮 히든 카드 등장!', rare: '💎 레어 카드 등장', gamble: '🎰 도박 카드 등장' }[tier] || '레벨 업!';
+      $('lv-title').textContent = sp && sp.kind === 'stim' ? '💉 약물 꽂기 등장! 받을까, 말까?' :
+        { super: '🌈 슈퍼히든 카드 등장!!', ultra: '🔥 초히든 카드 등장!', hidden: '🔮 히든 카드 등장!', rare: '💎 레어 카드 등장', gamble: '🎰 도박 카드 등장' }[tier] || '레벨 업!';
       $('lv-title').className = 'glow' + (tier ? ' t-' + tier : '');
       $('reroll-n').textContent = w.rerolls;
       $('btn-reroll').classList.toggle('hidden', w.rerolls <= 0);
@@ -395,12 +582,19 @@
       dice.textContent = w.diceUsed ? '🎲 주사위 사용함' : '🎲 행운의 주사위 (무료 1회)';
       this.renderDraw();
       this.renderShop();
-      this.renderCards($('lv-cards'), w.choices, (i) => {
-        w.choose(i);
-        $('levelup').classList.add('hidden');
-        this.lvShown = false;
-      });
+      this.renderCards($('lv-cards'), w.choices, (i) => this.pickLevel(i));
       this.lvShown = true;
+      this.lvAutoT = 0;
+    },
+    pickLevel(i) {
+      this.world.choose(i);
+      $('levelup').classList.add('hidden');
+      this.lvShown = false;
+    },
+    // 반자동 picks a plain hand itself and leaves a graded / 약물 / gamble card to the player; 완전 오토 picks all.
+    autoPicks(w) {
+      const m = this.autoMode();
+      return m === 'full' || (m === 'semi' && !w.choices.some(SPECIAL));
     },
     refreshLevelUp() { this.lvShown = false; this.showLevelUp(); },
 
@@ -516,20 +710,25 @@
         next.textContent = '다음 시즌: ' + RS.YEARS[this.save.career.yearIdx].year + ' ▶';
         next.onclick = () => this.startYear(this.save.career.yearIdx);
         retry.classList.add('hidden');
+        const armNext = () => this.armAuto(() => this.startYear(this.save.career.yearIdx), 2400, '다음 시즌으로', 'semi');
         if (RS.needsBossReward(this.save, out.idx)) {
           // the boss reward must be picked before moving on
           next.classList.add('hidden');
           $('res-reward').classList.remove('hidden');
           const cards = RS.bossRewardChoices(this.save, out.idx, this.rng);
-          this.renderCards($('res-reward-cards'), cards, (i) => {
+          const pick = (i) => {
+            this.cancelAuto();
             const info = RS.applyBossReward(this.save, out.idx, cards[i], this.rng);
             this.persist();
             RS.Audio.sfx('recruit');
             this.toast(cards[i].name + (info.coach ? ': ' + RS.coachCard(info.coach).name : '') + ' 획득!');
             $('res-reward').classList.add('hidden');
             next.classList.remove('hidden');
-          });
-        }
+            armNext();
+          };
+          this.renderCards($('res-reward-cards'), cards, pick);
+          this.armAuto(() => pick(RS.autoRewardPick(cards)), 2200, 'AI가 보상을 고른다', 'full');
+        } else armNext();
       } else if (out.cleared) {
         next.classList.remove('hidden');
         next.textContent = '연도 선택';
@@ -544,6 +743,7 @@
         retry.classList.remove('hidden');
         retry.textContent = '🛒 훈련장에서 강화';
         retry.onclick = () => this.showShop();
+        this.armAuto(() => this.startYear(out.idx), 3000, '재도전', 'semi');
       }
       this.makeAttract();
     },
@@ -562,7 +762,11 @@
       add('+' + out.ballon, '발롱도르 🏆');
       add(w.kills, '처치');
       add('Lv.' + w.build.level, '최종 레벨');
-      if (RS.hardMode(w.build)) add('🔥', '하드 모드 클리어');
+      const D = RS.DIFFS[RS.DIFF];
+      add(D.icon, D.name + ' 클리어');
+      if (RS.hardMode(w.build)) add('🧒', '작은 몸 도전 클리어');
+      $('win-title').textContent = RS.HEROES[hero].rival + '를 꺾었다!';
+      $('win-cheer').textContent = hero === 'messi' ? '☝️ 메시! 메시!' : 'SIUUUU!';
       $('btn-win-new').textContent = '새 커리어 (' + (this.save.career.laps + 2) + '회차)';
       const conf = $('confetti'); conf.innerHTML = '';
       const cols = ['#ffd23a', '#c41e2a', '#1f7a3a', '#ffffff', '#7fe0ff'];
@@ -602,7 +806,7 @@
           }
           if (n >= 3) this.attractAcc = 0;
           this.attract.events.length = 0;
-          this.renderer.render(this.attract, { camDy: 0.34 }); // keep the running 날두 below the title labels
+          this.renderer.render(this.attract, { camDy: 0.34, alpha: this.attract.phase === 'play' ? Math.min(1, this.attractAcc / STEP) : 1 }); // keep the running 날두 below the title labels
         } else if (this.world) this.renderer.render(this.world, null);
         else if (this.attract) this.renderer.render(this.attract, null);
       } catch (err) {
@@ -618,8 +822,10 @@
         if (w.phase === 'play') {
           this.acc = (this.acc || 0) + dt * (this.speed || 1); // 2x: more fixed steps per frame, same physics
           let n = 0;
-          const v = this.input.vector();
+          let v = this.input.vector();
           if ((v.x || v.y) && !$('tap-hint').classList.contains('hidden')) $('tap-hint').classList.add('hidden');
+          // auto play: the bot runs 메시/날두 while the screen is not touched (a touch takes over at once)
+          if (!v.x && !v.y && this.autoMode() !== 'off') v = RS.botInput(w);
           const maxSteps = 4 * (this.speed || 1);
           while (this.acc >= STEP && n < maxSteps && w.phase === 'play') { w.update(STEP, v); this.acc -= STEP; n++; }
           if (n >= maxSteps) this.acc = 0;
@@ -629,14 +835,24 @@
         }
         this.handleEvents();
         if (w.phase === 'levelup' && !this.lvShown) this.showLevelUp();
-        if (w.phase === 'chest' && !this.chestShown) this.showChest();
-        if (w.phase === 'swap' && !this.swapShown) this.showSwap();
+        if (w.phase === 'chest' && !this.chestShown) { this.showChest(); this.chestT = 0; }
+        if (w.phase === 'swap' && !this.swapShown) { this.showSwap(); this.swapT = 0; }
+        if (this.autoMode() !== 'off') { // auto picks wait a beat so the cards can be read
+          if (w.phase === 'levelup' && this.lvShown && this.autoPicks(w) && (this.lvAutoT += dt) > 0.6) this.pickLevel(RS.botChoose(w.choices, w.build));
+          else if (w.phase === 'chest' && this.chestShown && (this.chestT += dt) > 1.1) $('btn-chest-ok').click();
+          else if (w.phase === 'swap' && this.swapShown && this.autoMode() === 'full' && (this.swapT += dt) > 1) {
+            w.chooseSwap(w.swapChoices.length - 1); // keep the squad
+            $('levelup').classList.add('hidden');
+            this.swapShown = false;
+          }
+        }
         if (w.phase === 'clear' || w.phase === 'dead' || w.phase === 'victory') {
           this.endT += dt;
           if (!this.ended && this.endT > (w.phase === 'dead' ? 1.2 : 1.8)) { this.ended = true; this.endYear(); return; }
         }
       }
-      this.renderer.render(w, { joy: this.input.joy });
+      // alpha: how far the clock is into the next fixed step — the renderer draws between the last two steps
+      this.renderer.render(w, { joy: this.input.joy, alpha: w.phase === 'play' && !this.paused ? Math.min(1, this.acc / STEP) : 1 });
       this.updateHud();
     },
 
@@ -656,6 +872,11 @@
           case 'evolve': RS.Audio.sfx('evolve'); this.renderer.shake = 0.2; break;
           case 'special': // a graded / gamble card was dealt
             if (e.tier === 'super' || e.tier === 'ultra') { RS.Audio.sfx('jackpot'); this.renderer.shake = Math.max(this.renderer.shake, 0.15); } else RS.Audio.sfx('sparkle');
+            break;
+          case 'stim':
+            this.banner('💉 약물 꽂기 ' + e.n + '/' + RS.STIM.max + (e.n >= RS.STIM.max ? ' — 풀강!!' : ' — 몸이 끓어오른다!'));
+            RS.Audio.sfx('stim');
+            this.renderer.shake = Math.max(this.renderer.shake, 0.3);
             break;
           case 'relic': {
             const r = RS.RELICS[e.id];
@@ -708,7 +929,7 @@
       const xs = Math.round(xpr * 100);
       if (this.hud.xp !== xs) { this.hud.xp = xs; $('xpfill').style.width = xs + '%'; }
       this.setText('lv', $('hud-level'), 'Lv.' + b.level);
-      this.setText('yr', $('hud-year'), w.yearDef.year + ' · ' + RS.yearAge(w.yearIdx) + '세' + (RS.hardMode(w.build) ? ' · 하드' : ''));
+      this.setText('yr', $('hud-year'), w.yearDef.year + ' · ' + RS.yearAge(w.yearIdx) + '세 · ' + RS.DIFFS[RS.DIFF].name);
       this.setText('k', $('hud-kills'), String(w.kills));
       this.setText('c', $('hud-coins'), String(Math.round(w.coinsPicked)));
       this.setText('pw', $('hud-power'), String(w.power()));
@@ -746,8 +967,19 @@
       $('btn-play').onclick = () => {
         RS.Audio.sfx('click');
         const c = this.save.career;
-        if (c.finished) this.showYears();
+        if (c.over) this.showEnding(c.over);
+        else if (c.finished) this.showYears();
         else this.startYear(c.yearIdx);
+      };
+      for (const b of document.querySelectorAll('[data-diff]')) b.onclick = () => { RS.Audio.sfx('click'); this.setDiff(b.dataset.diff); };
+      for (const b of document.querySelectorAll('[data-auto]')) b.onclick = () => { RS.Audio.sfx('click'); this.setAuto(b.dataset.auto); };
+      $('auto-badge').onclick = () => { RS.Audio.sfx('click'); this.setAuto('off'); this.toast('✋ 수동으로 전환'); };
+      $('btn-auto').onclick = (e) => {
+        e.stopPropagation();
+        const m = RS.AUTO_MODES[(RS.AUTO_MODES.indexOf(this.autoMode()) + 1) % RS.AUTO_MODES.length];
+        this.setAuto(m);
+        this.banner({ off: '✋ 수동 — 직접 조작', semi: '🤖 반자동 — 중요한 선택만 내가', full: '🚀 완전 오토 — 전부 AI가' }[m]);
+        if (this.world && this.world.phase === 'levelup' && this.lvShown) this.lvAutoT = 0;
       };
       $('btn-years').onclick = () => this.showYears();
       // Restart the active hero's career (e.g. a 메시 career saved before the youth seasons, to make the

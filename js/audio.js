@@ -133,7 +133,7 @@
       if (this.muted || !this.ctx) return;
       if (this.ctx.state !== 'running') { this.resume(); if (this.ctx.state !== 'running') return; }
       const now = this.ctx.currentTime;
-      const gap = { gem: 0.045, kick: 0.07, shoot: 0.08, hit: 0.05, kill: 0.06, crit: 0.09, hurt: 0.15, coin: 0.06, heart: 0.5 }[name] || 0.03;
+      const gap = { gem: 0.045, kick: 0.07, shoot: 0.08, hit: 0.05, kill: 0.06, crit: 0.09, hurt: 0.15, coin: 0.06, heart: 0.5, tap: 0.07, zip: 0.06, flash: 0.08, impact: 0.12 }[name] || 0.03;
       if (this.last[name] && now - this.last[name] < gap) return;
       this.last[name] = now;
       const dt = 1 + (Math.random() - 0.5) * 0.12; // ±6 % pitch
@@ -176,6 +176,17 @@
           case 'cheer': this.noise(0.9, 0.35, 900); this.noise(0.6, 0.25, 1400, 0.2); break; // crowd swell
           case 'dead': [392, 330, 262, 196].forEach((f, i) => this.tone(f, 0.25, 'triangle', 0.45, null, i * 0.18)); break;
           case 'click': this.tone(700, 0.04, 'square', 0.25); break;
+          // round 8: 메시's ball moves, 신의 손, 약물, the press room
+          case 'tap': this.tone(300 * dt, 0.05, 'sine', 0.4, 0.6); this.noise(0.03, 0.15, 2600); break; // 드리볼 touch
+          case 'drop': this.tone(260, 0.3, 'triangle', 0.26, 4); this.noise(0.25, 0.12, 2000); break; // a ball shooting up
+          case 'impact': this.tone(85, 0.32, 'sine', 0.85, 0.45); this.noise(0.28, 0.4, 260, 0, true); this.noise(0.12, 0.2, 3000, 0.02); break;
+          case 'hand': // the palm slams: a deep boom, a slap and a crack
+            this.tone(62, 0.45, 'sine', 0.95, 0.5); this.noise(0.08, 0.5, 1400); this.noise(0.4, 0.35, 220, 0.02, true); this.tone(180, 0.12, 'square', 0.2, 0.5, 0.01); break;
+          case 'zip': this.tone(900 * dt, 0.07, 'triangle', 0.22, 1.8); this.noise(0.05, 0.12, 4000); break;
+          case 'stim': // a rising rush over a heartbeat
+            this.tone(140, 0.5, 'sawtooth', 0.3, 3); this.tone(60, 0.12, 'sine', 0.8, 0.8, 0.05); this.tone(55, 0.12, 'sine', 0.7, 0.8, 0.25); break;
+          case 'flash': this.noise(0.04, 0.3, 5000); this.noise(0.03, 0.2, 7000, 0.05); break; // camera shutters
+          case 'gavel': this.tone(220, 0.08, 'square', 0.4, 0.5); this.noise(0.06, 0.4, 900, 0, true); this.tone(220, 0.08, 'square', 0.4, 0.5, 0.32); this.noise(0.06, 0.4, 900, 0.32, true); break;
         }
       } catch (e) { /* ignore audio errors */ }
     },

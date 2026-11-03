@@ -48,6 +48,13 @@
     'winger+winger': { name: '양 날개', desc: '이동속도 +10%', mods: { moveSpeed: 0.1 } },
     'keeper+keeper': { name: '골키퍼 둘', desc: '최대 체력 +30', mods: { hp: 30 } }
   };
+  // Two particular players on the pitch beat the role partnership (key = their ids sorted and joined with '+').
+  // 챠비 + 니에미스타 beside 메시: the 티키타카 trio.
+  RS.NAMED_PAIRS = {
+    'iniestar+xavino': { name: '티키타카 트리오', desc: '메시 공격력 +30%, 쿨타임 -10%, 동료 공격력 +20%', mods: { dmg: 0.3, cd: -0.1, teamDmg: 0.2 } }
+  };
+  // A 메시 pass played by that move's own passer (챠비 / 니에미스타 in the starting two) hits this much harder.
+  RS.PASSER_BONUS = 1.25;
 
   // ---------------------------------------------------------------- Skills (active, auto-firing)
   // Each skill: lv[] holds stats for level 1..max; evo holds evolved stats. passive = paired passive for evolution.
@@ -161,7 +168,7 @@
     // trophy ball once evolved (RS.orbitLook). Two evolutions: 8 balls or one ball 8× the size.
     // upW: his only weapon at the start, so its upgrade card comes up more often than other upgrades.
     orbit: {
-      name: '회전 공', icon: '⚽', passive: 'ballon', hero: 'messi', evoName: '8발롱도르', evoIcon: '🌕', goldLv: 3, upW: 3,
+      name: '회전 공', icon: '⚽', passive: 'ballon', hero: 'messi', evoName: '8발롱도르', evoIcon: '🌕', goldLv: 3, upW: 4,
       desc: '공이 메시 주위를 빙글빙글 돌며 닿는 적을 때린다. Lv3부터 황금 공, 진화하면 발롱도르.',
       evoDesc: '발롱도르로 진화: 공 8개 또는 8배 크기의 공.',
       ups: ['', '공 +1 (2개)', '황금 공으로 변신, 공이 커진다', '공 +1 (3개)', '공 +1 (4개), 피해 증가', '공이 더 커진다, 피해 증가'],
@@ -213,12 +220,13 @@
     },
     // ---- 메시 only: his own moves. `use` names the runtime behaviour a move shares with a 날두 move (own name,
     // numbers and evolution); proj = [normal, evolved] ball look. A hero never sees the other hero's moves.
-    // 메시 never shoots or throws a ball himself: `passer` is the teammate who plays it for him (챠비 or
-    // 니에미스타 runs beside him; the squad member himself when he is on the pitch — World.passerFor).
+    // 메시 never shoots or throws a ball himself: a teammate on the pitch plays the pass for him — `passer` (챠비 /
+    // 니에미스타) hits RS.PASSER_BONUS harder when he is one of the starting two; with nobody on the pitch the ball
+    // comes long from off the screen (World.passOrigin). No extra runners: the pitch holds two teammates at most.
     tiki: {
       name: '티키타카', icon: '🔁', passive: 'leftfoot', hero: 'messi', use: 'kick', passer: 'xavino', proj: ['tiki', 'golden'], evoName: '티키타카 오케스트라', evoIcon: '🎼',
-      desc: '챠비가 찔러 준 짧은 패스가 적과 적 사이를 튕기며 이어진다.',
-      evoDesc: '챠비의 황금 패스가 멈추지 않고 적 사이를 누빈다.',
+      desc: '동료가 찔러 준 짧은 패스가 적과 적 사이를 튕기며 이어진다. 챠비가 선발이면 피해 +25%.',
+      evoDesc: '황금 패스가 멈추지 않고 적 사이를 누빈다.',
       ups: ['', '패스가 1번 더 이어진다', '패스 +1', '이어지는 횟수 +1, 피해 증가', '피해 증가, 관통 +1', '피해 크게 증가, 2번 더 이어진다'],
       lv: [
         { dmg: 8, cd: 1.0, count: 1, pierce: 0, bounce: 1, speed: 230, r: 3 },
@@ -232,8 +240,8 @@
     },
     curler: {
       name: '감아차기 패스', icon: '🌙', passive: 'curve', hero: 'messi', passer: 'iniestar', evoName: '탑코너 감아차기', evoIcon: '🎯',
-      desc: '니에미스타가 크게 감아 찬 공이 휘어 들어가 적을 노린다.',
-      evoDesc: '니에미스타의 세 갈래 감아차기가 적을 꿰뚫고, 치명타가 잘 터진다.',
+      desc: '동료가 크게 감아 찬 공이 휘어 들어가 적을 노린다. 니에미스타가 선발이면 피해 +25%.',
+      evoDesc: '세 갈래 감아차기가 적을 꿰뚫고, 치명타가 잘 터진다.',
       ups: ['', '피해 증가', '공 +1', '관통 +1', '피해 증가, 쿨타임 감소', '공 +1'],
       lv: [
         { dmg: 13, cd: 1.5, count: 1, pierce: 0, speed: 200, r: 3, home: 4.5 },
@@ -277,8 +285,8 @@
     },
     killpass: {
       name: '킬 패스', icon: '🗡️', passive: 'vision', hero: 'messi', use: 'knuckle', passer: 'iniestar', proj: ['knuckle', 'shot'], straight: true, evoName: '라인 브레이커', evoIcon: '📏',
-      desc: '니에미스타가 수비 라인을 꿰뚫는 스루패스를 곧게 찔러 준다.',
-      evoDesc: '니에미스타의 거대한 패스가 모든 수비를 꿰뚫는다.',
+      desc: '동료가 수비 라인을 꿰뚫는 스루패스를 곧게 찔러 준다. 니에미스타가 선발이면 피해 +25%.',
+      evoDesc: '거대한 스루패스가 모든 수비를 꿰뚫는다.',
       ups: ['', '피해 증가', '관통 +1', '패스 +1', '관통 +1, 피해 증가', '피해 크게 증가'],
       lv: [
         { dmg: 22, cd: 2.2, count: 1, pierce: 3, speed: 320, r: 4 },
@@ -292,8 +300,8 @@
     },
     chip: {
       name: '로빙 패스', icon: '🪶', passive: 'calm', hero: 'messi', passer: 'xavino', evoName: '로빙 폭격', evoIcon: '☄️',
-      desc: '챠비가 수비 머리 위로 띄운 공이 가장 센 적(보스 우선) 위에 떨어진다.',
-      evoDesc: '챠비의 황금 로빙 패스 세 개가 한꺼번에 떨어져 크게 터진다.',
+      desc: '동료가 수비 머리 위로 띄운 공이 가장 센 적(보스 우선) 위에 떨어진다. 챠비가 선발이면 피해 +25%.',
+      evoDesc: '황금 로빙 패스 세 개가 한꺼번에 떨어져 크게 터진다.',
       ups: ['', '피해 증가', '범위 증가', '로빙 패스 +1', '피해·범위 증가', '쿨타임 감소, 피해 증가'],
       lv: [
         { dmg: 20, cd: 2.6, count: 1, radius: 24 },
@@ -320,6 +328,58 @@
         { dmg: 32, cd: 1.7, radius: 48, stun: 0.45 }
       ],
       evo: { dmg: 22, cd: 0.3, radius: 58, aura: true }
+    },
+    // 신의 손: a giant hand comes down on the thickest crowd (the boss first), stuns it and swats away the cards
+    // in its reach. The 2007 "신의 손" press conference can also teach it.
+    hand: {
+      name: '신의 손', icon: '✋', passive: 'trickster', hero: 'messi', evoName: '세기의 골', evoIcon: '🖐️',
+      desc: '하늘에서 거대한 손이 내려와 적이 가장 많은 곳(보스 우선)을 내리친다. 맞은 적은 기절. 심판은 못 봤다!',
+      evoDesc: '신의 손이 세 번 연달아 내리치고, 그동안 메시는 무적.',
+      ups: ['', '피해 증가', '손이 커진다, 기절 증가', '쿨타임 감소', '피해·범위 증가', '손이 두 번 내리친다'],
+      lv: [
+        { dmg: 34, cd: 6.5, radius: 30, stun: 0.6, count: 1 },
+        { dmg: 42, cd: 6.3, radius: 31, stun: 0.6, count: 1 },
+        { dmg: 44, cd: 6.0, radius: 37, stun: 0.7, count: 1 },
+        { dmg: 50, cd: 5.3, radius: 38, stun: 0.7, count: 1 },
+        { dmg: 62, cd: 5.1, radius: 43, stun: 0.8, count: 1 },
+        { dmg: 78, cd: 4.6, radius: 45, stun: 1.0, count: 2 }
+      ],
+      evo: { dmg: 110, cd: 4.0, radius: 50, stun: 1.2, count: 3, guard: 0.7 }
+    },
+    // 드리볼: balls leave 메시's feet and chase the enemies around him, tapping one after another; past the leash
+    // they run back and juggle at his feet. Looks like the 회전 공: white, golden from goldLv, the 발롱도르 evolved.
+    dribball: {
+      name: '드리볼', icon: '🏃', passive: 'keepup', hero: 'messi', evoName: '마라도나의 재림', evoIcon: '🌟', goldLv: 3,
+      desc: '메시 발끝을 떠난 공이 주변 적을 쫓아다니며 툭툭 때린다. 멀어지면 발밑으로 돌아온다.',
+      evoDesc: '발롱도르 4개가 미친 듯이 드리블하며 적 사이를 누빈다. 맞은 적은 넘어진다.',
+      ups: ['', '피해 증가', '공 +1', '더 빨라진다', '공 +1, 피해 증가', '피해 크게 증가'],
+      lv: [
+        { dmg: 11, count: 1, speed: 170, leash: 95, touch: 0.26, r: 3 },
+        { dmg: 13, count: 1, speed: 180, leash: 100, touch: 0.25, r: 3 },
+        { dmg: 13, count: 2, speed: 185, leash: 105, touch: 0.25, r: 3 },
+        { dmg: 15, count: 2, speed: 215, leash: 110, touch: 0.22, r: 3 },
+        { dmg: 18, count: 3, speed: 220, leash: 115, touch: 0.22, r: 3.5 },
+        { dmg: 22, count: 3, speed: 235, leash: 120, touch: 0.2, r: 3.5 }
+      ],
+      evo: { dmg: 32, count: 4, speed: 265, leash: 140, touch: 0.17, r: 4.5, trip: 0.45 }
+    },
+    // 드롭볼: balls circle 메시; each in turn shoots up out of sight and crashes down on the thickest crowd like a
+    // meteor (a wide blast), is gone for `respawn` seconds, then pops back into orbit. Evolved: the blast bursts
+    // into `scatter` small balls.
+    dropball: {
+      name: '드롭볼', icon: '☄️', passive: 'juggle', hero: 'messi', evoName: '발롱도르 유성우', evoIcon: '🌠', goldLv: 3,
+      desc: '메시 주위를 돌던 공이 가끔 하늘로 솟았다가 적 무리 위로 운석처럼 떨어져 넓게 터진다. 몇 초 뒤 다시 돌아온다.',
+      evoDesc: '떨어진 발롱도르가 터지며 작은 공 6개로 흩어져 주변을 휩쓴다.',
+      ups: ['', '피해 증가', '공 +1', '폭발 범위 증가', '공 +1, 피해 증가', '쿨타임 감소, 피해 크게 증가'],
+      lv: [
+        { dmg: 20, cd: 3.4, count: 1, radius: 30, respawn: 2.2 },
+        { dmg: 25, cd: 3.3, count: 1, radius: 31, respawn: 2.1 },
+        { dmg: 26, cd: 3.2, count: 2, radius: 32, respawn: 2.0 },
+        { dmg: 30, cd: 3.1, count: 2, radius: 38, respawn: 1.9 },
+        { dmg: 36, cd: 3.0, count: 3, radius: 39, respawn: 1.8 },
+        { dmg: 44, cd: 2.6, count: 3, radius: 41, respawn: 1.7 }
+      ],
+      evo: { dmg: 58, cd: 2.3, count: 4, radius: 46, respawn: 1.4, scatter: 6 }
     }
   };
   RS.SKILL_MAX = 6;
@@ -332,7 +392,7 @@
   RS.MESSI_COUNTERPART = {
     skills: { kick: 'tiki', knuckle: 'killpass', header: 'chip', bicycle: 'elastico', stepover: 'solo', scissors: 'curler', siuu: 'bobo', rabona: 'curler', trail: 'solo' },
     passives: { boots: 'leftfoot', freekick: 'vision', jump: 'calm', flex: 'samba', speed: 'lowcenter', finisher: 'curve', charisma: 'grit', fitness: 'grit', trap: 'vision' },
-    relics: { honaldo: 'messia', lunchbox: 'mate' }
+    relics: { honaldo: 'messia', lunchbox: 'mate', bomb: 'nutmeg', meteor: 'alien' }
   };
 
   // ---------------------------------------------------------------- Passives
@@ -357,7 +417,10 @@
     grit: { name: '승부욕', icon: '💢', desc: '최대 체력 +20', mods: { hp: 20 } },
     vision: { name: '넓은 시야', icon: '👁️', desc: '투사체 속도 +10%, 지속 +5%', mods: { projSpeed: 0.10, dur: 0.05 } },
     calm: { name: '침착함', icon: '😌', desc: '공격 범위 +10%', mods: { area: 0.10 } },
-    samba: { name: '삼바 리듬', icon: '💃', desc: '쿨타임 -7%', mods: { cd: -0.07 } }
+    samba: { name: '삼바 리듬', icon: '💃', desc: '쿨타임 -7%', mods: { cd: -0.07 } },
+    keepup: { name: '볼 키핑', icon: '🪀', desc: '이동속도 +5%, 공격 범위 +5%', mods: { moveSpeed: 0.05, area: 0.05 } },
+    juggle: { name: '리프팅 묘기', icon: '🤹', desc: '공격 범위 +8%, 지속 +6%', mods: { area: 0.08, dur: 0.06 } },
+    trickster: { name: '능청 연기', icon: '🎭', desc: '기절·지속시간 +12%, 치명타 +3%', mods: { dur: 0.12, crit: 0.03 } }
   };
   RS.PASSIVE_MAX = 5;
 
@@ -400,18 +463,24 @@
     goldboot: { tier: 'hidden', icon: '🥇', name: '골든 부트', desc: '공격력 +25%', mods: { dmg: 0.25 } },
     heart: { tier: 'hidden', icon: '🫀', name: '강철 심장', desc: '쿨타임 -12%, 이동속도 +6%', mods: { cd: -0.12, moveSpeed: 0.06 } },
     blackhole: { tier: 'hidden', icon: '🌀', name: '블랙홀 트래핑', desc: '흡수 범위 +120%, 경험치 +15%', mods: { magnet: 1.2, xp: 0.15 } },
-    bomb: { tier: 'hidden', icon: '💥', name: '폭발 슈팅', desc: '쓰러진 적이 폭발해 주변 적까지 쓸어버린다', fx: 'bomb' },
+    // 날두's power shots blow up; 메시 slips the ball through the fallen man's legs instead (his own style)
+    bomb: { tier: 'hidden', icon: '💥', name: '폭발 슈팅', desc: '쓰러진 적이 폭발해 주변 적까지 쓸어버린다', fx: 'bomb', hero: 'ronaldo' },
+    nutmeg: { tier: 'hidden', icon: '🔗', name: '알까기 연쇄', desc: '적이 쓰러지면 공이 가랑이 사이로 빠져나가 주변 적 3명을 연달아 제치고 넘어뜨린다(피해 + 기절)', fx: 'nutmeg', hero: 'messi' },
     sniper: { tier: 'hidden', icon: '🎯', name: '저격수의 눈', desc: '치명타 +15%, 보스에게 주는 피해 +15%', mods: { crit: 0.15, bossDmg: 0.15 } },
     whistle: { tier: 'ultra', icon: '⏱️', name: '추가시간 휘슬', desc: '12초마다 휘슬! 보스를 뺀 모든 적이 2초간 멈춘다', fx: 'whistle' },
     legend: { tier: 'ultra', icon: '🧬', name: '레전드 DNA', desc: '공격력 +40%, 치명타 +10%, 범위 +15%', mods: { dmg: 0.4, crit: 0.1, area: 0.15 } },
     crowd: { tier: 'ultra', icon: '🏟️', name: '홈 관중의 함성', desc: '최대 체력 +40, 초당 체력 +1.5, 받는 피해 -2', mods: { hp: 40, regen: 1.5, armor: 2 } },
     overdrive: { tier: 'ultra', icon: '⏩', name: '오버드라이브', desc: '쿨타임 -25%, 투사체 속도 +25%', mods: { cd: -0.25, projSpeed: 0.25 } },
-    // 메시 only (his growth-hormone story). Stats only: a 하드 모드 body stays small.
-    doping: { tier: 'ultra', icon: '💉', name: '약물 꽂기', desc: '성장호르몬 한 방 더! 올스탯 상승: 공격 +20%, 체력 +30, 이동 +8%, 쿨타임 -10%, 범위·흡수 +15%, 치명타 +5%, 받는 피해 -1',
-      mods: { dmg: 0.2, hp: 30, moveSpeed: 0.08, cd: -0.1, area: 0.15, magnet: 0.15, crit: 0.05, armor: 1 }, hero: 'messi' },
+    // 메시 only (his growth-hormone story), and only after he took the treatment (need: 'hgh'). A stimpack: up to
+    // RS.STIM.max doses (b.relics.doping = doses); every extra dose adds RS.STIM.step of the first one's mods.
+    // Stats only: a small body stays small.
+    doping: { tier: 'ultra', icon: '💉', name: '약물 꽂기', desc: '성장호르몬 한 방 더! 스팀팩처럼 최대 5번 투여. 첫 투여: 공격 +20%, 체력 +30, 이동 +8%, 쿨타임 -10%, 범위·흡수 +15%, 치명타 +5%, 받는 피해 -1 · 추가 투여마다 그 25%씩 더',
+      mods: { dmg: 0.2, hp: 30, moveSpeed: 0.08, cd: -0.1, area: 0.15, magnet: 0.15, crit: 0.05, armor: 1 }, hero: 'messi', need: 'hgh', stack: true },
     honaldo: { tier: 'super', icon: '🥋', name: '호날도', desc: '전설의 무술. 3초마다 정권 → 회오리 발차기 → 내려찍기 3연타 (호! 날! 도!)', fx: 'honaldo', hero: 'ronaldo' },
     messia: { tier: 'super', icon: '✨', name: '메시아', desc: '구세주의 기적. 3초마다 드리블 돌파 → 감아차기 연사 → 기적의 일격 3연타 (메! 시! 아!)', fx: 'messia', hero: 'messi' },
-    meteor: { tier: 'super', icon: '🌠', name: '별똥별 슛', desc: '4초마다 하늘에서 황금 공 8개가 적에게 쏟아진다', fx: 'meteor' },
+    meteor: { tier: 'super', icon: '🌠', name: '별똥별 슛', desc: '4초마다 하늘에서 황금 공 8개가 적에게 쏟아진다', fx: 'meteor', hero: 'ronaldo' },
+    // 메시's own: "외계인" — a phantom dribble zigzags through eight defenders
+    alien: { tier: 'super', icon: '👽', name: '외계인 모드', desc: '4초마다 메시의 잔상이 주변 적 8명 사이를 번개처럼 지그재그로 제치며 큰 피해 + 기절. 그동안 무적', fx: 'alien', hero: 'messi' },
     goat: { tier: 'super', icon: '🐐', name: 'GOAT', desc: '공격력 +50%, 쿨타임 -15%, 최대 체력 +60, 이동속도 +12%, 받는 피해 -2', mods: { dmg: 0.5, cd: -0.15, hp: 60, moveSpeed: 0.12, armor: 2 } }
   };
   // 도박 카드: rolled when picked; the odds are printed on the card. Outcome keys: levels (extra level-ups),
@@ -432,6 +501,9 @@
   // Coin shop on every level-up screen: paid rerolls any number of times, one grade draw per level-up.
   // Coins come from this match first, then the wallet (훈련장 money). A draw costs more with every item owned
   // (RS.drawCost: cost × (1 + DRAW_COST_STEP × items)), so a rich wallet cannot buy the whole collection at once.
+  // 약물 꽂기 as a stimpack: the first dose is a 초히든 item (or this extra chance per level-up once 메시 took the
+  // treatment); every dose after that comes as its own card (odds per level-up × (1 + luck)) up to `max`.
+  RS.STIM = { max: 5, step: 0.25, first: 0.012, odds: 0.025 };
   RS.COIN_REROLL = 8;
   RS.DRAW_COST_STEP = 0.5;
   RS.COIN_DRAWS = [
@@ -836,10 +908,10 @@
     Y(2004, 'manchester', 'hairdryer', '유로 2004 준우승', 'giant', '그리스 철벽 대장', '열아홉 살, 안방 유로 결승에서 그리스의 철벽 수비에 막혀 눈물을 쏟았다. 그 벽을 다시 만난다.',
       { trial: 2, twist: { mix: [{ type: 'tank', w: 2.5 }], wall: '🧱 그리스 철벽 수비가 밀고 온다!' } }),
     Y(2005, 'manchester', 'hairdryer', '드리블 장인 각성, 첼씨의 시대', 'maestro', '첼씨 지휘자 람빠드', '드리블 장인으로 각성했지만 리그 왕좌는 버스 수비의 첼씨 차지였다. 파란 군단의 중원 지휘자 람빠드가 길을 막는다.', { foe: 'chelsea', trial: 1 }),
-    Y(2006, 'manchester', 'hairdryer', '월드컵과 윙크 논란', 'referee', '레드카드 주심', '월드컵 8강, 팀 동료의 퇴장과 윙크 논란으로 잉글랜드 전체의 야유를 받았다. 카드를 꺼내 드는 주심이 상대다.', { trial: 1, twist: { press: 1 } }),
+    Y(2006, 'manchester', 'hairdryer', '월드컵과 윙크 논란', 'referee', '레드카드 주심', '월드컵 8강, 팀 동료의 퇴장과 윙크 논란으로 잉글랜드 전체의 야유를 받았다. 카드를 꺼내 드는 주심이 상대다.', { trial: 1, twist: { press: 1 }, press: 'wink' }),
     Y(2007, 'manchester', 'hairdryer', '첫 리그 정상, FA컵 결승의 악몽', 'drogba', '드록빠', '첫 리그 우승. 하지만 새 웸블리 첫 FA컵 결승, 연장 막판 첼씨의 괴물 스트라이커 드록빠에게 결승골을 내줬다. 그 괴물이 다시 온다.', { foe: 'chelsea', trial: 2 }),
     Y(2008, 'manchester', 'hairdryer', '빗속의 유럽 정상, 첫 발롱도르', 'keeper', '첼씨 수문장 쩨흐', '모스크바 빗속 결승, 상대는 또 첼씨. 승부차기에서 실축하고도 끝내 웃었다. 첫 발롱도르의 해, 그날의 수문장 쩨흐를 넘어야 한다.', { ballon: true, foe: 'chelsea' }),
-    Y(2009, 'madrid', 'engineer', '세계 최고 이적료로 마드리드행', 'maestro', '티키타카 지휘자 챠비', '세계 최고 이적료로 마드리드행. 라이벌 팀 티키타카의 심장 챠비와 첫 대결.'),
+    Y(2009, 'madrid', 'engineer', '세계 최고 이적료로 마드리드행', 'maestro', '티키타카 지휘자 챠비', '세계 최고 이적료로 마드리드행. 라이벌 팀 티키타카의 심장 챠비와 첫 대결.', { press: 'unveil' }),
     Y(2010, 'madrid', 'special', '엘 클라시코 시대', 'tackler', '곱슬머리 수비대장 뿌욜', '엘 클라시코의 시대가 열렸다. 카탈루냐의 곱슬머리 수비대장 뿌욜과의 악연이 시작된다.'),
     Y(2011, 'madrid', 'special', '국왕컵 결승 헤더', 'giant', '바르샤 장신 피케츄', '국왕컵 결승 결승골 헤더. 바르샤의 장신 센터백을 뛰어넘은 그 밤.'),
     Y(2012, 'madrid', 'special', '리그 우승, 진정해 세리머니', 'referee', '엘 클라시코 주심', '리그 우승과 "진정해" 세리머니. 클라시코마다 카드를 꺼내던 주심이 상대다.'),
@@ -847,13 +919,13 @@
     Y(2014, 'madrid', 'eyebrow', '열 번째 유럽 정상', 'keeper', '이웃집 수문장 꾸르뚜아', '리스본 결승, 열 번째 유럽 정상. 같은 도시 라이벌의 수문장 꾸르뚜아가 마지막 벽.', { ballon: true }),
     Y(2015, 'madrid', 'eyebrow', '득점 기계 모드', 'maestro', '뮌헨 전차 지휘관', '득점 기계의 해. 유럽 무대에서 뮌헨 전차 군단의 지휘관과 격돌.'),
     Y(2016, 'madrid', 'headbutt', '유로 우승, 나방과의 결승', 'giant', '파리 결승의 나방 군단장', '유로 결승, 부상으로 쓰러진 뒤 벤치에서 지휘한 우승. 나방 떼가 날아들던 파리의 밤.', { ballon: true }),
-    Y(2017, 'madrid', 'headbutt', '유럽 2연패, 다섯 번째 발롱도르', 'striker', '카디프 결승 저격수', '카디프 결승 두 골로 유럽 2연패. 다섯 번째 발롱도르.', { ballon: true }),
+    Y(2017, 'madrid', 'headbutt', '유럽 2연패, 다섯 번째 발롱도르', 'striker', '카디프 결승 저격수', '카디프 결승 두 골로 유럽 2연패. 다섯 번째 발롱도르.', { ballon: true, press: 'tax_ronaldo' }),
     Y(2018, 'turin', 'allegro', '전설의 바이시클 킥, 토리노행', 'keeper', '바이시클 킥의 증인 부퐁', '토리노 원정에서 바이시클 킥, 상대 팬까지 기립했다. 그 골을 내준 수문장 부퐁이 다시 골문을 지킨다. 그리고 그 여름, 토리노로 이적.'),
     Y(2019, 'turin', 'smoker', '네이션스리그 초대 우승', 'tackler', '아약스 영건 대장', '네이션스리그 초대 우승. 유럽 무대에서 암스테르담 영건 군단에 발목을 잡혔다.'),
     Y(2020, 'turin', 'maestro', '텅 빈 경기장', 'referee', 'VAR 판독관', '관중 없는 시즌. 골을 지우는 보이지 않는 심판, VAR 판독관과 싸운다.'),
-    Y(2021, 'manchester2', 'babyface', '맨체스터 귀환', 'maestro', '시끄러운 이웃 지휘관', '12년 만의 맨체스터 귀환. 시끄러운 이웃 구단의 지휘관과 더비.'),
+    Y(2021, 'manchester2', 'babyface', '맨체스터 귀환', 'maestro', '시끄러운 이웃 지휘관', '12년 만의 맨체스터 귀환. 시끄러운 이웃 구단의 지휘관과 더비.', { press: 'cola' }),
     Y(2022, 'manchester2', 'professor', '폭로 인터뷰, 벤치의 월드컵', 'referee', '폭로 인터뷰 기자왕', '폭로 인터뷰로 구단과 결별하고, 다섯 번째 월드컵에선 벤치로 밀려 8강 탈락 뒤 눈물로 퇴장했다. 커리어 최악의 해, 기자왕과의 설전.',
-      { trial: 3, twist: { press: 2 } }),
+      { trial: 3, twist: { press: 2 }, press: 'morgan' }),
     Y(2023, 'riyadh', 'desert', '사막의 별, 리야드행', 'striker', '사막 더비 에이스', '사막의 별이 되어 리야드행. 사막 더비의 에이스와 득점 경쟁.'),
     Y(2024, 'riyadh', 'desert', '통산 900골 돌파', 'keeper', '유로 2024 수문장', '통산 900골. 유로 2024 승부차기에서 실축을 막아낸 수문장과 재대결.'),
     Y(2025, 'riyadh', 'desert', '네이션스리그 두 번째 우승', 'maestro', '무적함대 지휘자', '네이션스리그 결승에서 무적함대를 꺾고 두 번째 우승.'),
@@ -869,25 +941,25 @@
     Y(2004, 'barcelona', 'rijkaard', '17세 프로 데뷔, 호나우딩요의 튜터링', 'keeper', '더비 상대 수문장', '1군 데뷔. 팀의 슈퍼스타 호나우딩요가 꼬마를 맡아 직접 가르친다. 첫 더비, 골문엔 베테랑 수문장이 버티고 있다.', { event: 'dingyo' }),
     Y(2005, 'barcelona', 'rijkaard', '프로 첫 골, 청소년 월드컵 우승', 'tackler', '네덜란드 U-20 수비대장', '호나우딩요가 띄워 준 공을 칩슛으로 넣은 프로 첫 골, 호나우딩요의 목말 세리머니. 청소년 월드컵 결승의 네덜란드 수비대장이 다시 온다.'),
     Y(2006, 'barcelona', 'rijkaard', '유럽 정상, 부상으로 결승 결장', 'giant', '파리 결승의 런던 거인', '유럽 정상에 섰지만 부상으로 결승을 벤치에서 봤다. 그날 런던 팀의 거인 센터백과 싸운다.'),
-    Y(2007, 'barcelona', 'rijkaard', '마라도나 재현 골', 'maestro', '헤타페 중원 지휘자', '하프라인부터 여섯 명을 제친 마라도나 재현 골. 그 경기 상대 지휘자가 복수를 노린다.'),
-    Y(2008, 'barcelona', 'pep', '베이징 올림픽 금메달', 'striker', '나이지리아 폭격기', '베이징 올림픽 결승. 나이지리아의 폭격기를 꺾고 금메달.'),
+    Y(2007, 'barcelona', 'rijkaard', '마라도나 재현 골', 'maestro', '헤타페 중원 지휘자', '하프라인부터 여섯 명을 제친 마라도나 재현 골. 그 경기 상대 지휘자가 복수를 노린다.', { press: 'handgoal' }),
+    Y(2008, 'barcelona', 'pep', '베이징 올림픽 금메달', 'striker', '나이지리아 폭격기', '베이징 올림픽 결승. 나이지리아의 폭격기를 꺾고 금메달.', { event: 'pep' }),
     Y(2009, 'barcelona', 'pep', '6관왕, 첫 발롱도르', 'keeper', '로마 결승 수문장 판데르싸르', '한 해 6관왕. 로마 결승에서 헤딩골을 내준 판데르싸르가 설욕을 노린다. 첫 발롱도르.', { ballon: true }),
     Y(2010, 'barcelona', 'pep', '월드컵 8강 탈락, 두 번째 발롱도르', 'giant', '독일 전차 센터백', '남아공 월드컵 8강에서 독일 전차에 0-4. 그 센터백을 넘어야 한다.',
       { ballon: true, trial: 1, twist: { mix: [{ type: 'tank', w: 2 }] } }),
     Y(2011, 'barcelona', 'pep', '웸블리 결승, 세 번째 발롱도르', 'referee', '엘 클라시코 주심', '웸블리 결승골로 유럽 정상. 클라시코마다 카드를 꺼내던 주심이 상대다.', { ballon: true }),
     Y(2012, 'barcelona', 'tito', '한 해 91골, 첼씨의 버스', 'drogba', '드록빠', '한 해 91골 세계 기록. 하지만 챔스 4강에서 10명이 버틴 첼씨의 버스 수비를 끝내 못 뚫었고, 페널티킥은 크로스바를 때렸다. 1차전 결승골의 주인공 드록빠가 기다린다.',
       { ballon: true, foe: 'chelsea', trial: 2 }),
-    Y(2013, 'barcelona', 'tata', '햄스트링 부상의 해', 'tackler', '부상 유발 백태클러', '반복된 햄스트링 부상. 백태클러를 피하며 버텨야 한다.'),
+    Y(2013, 'barcelona', 'tata', '햄스트링 부상의 해', 'tackler', '부상 유발 백태클러', '반복된 햄스트링 부상. 백태클러를 피하며 버텨야 한다.', { press: 'tax_messi' }),
     Y(2014, 'barcelona', 'luis', '브라질 월드컵 준우승', 'giant', '마라카낭 결승 독일 거인', '마라카낭 결승 연장 실점. 골든볼을 들고도 웃지 못한, 커리어 가장 아픈 밤. 이번엔 연장전까지 버텨야 독일 거인이 나온다.',
       { trial: 3, twist: { extra: 15, mix: [{ type: 'tank', w: 2 }] } }),
     Y(2015, 'barcelona', 'luis', 'MSN 트레블, 다섯 번째 발롱도르', 'keeper', '베를린 결승 수문장 부퐁', 'MSN 삼각편대로 트레블. 베를린 결승의 토리노 수문장 부퐁을 넘는다.', { ballon: true }),
-    Y(2016, 'barcelona', 'luis', '코파 결승 실축, 은퇴 번복', 'keeper', '코파 결승 칠레 수문장', '3년 연속 결승 패배. 승부차기 실축 뒤 "대표팀은 끝났다"며 은퇴를 선언했다가 번복했다. 칠레 수문장과 다시 맞선다.', { trial: 3 }),
+    Y(2016, 'barcelona', 'luis', '코파 결승 실축, 은퇴 번복', 'keeper', '코파 결승 칠레 수문장', '3년 연속 결승 패배. 승부차기 실축 뒤 "대표팀은 끝났다"며 은퇴를 선언했다가 번복했다. 칠레 수문장과 다시 맞선다.', { trial: 3, press: 'retire' }),
     Y(2017, 'barcelona', 'valverde', '600골, 유니폼 세리머니', 'referee', '베르나베우 주심', '원정 클라시코 600번째 골과 유니폼 세리머니. 그 밤의 주심이 카드를 꺼낸다.'),
     Y(2018, 'barcelona', 'valverde', '주장 완장, 러시아 월드컵 16강', 'striker', '프랑스 번개 음바뻬', '주장 완장을 찼지만 러시아 월드컵 16강에서 프랑스의 번개 음바뻬에게 무너졌다.'),
     Y(2019, 'barcelona', 'valverde', '여섯 번째 발롱도르, 안필드 참사', 'maestro', '안필드 압박 감독 끌롭', '여섯 번째 발롱도르. 하지만 안필드에서 3-0 리드를 날린 밤, 압박의 지휘자 끌롭과 재대결.', { ballon: true }),
-    Y(2020, 'barcelona', 'koeman', '2-8 참사, 뷔로팩스', 'referee', '뷔로팩스 회장단', '챔스 8강 2-8 참사. 팩스로 이적을 요청했지만 막혔다. 계약서를 흔드는 회장단이 상대다.', { trial: 2, twist: { press: 1 } }),
+    Y(2020, 'barcelona', 'koeman', '2-8 참사, 뷔로팩스', 'referee', '뷔로팩스 회장단', '챔스 8강 2-8 참사. 팩스로 이적을 요청했지만 막혔다. 계약서를 흔드는 회장단이 상대다.', { trial: 2, twist: { press: 1 }, press: 'burofax' }),
     Y(2021, 'paris', 'poch', '코파 우승, 파리행, 일곱 번째 발롱도르', 'giant', '마라카낭 결승 브라질 거인', '마라카낭에서 브라질을 꺾고 첫 성인 대표팀 우승. 눈물의 작별 뒤 파리행.', { ballon: true }),
-    Y(2022, 'argentina', 'scaloni', '카타르 월드컵 우승', 'striker', '결승 해트트릭 음바뻬', '카타르 결승, 음바뻬의 해트트릭을 넘어 승부차기 끝에 월드컵 우승.'),
+    Y(2022, 'argentina', 'scaloni', '카타르 월드컵 우승', 'striker', '결승 해트트릭 음바뻬', '카타르 결승, 음바뻬의 해트트릭을 넘어 승부차기 끝에 월드컵 우승.', { press: 'bobo' }),
     Y(2023, 'miami', 'tata', '마이애미행, 여덟 번째 발롱도르', 'maestro', '리그스컵 결승 지휘자', '마이애미행 첫 대회 우승. 리그스컵 결승 상대 지휘자와의 대결. 여덟 번째 발롱도르.', { ballon: true }),
     Y(2024, 'argentina', 'scaloni', '코파 아메리카 2연패', 'tackler', '결승 콜롬비아 수비대장', '코파 결승에서 발목 부상으로 눈물. 콜롬비아 수비대장을 넘어 2연패.'),
     Y(2025, 'miami', 'mascherano', '서포터스 실드', 'keeper', 'MLS 결승 수문장', 'MLS 정규리그 1위 서포터스 실드. 결승 무대의 수문장과 승부.'),
@@ -897,8 +969,21 @@
   RS.HEROES = {
     ronaldo: { name: '호날두', short: '날두', moveMul: 1, startSkill: 'kick', years: RS.YEARS, debut: 2002, birth: 1985, desc: '투사체 공격 · 슬라이딩 5초', rival: '메시' },
     // wall: ×RS.WALL's HP growth — his orbit, aura and stun hold a crowd off far better than 날두's shots
-    messi: { name: '메시', short: '메시', moveMul: 1.22, startSkill: 'orbit', years: RS.YEARS_MESSI, debut: 2004, birth: 1987, desc: '유소년부터 · 드리블과 회전하는 공 · 패스는 챠비·니에미스타 · 성장호르몬 선택이 난이도', rival: '호날두', wall: 3 }
+    messi: { name: '메시', short: '메시', moveMul: 1.22, startSkill: 'orbit', years: RS.YEARS_MESSI, debut: 2004, birth: 1987, desc: '유소년부터 · 드리블과 공 기술 · 패스는 동료가 · 성장호르몬·약물 선택', rival: '호날두', wall: 3 }
   };
+
+  // ---------------------------------------------------------------- Difficulty (이지 / 노멀 / 하드)
+  // On top of the season curve: enemy HP, damage, spawn density and boss damage × these, and from the debut on
+  // × (1 + grow × pro season) more, so the gap widens as the career goes on. heal: × the heal drop chance.
+  // 노멀 is the default; it sits well above the round-7 curve, which is now about 이지.
+  RS.DIFFS = {
+    easy: { name: '이지', icon: '🙂', hp: 0.72, dmg: 0.65, spawn: 0.85, boss: 0.8, grow: 0, heal: 1.4, desc: '적이 약하고 회복이 자주 나온다. 처음이라면 여기서' },
+    normal: { name: '노멀', icon: '⚽', hp: 1.3, dmg: 1.25, spawn: 1.1, boss: 1.25, grow: 0.015, heal: 1, desc: '기본 난이도. 중반부터는 벽이 느껴진다' },
+    hard: { name: '하드', icon: '🔥', hp: 1.75, dmg: 1.6, spawn: 1.22, boss: 1.6, grow: 0.03, heal: 0.6, desc: '적이 단단하고 아프며 회복도 드물다. 훈련장 강화 필수' }
+  };
+  RS.DIFF_ORDER = ['easy', 'normal', 'hard'];
+  RS.DIFF = 'normal';
+  RS.setDiff = (k) => (RS.DIFF = RS.DIFFS[k] ? k : 'normal');
 
   // ---------------------------------------------------------------- Story events (메시's career)
   // Shown once before that season (career years, not replays). Card keys: hgh (growth hormone: true = normal,
@@ -909,28 +994,250 @@
   RS.EVENTS = {
     hgh: {
       title: '성장호르몬 주사', who: '키가 자라지 않는 병 · 한 달 치료비가 아버지 월급만큼',
-      story: '의사는 매일 밤 다리에 성장호르몬 주사를 놓아야 키가 자란다고 했다. 주사를 맞으면 몸이 커지고 강해진다. 맞지 않으면 끝까지 작은 몸으로 싸운다. 이 선택이 커리어의 난이도다.',
+      story: '의사는 매일 밤 다리에 성장호르몬 주사를 놓아야 키가 자란다고 했다. 주사를 맞으면 몸이 커지고 강해지고, 나중에 약물(스팀팩)도 더 맞을 수 있다. 맞지 않으면 끝까지 작은 몸으로 싸운다. 난이도(이지·노멀·하드)와 따로, 이 선택이 메시만의 추가 난이도다.',
       cards: [
-        { id: 'hgh_yes', icon: '💉', name: '주사를 맞는다', tag: '일반 모드', hgh: true, result: '💉 몸이 자랐다! 작은 몸의 약점이 사라졌다',
-          desc: '몸이 자라 강해진다: 작은 몸의 약점(최대 체력 -30, 공격력 -20%)이 바로 사라진다.' },
-        { id: 'hgh_no', icon: '🔥', name: '주사 없이 버틴다', tag: '하드 모드', hgh: false, result: '🔥 하드 모드: 작은 몸 그대로 간다',
-          desc: '커리어 끝까지 작은 몸: 최대 체력 -30, 공격력 -20%. 되돌릴 수 없다.' }
+        { id: 'hgh_yes', icon: '💉', name: '주사를 맞는다', tag: '정상 성장', hgh: true, ai: 0, result: '💉 몸이 자랐다! 작은 몸의 약점이 사라졌다',
+          desc: '몸이 자라 강해진다: 작은 몸의 약점(최대 체력 -30, 공격력 -20%)이 바로 사라진다. 이후 "약물 꽂기"(스팀팩, 최대 5번)를 받을 수 있다.' },
+        { id: 'hgh_no', icon: '🔥', name: '주사 없이 버틴다', tag: '작은 몸 도전', hgh: false, ai: 1, result: '🔥 작은 몸 그대로 간다 · 약물은 끝까지 거부',
+          desc: '커리어 끝까지 작은 몸: 최대 체력 -30, 공격력 -20%. 약물(스팀팩)도 나오지 않는다. 되돌릴 수 없다.' }
       ]
     },
     dingyo: {
       title: '호나우딩요의 튜터링', who: '삼바 마법사 호나우딩요 · 바르셀로나의 슈퍼스타', mate: 'dingyo',
       story: '팀의 슈퍼스타 호나우딩요가 열일곱 살 꼬마를 맡았다. 훈련이 끝나면 따로 남아 자기 기술을 하나씩 가르쳐 준다. 무엇부터 배울까?',
       cards: [
-        { id: 'dy_elastico', icon: '🪄', name: '엘라스티코 전수', tag: '새 스킬', skill: 'elastico', result: '🪄 엘라스티코를 배웠다!',
+        { id: 'dy_elastico', icon: '🪄', name: '엘라스티코 전수', tag: '새 스킬', skill: 'elastico', ai: 0, result: '🪄 엘라스티코를 배웠다!',
           desc: '호나우딩요의 고무줄 페인트를 배운다. 이 튜터링에서만 얻는 스킬.',
-          alt: { id: 'dy_touch', icon: '✨', name: '마법의 볼 터치', tag: '스킬 강화', skillsUp: 1, result: '✨ 모든 스킬 Lv.+1',
+          alt: { id: 'dy_touch', icon: '✨', name: '마법의 볼 터치', tag: '스킬 강화', skillsUp: 1, ai: 0, result: '✨ 모든 스킬 Lv.+1',
             desc: '스킬 칸이 가득 차 있어 대신 볼 터치를 배운다: 보유 스킬 전부 Lv.+1.' } },
-        { id: 'dy_nolook', icon: '😎', name: '노룩 패스 수업', tag: '영구 효과', mods: { teamDmg: 0.2, teamCd: -0.1 }, result: '😎 노룩 패스를 배웠다!',
+        { id: 'dy_nolook', icon: '😎', name: '노룩 패스 수업', tag: '영구 효과', mods: { teamDmg: 0.2, teamCd: -0.1 }, ai: 1, result: '😎 노룩 패스를 배웠다!',
           desc: '동료 공격력 +20%, 동료 쿨타임 -10%' },
-        { id: 'dy_joy', icon: '😁', name: '즐기는 축구', tag: '영구 효과', mods: { xp: 0.15, regen: 0.3 }, result: '😁 축구를 즐기는 법을 배웠다!',
+        { id: 'dy_joy', icon: '😁', name: '즐기는 축구', tag: '영구 효과', mods: { xp: 0.15, regen: 0.3 }, ai: 2, result: '😁 축구를 즐기는 법을 배웠다!',
           desc: '경험치 +15%, 초당 체력 +0.3' }
       ]
+    },
+    // 2008: 뻽 puts 메시 at false nine with 챠비 and 니에미스타 behind him. trio: both join the starting two (the
+    // starters move to the bench; RS.formTrio).
+    pep: {
+      title: '뻽의 티키타카', who: '새 감독 뻽 · 중원의 챠비와 니에미스타',
+      story: '새 감독 뻽이 메시를 가짜 9번에 세웠다. 바로 뒤에는 챠비와 니에미스타. 셋이 공을 돌리기 시작하면 아무도 공을 뺏지 못한다. 셋이 함께 선발로 뛰면 메시가 훨씬 강해진다.',
+      cards: [
+        { id: 'pepev_trio', icon: '🔺', name: '챠비·니에미스타와 선발', tag: '트리오 결성', trio: true, ai: 0, result: '🔺 티키타카 트리오 결성!',
+          desc: '챠비·니에미스타가 선발 두 자리에 들어온다(지금 선발은 벤치로). 셋이 함께면 메시 공격력 +30%, 쿨타임 -10%, 동료 공격력 +20%, 두 사람의 패스 피해 +25%.' },
+        { id: 'pepev_false9', icon: '9️⃣', name: '가짜 9번 특훈', tag: '영구 효과', mods: { dmg: 0.1, crit: 0.05 }, ai: 1, result: '9️⃣ 가짜 9번이 몸에 익었다!',
+          desc: '공격력 +10%, 치명타 확률 +5%. 스쿼드는 그대로.' },
+        { id: 'pepev_rondo', icon: '🔁', name: '론도 훈련', tag: '영구 효과', mods: { cd: -0.08, teamCd: -0.1 }, ai: 2, result: '🔁 론도로 패스 감각이 살아났다!',
+          desc: '쿨타임 -8%, 동료 쿨타임 -10%. 스쿼드는 그대로.' }
+      ]
     }
+  };
+
+  // ---------------------------------------------------------------- 기자회견 (press conferences: a visual novel)
+  // Shown once before that season (career years; RS.YEARS[i].press). lines: the scene (by: speaker, inner: the
+  // hero's thoughts). choices: name (the answer), say (what the hero says), desc (what it does, odds printed),
+  // ai (lowest = the 완전 오토 pick: never a career-ending gamble), then a fixed `result` or `rolls` ([{ p, … }],
+  // rolled once). Outcome: text, note (one-line effect), win, fx { mods (permanent, kept like a coach card), fans
+  // (민심 change), coins (× the wallet: a fine), skill (learn the move, else Lv.+1), flag }, ending (the career
+  // ends: RS.ENDINGS).
+  RS.PRESS = {
+    wink: {
+      title: '윙크 논란 기자회견', who: '월드컵 8강 직후 · 잉글랜드 기자단',
+      lines: [
+        { by: '기자', text: '루니툰 선수가 퇴장당하던 순간, 벤치를 보며 윙크하셨죠? 일부러 퇴장을 유도한 겁니까?' },
+        { by: '기자', text: '잉글랜드 팬들은 다음 시즌 내내 야유를 퍼붓겠다고 벼르고 있습니다.' },
+        { by: '날두', text: '(맨체스터로 돌아가면 루니툰이랑 같은 팀인데… 뭐라고 하지?)', inner: true }
+      ],
+      choices: [
+        { id: 'deny', icon: '🙄', name: '"눈에 먼지가 들어갔어요"', say: '윙크요? 눈에 먼지가 들어갔을 뿐입니다.', desc: '아무도 안 믿는다: 민심 -10 · 오기가 생긴다: 공격력 +5%', ai: 1,
+          result: { text: '아무도 믿지 않았다. 대신 오기가 생겼다.', fx: { fans: -10, mods: { dmg: 0.05 } }, note: '공격력 +5% · 민심 -10' } },
+        { id: 'sorry', icon: '🤝', name: '루니툰에게 사과한다', say: '루니툰에게 직접 전화해서 사과하겠습니다. 우린 한 팀이니까요.', desc: '동료와 화해: 동료 공격력 +10% · 민심 +12', ai: 0,
+          result: { text: '루니툰은 웃으며 받아 줬다. "괜찮아, 다음 시즌에 골이나 넣어."', fx: { fans: 12, mods: { teamDmg: 0.1 } }, note: '동료 공격력 +10% · 민심 +12' } },
+        { id: 'fuel', icon: '🔥', name: '"야유는 제 연료입니다"', say: '야유요? 좋습니다. 그게 제 연료니까요.', desc: '50%: 야유를 먹고 큰다(공격력 +12%) · 50%: 멘탈이 흔들린다(최대 체력 -15) · 민심 -15', ai: 2,
+          rolls: [
+            { p: 0.5, win: true, text: '야유가 쏟아질수록 더 빨라졌다. 원정 경기마다 골!', fx: { fans: -15, mods: { dmg: 0.12 } }, note: '공격력 +12% · 민심 -15' },
+            { p: 0.5, text: '경기장마다 야유. 밤잠을 설쳤다.', fx: { fans: -15, mods: { hp: -15 } }, note: '최대 체력 -15 · 민심 -15' }
+          ] }
+      ]
+    },
+    unveil: {
+      title: '8만 관중 입단식', who: '마드리드 홈구장 · 세계 최고 이적료',
+      lines: [
+        { by: '사회자', text: '여러분, 세계에서 가장 비싼 선수입니다! 8만 관중이 경기장을 가득 채웠습니다!' },
+        { by: '기자', text: '역대 최고 이적료가 부담되지는 않습니까? 팬들에게 한마디 해 주세요!' },
+        { by: '날두', text: '(마이크를 잡은 손에 땀이 난다. 8만 명이 나만 보고 있다.)', inner: true }
+      ],
+      choices: [
+        { id: 'hala', icon: '🤍', name: '"할라 마드리드!"', say: '어릴 때부터 꿈이었습니다. 할라 마드리드!', desc: '민심 +15 · 경험치 +5%', ai: 1,
+          result: { text: '8만 명이 함께 외쳤다. "할라 마드리드!"', fx: { fans: 15, mods: { xp: 0.05 } }, note: '경험치 +5% · 민심 +15' } },
+        { id: 'best', icon: '👑', name: '"세계 최고가 되겠습니다"', say: '저는 세계 최고가 되려고 여기 왔습니다.', desc: '각오: 공격력 +6% · 건방지다: 민심 -3', ai: 0,
+          result: { text: '건방지다는 말도 들었지만, 각오만큼은 진짜였다.', fx: { fans: -3, mods: { dmg: 0.06 } }, note: '공격력 +6% · 민심 -3' } },
+        { id: 'juggle', icon: '🤹', name: '관중 앞 리프팅 묘기', say: '말보다 공으로 보여 드리죠!', desc: '70%: 대성공(치명타 +4%, 민심 +12) · 30%: 공을 떨어뜨린다(민심 -8)', ai: 2,
+          rolls: [
+            { p: 0.7, win: true, text: '공이 한 번도 땅에 닿지 않았다. 함성이 터졌다!', fx: { fans: 12, mods: { crit: 0.04 } }, note: '치명타 +4% · 민심 +12' },
+            { p: 0.3, text: '긴장한 탓에 세 번 만에 공을 떨어뜨렸다… 그 장면이 짤로 돌았다.', fx: { fans: -8 }, note: '민심 -8' }
+          ] }
+      ]
+    },
+    tax_ronaldo: {
+      title: '탈세 의혹 기자회견', who: '스페인 검찰 · 초상권 수입 1470만 유로 탈세 혐의',
+      lines: [
+        { by: '기자', text: '초상권 수입을 해외 회사로 돌려 1470만 유로를 탈세했다는 혐의입니다. 인정하십니까?' },
+        { by: '기자', text: '스페인을 떠나겠다는 말까지 했다는 보도가 있는데요?' },
+        { by: '날두', text: '(세금 서류는 에이전트한테 맡겼는데… 이걸 어떻게 넘기지?)', inner: true }
+      ],
+      choices: [
+        { id: 'fight', icon: '⚔️', name: '"결백합니다, 끝까지 싸웁니다"', say: '저는 숨길 게 없습니다. 법정에서 끝까지 싸우겠습니다.', desc: '60%: 혐의 일부를 벗는다(민심 +5) · 40%: 패소(벌금: 지갑 코인 -40%, 공격력 -6%)', ai: 1,
+          rolls: [
+            { p: 0.6, win: true, text: '혐의 일부를 벗었다. 팬들은 "역시 날두"를 외쳤다.', fx: { fans: 5 }, note: '민심 +5' },
+            { p: 0.4, text: '패소. 거액의 벌금에 마음고생까지 했다.', fx: { coins: 0.6, mods: { dmg: -0.06 } }, note: '지갑 코인 -40% · 공격력 -6%' }
+          ] },
+        { id: 'settle', icon: '🤝', name: '합의하고 벌금을 낸다', say: '오해가 있었지만, 합의하고 벌금을 내겠습니다.', desc: '안전: 지갑 코인 -25% · 민심 -5', ai: 0,
+          result: { text: '벌금을 내고 집행유예로 끝났다. 이제 축구에만 집중하기로 했다.', fx: { coins: 0.75, fans: -5 }, note: '지갑 코인 -25% · 민심 -5' } },
+        { id: 'agent', icon: '🕴️', name: '에이전트에게 미룬다', say: '세금 문제는 전부 에이전트가 처리했습니다. 저는 몰랐어요.', desc: '85%: 에이전트가 책임지고 해고된다(코인 획득 -10%) · 15%: 커리어 종결 (배드 엔딩)', ai: 3,
+          rolls: [
+            { p: 0.85, win: true, text: '에이전트가 책임을 지고 물러났다. 새 에이전트를 구할 때까지 수입이 줄었다.', fx: { fans: -8, mods: { gold: -0.1 } }, note: '코인 획득 -10% · 민심 -8' },
+            { p: 0.15, text: '"서류에 서명한 사람은 본인입니다." 판사는 믿지 않았다.', ending: 'tax_ronaldo' }
+          ] }
+      ]
+    },
+    cola: {
+      title: '유로 기자회견, 콜라 두 병', who: '대표팀 기자회견장 · 테이블 위 스폰서 콜라',
+      lines: [
+        { by: '사회자', text: '날두 선수 들어오십니다. 질문 받겠습니다.' },
+        { by: '날두', text: '(테이블 위에 스폰서 콜라 두 병이 놓여 있다. 나는 탄산음료를 안 마시는데.)', inner: true },
+        { by: '기자', text: '…날두 선수? 콜라를 왜 그렇게 쳐다보시죠?' }
+      ],
+      choices: [
+        { id: 'water', icon: '💧', name: '콜라를 치우고 "아구아!"', say: '(콜라 두 병을 화면 밖으로 치우고 물병을 든다) 아구아!', desc: '건강 관리: 최대 체력 +15 · 민심 +15 · 스폰서가 화났다: 코인 획득 -8%', ai: 0,
+          result: { text: '전 세계에 생중계됐다. 그날 스폰서 주가가 출렁였다는 뉴스가 떴다.', fx: { fans: 15, mods: { hp: 15, gold: -0.08 } }, note: '최대 체력 +15 · 코인 획득 -8% · 민심 +15' } },
+        { id: 'leave', icon: '😐', name: '그냥 둔다', say: '(못 본 척하고 질문에 답한다)', desc: '아무 일도 없다 · 민심 -3', ai: 1,
+          result: { text: '무난하게 끝났다. 아무도 기억하지 못하는 기자회견.', fx: { fans: -3 }, note: '민심 -3' } },
+        { id: 'drink', icon: '🥤', name: '원샷한다', say: '(콜라를 따서 단숨에 들이켠다)', desc: '30%: 당이 오른다(이동속도 +8%) · 70%: 배탈(최대 체력 -10) · 웃겼다: 민심 +5', ai: 2,
+          rolls: [
+            { p: 0.3, win: true, text: '당이 확 올랐다! 그날 경기에서 미친 듯이 뛰었다.', fx: { fans: 5, mods: { moveSpeed: 0.08 } }, note: '이동속도 +8% · 민심 +5' },
+            { p: 0.7, text: '경기 전날 밤새 배를 움켜쥐었다…', fx: { fans: 5, mods: { hp: -10 } }, note: '최대 체력 -10 · 민심 +5' }
+          ] }
+      ]
+    },
+    morgan: {
+      title: '폭로 인터뷰', who: '독설가 방송인 피어쓰 모건 · 단독 인터뷰',
+      lines: [
+        { by: '모건', text: '솔직하게 말해 봅시다. 지금 구단이 당신을 존중한다고 생각합니까?' },
+        { by: '모건', text: '감독이 당신을 일부러 벤치에 앉힌다는 소문도 있던데요.' },
+        { by: '날두', text: '(카메라가 돌아가고 있다. 다 말해 버릴까?)', inner: true }
+      ],
+      choices: [
+        { id: 'reveal', icon: '💣', name: '다 폭로한다', say: '배신감을 느낍니다. 구단은 저를 내보내고 싶어 해요.', desc: '분노의 질주: 공격력 +10% · 동료와 서먹: 동료 공격력 -15% · 민심 -5', ai: 1,
+          result: { text: '인터뷰가 나간 다음 날, 구단과 결별했다. 화가 나서 공을 더 세게 찼다.', fx: { fans: -5, mods: { dmg: 0.1, teamDmg: -0.15 } }, note: '공격력 +10% · 동료 공격력 -15% · 민심 -5' } },
+        { id: 'hold', icon: '🤐', name: '"노코멘트"', say: '그 얘기는 하지 않겠습니다.', desc: '마음을 다스린다: 초당 체력 +0.2 · 민심 +3', ai: 0,
+          result: { text: '참았다. 대신 훈련장에 가장 먼저 나왔다.', fx: { fans: 3, mods: { regen: 0.2 } }, note: '초당 체력 +0.2 · 민심 +3' } },
+        { id: 'siuu', icon: '📣', name: '"SIUU!"로 대답한다', say: '…SIUUUU!', desc: '50%: 밈이 된다(민심 +15) · 50%: 무성의 논란(민심 -10)', ai: 2,
+          rolls: [
+            { p: 0.5, win: true, text: '그 장면이 전 세계 밈이 됐다. 팬들이 따라 외쳤다.', fx: { fans: 15 }, note: '민심 +15' },
+            { p: 0.5, text: '"질문에 성의가 없다"는 비판이 쏟아졌다.', fx: { fans: -10 }, note: '민심 -10' }
+          ] }
+      ]
+    },
+    handgoal: {
+      title: '"신의 손" 논란 기자회견', who: '에스빠뇰 더비 직후 · 핸드볼 골 논란',
+      lines: [
+        { by: '기자', text: '오늘 동점골, 공이 손에 맞고 들어간 것 같은데요? 마라도나의 "신의 손"이 떠오릅니다.' },
+        { by: '기자', text: '심판은 못 봤습니다. 손에 맞은 겁니까, 아닙니까?' },
+        { by: '메시', text: '(…솔직히 손에 맞긴 했다. 어떻게 말하지?)', inner: true }
+      ],
+      choices: [
+        { id: 'admit', icon: '🙋', name: '"손에 맞았습니다"', say: '손에 맞았어요. 정직하게 인정합니다.', desc: '페어플레이: 치명타 +3% · 민심 +12', ai: 1,
+          result: { text: '"어린 선수가 정직하다"는 칭찬이 쏟아졌다.', fx: { fans: 12, mods: { crit: 0.03 } }, note: '치명타 +3% · 민심 +12' } },
+        { id: 'god', icon: '✋', name: '"신의 손이었습니다!"', say: '그건… 신의 손이었습니다!', desc: '스킬 "신의 손"을 배운다(이미 있으면 Lv.+1) · 논란: 민심 -8', ai: 0,
+          result: { text: '논란이 커졌지만, 그날 밤 꿈에 마라도나가 나와 손을 내밀었다.', fx: { fans: -8, skill: 'hand' }, note: '스킬 "신의 손" · 민심 -8' } },
+        { id: 'dunno', icon: '🤷', name: '"기억이 안 나요"', say: '음… 기억이 잘 안 나요.', desc: '50%: 그냥 넘어간다 · 50%: 징계(공격력 -4%)', ai: 2,
+          rolls: [
+            { p: 0.5, win: true, text: '다음 날 다른 뉴스에 묻혔다. 휴.', fx: {}, note: '변화 없음' },
+            { p: 0.5, text: '연맹이 징계를 내렸다. 한동안 위축됐다.', fx: { mods: { dmg: -0.04 } }, note: '공격력 -4%' }
+          ] }
+      ]
+    },
+    tax_messi: {
+      title: '탈세 의혹 기자회견', who: '스페인 검찰 · 초상권 수입 410만 유로 탈세 혐의',
+      lines: [
+        { by: '기자', text: '초상권 수입을 해외 회사로 빼돌려 410만 유로를 탈세했다는 혐의입니다. 알고 계셨습니까?' },
+        { by: '기자', text: '계약과 돈 관리는 전부 아버님이 하셨다는데, 사실입니까?' },
+        { by: '메시', text: '(돈 관리는 아빠가 다 했는데. 나는 축구만 했을 뿐인데…)', inner: true }
+      ],
+      choices: [
+        { id: 'blame', icon: '👨', name: '아버지에게 미룬다', say: '계약은 전부 아버지가 하셨습니다. 저는 몰랐어요.', desc: '90%: 넘어간다, 대신 아버지가 감옥에 간다 · 10%: 커리어 종결 (배드 엔딩)', ai: 1,
+          rolls: [
+            { p: 0.9, win: true, mood: 'sad', text: '판사는 메시를 믿었다. 대신 아버지가 모든 책임을 지고 감옥에 갔다… 면회실 유리창 너머로 아버지가 웃어 보였다.',
+              fx: { fans: -10, flag: 'fatherJail', mods: { gold: -0.15 } }, note: '아버지 수감 · 매니저 공백: 코인 획득 -15% · 민심 -10' },
+            { p: 0.1, text: '"몰랐다는 건 변명이 되지 않습니다." 판사는 믿지 않았다.', ending: 'tax_messi' }
+          ] },
+        { id: 'confess', icon: '🙇', name: '자백한다', say: '제 이름으로 된 일입니다. 모두 인정하고 벌금을 내겠습니다.', desc: '커리어를 조금 잃는다: 공격력 -8%, 최대 체력 -10 (영구) · 민심 +10 · 게임은 계속된다', ai: 0,
+          result: { mood: 'calm', text: '모든 걸 인정하고 거액의 벌금을 냈다. 충격으로 몸이 무거워졌지만, 팬들은 정직함을 응원했다.', fx: { fans: 10, mods: { dmg: -0.08, hp: -10 } }, note: '공격력 -8%, 최대 체력 -10 · 민심 +10' } }
+      ]
+    },
+    retire: {
+      title: '대표팀 은퇴 기자회견', who: '코파 결승 승부차기 실축 직후 · 믹스트존',
+      lines: [
+        { by: '기자', text: '3년 연속 결승 패배입니다. 승부차기를 실축하셨는데, 지금 심정이 어떠십니까?' },
+        { by: '메시', text: '(…다리에 힘이 하나도 없다. 이제 그만하고 싶다.)', inner: true },
+        { by: '기자', text: '대표팀에서 계속 뛰실 겁니까?' }
+      ],
+      choices: [
+        { id: 'quit', icon: '💔', name: '"대표팀은 끝났습니다"', say: '대표팀은… 여기까지인 것 같습니다.', desc: '온 나라가 붙잡는다: 은퇴 번복 뒤 각성(공격력 +8%) · 민심 +10', ai: 0,
+          result: { text: '대통령까지 나서서 붙잡았다. 거리마다 "가지 마, 메시" 현수막. 한 달 뒤 은퇴를 번복했다. 각오가 달라졌다.', fx: { fans: 10, mods: { dmg: 0.08 } }, note: '공격력 +8% · 민심 +10' } },
+        { id: 'again', icon: '💪', name: '"다시 일어서겠습니다"', say: '아픕니다. 하지만 다시 일어서겠습니다.', desc: '단단해진다: 받는 피해 -1 · 민심 +5', ai: 1,
+          result: { text: '눈물을 닦고 다음 대회를 준비했다.', fx: { fans: 5, mods: { armor: 1 } }, note: '받는 피해 -1 · 민심 +5' } }
+      ]
+    },
+    burofax: {
+      title: '뷔로팩스 기자회견', who: '2-8 참사 직후 · 팩스로 보낸 이적 요청서',
+      lines: [
+        { by: '기자', text: '구단에 팩스로 이적 요청서를 보냈다는 게 사실입니까?' },
+        { by: '기자', text: '회장단은 "위약금 7억 유로를 내야 나갈 수 있다"고 합니다.' },
+        { by: '메시', text: '(이 팀을 사랑한다. 하지만 이대로는…)', inner: true }
+      ],
+      choices: [
+        { id: 'leave', icon: '📠', name: '"떠나고 싶습니다"', say: '떠나고 싶었습니다. 1년 내내 말씀드렸어요.', desc: '50%: 팬들이 편을 든다(경험치 +5%, 민심 +10) · 50%: 회장단과 싸움(공격력 -5%, 민심 -5)', ai: 1,
+          rolls: [
+            { p: 0.5, win: true, text: '팬들이 "메시는 잘못 없다"며 회장단 퇴진 시위를 열었다.', fx: { fans: 10, mods: { xp: 0.05 } }, note: '경험치 +5% · 민심 +10' },
+            { p: 0.5, text: '회장단과의 싸움이 길어졌다. 훈련에 집중이 안 된다.', fx: { fans: -5, mods: { dmg: -0.05 } }, note: '공격력 -5% · 민심 -5' }
+          ] },
+        { id: 'stay', icon: '❤️', name: '"남겠습니다"', say: '사랑하는 구단과 법정에서 싸울 수는 없습니다. 남겠습니다.', desc: '동료가 다시 뭉친다: 동료 공격력 +10% · 민심 +8', ai: 0,
+          result: { text: '"마지막 1년, 최선을 다하겠다." 동료들이 다시 뭉쳤다.', fx: { fans: 8, mods: { teamDmg: 0.1 } }, note: '동료 공격력 +10% · 민심 +8' } }
+      ]
+    },
+    bobo: {
+      title: '"뭘 봐, 바보야?" 인터뷰', who: '월드컵 8강 직후 · 믹스트존 생방송',
+      lines: [
+        { by: '기자', text: '메시, 오늘 경기 정말 거칠었는데요. 상대 감독이 경기 전에 도발했죠?' },
+        { by: '메시', text: '(그때 상대 공격수가 이쪽을 노려보며 지나간다.)', inner: true },
+        { by: '기자', text: '…메시? 누굴 보시는 거예요?' }
+      ],
+      choices: [
+        { id: 'bobo', icon: '😠', name: '"뭘 봐, 바보야? 저리 가!"', say: '뭘 봐, 바보야? 저리 가! 저리 가라고!', desc: '전설의 밈: 스킬 "뭘 봐, 바보야?"를 배우거나 Lv.+1 · 민심 +20', ai: 0,
+          result: { text: '그 한마디가 티셔츠와 머그컵에 찍혀 팔려 나갔다.', fx: { fans: 20, skill: 'bobo' }, note: '스킬 "뭘 봐, 바보야?" · 민심 +20' } },
+        { id: 'calm', icon: '😌', name: '차분히 인터뷰를 마친다', say: '…죄송합니다. 질문 계속하시죠.', desc: '초당 체력 +0.2 · 민심 +3', ai: 1,
+          result: { text: '평소의 조용한 메시로 돌아왔다.', fx: { fans: 3, mods: { regen: 0.2 } }, note: '초당 체력 +0.2 · 민심 +3' } }
+      ]
+    }
+  };
+  // A move taught by a press answer while the skill bar is full becomes this small lasting boost instead.
+  RS.PRESS_FULL_MODS = { dmg: 0.05 };
+  // Bad endings: the career stops there (RS.applyPress sets career.over); a new career starts from scratch.
+  RS.ENDINGS = {
+    tax_messi: { icon: '⚖️', title: '배드 엔딩 — 410만 유로의 대가', text: '유죄 판결과 출전 정지. 스물여섯 살에 축구화를 벗었다. 지금은 로사리오의 작은 골목에서 아이들에게 공을 차 주며 산다. "그때 솔직하게 말했더라면…"' },
+    tax_ronaldo: { icon: '⚖️', title: '배드 엔딩 — 서명은 본인이 했다', text: '유죄 판결과 함께 커리어가 멈췄다. 마데이라 바닷가에서 혼자 프리킥을 찬다. SIUU를 외쳐도 대답하는 관중이 없다.' }
+  };
+  // 민심 (fan opinion, 0–100, b.fans): moved by press answers; its tier is a lasting buff or curse.
+  RS.FANS = {
+    start: 50,
+    tiers: [
+      { min: 85, key: 'love', name: '열광', icon: '🔥', mods: { gold: 0.15, regen: 0.3, dmg: 0.05 }, text: '코인 +15%, 초당 체력 +0.3, 공격력 +5%' },
+      { min: 65, key: 'like', name: '호감', icon: '👏', mods: { gold: 0.08 }, text: '코인 +8%' },
+      { min: 30, key: 'calm', name: '보통', icon: '🙂', mods: {}, text: '효과 없음' },
+      { min: 11, key: 'boo', name: '야유', icon: '👎', mods: { dmg: -0.06 }, text: '공격력 -6%' },
+      { min: 0, key: 'hate', name: '비난 폭주', icon: '🤬', mods: { dmg: -0.1, gold: -0.1 }, text: '공격력 -10%, 코인 -10%' }
+    ]
   };
   RS.YEARS_RONALDO = RS.YEARS;
   RS.HERO = 'ronaldo';
@@ -970,14 +1277,19 @@
     const W = RS.WALL, w = Math.max(0, idx - W.from) * (y.final ? W.final : 1), L = y.trial || 0, T = RS.TRIAL, tw = y.twist || {};
     const hw = RS.HEROES[RS.HERO].wall || 1; // the hero's own wall steepness (메시: orbit, aura and stun keep crowds off)
     const wallHp = 1 + (W.hp * w + W.hp2 * w * w) * hw;
+    // difficulty (RS.DIFFS): 이지's discounts apply from the start; 노멀/하드's extra toughness grows in over the first
+    // three pro seasons (the debut plays as it always did, so a newcomer can learn the controls)
+    const D = RS.DIFFS[RS.DIFF] || RS.DIFFS.normal, g = 1 + D.grow * idx, ramp = RS.DIFF === 'easy' ? 1 : Math.min(1, idx / 3);
+    const dv = (v) => 1 + (v - 1) * ramp;
     const t = {
-      hpMul: (1 + 0.55 * idx + 0.03 * idx * idx) * wallHp * (1 + T.hp * L),
+      hpMul: (1 + 0.55 * idx + 0.03 * idx * idx) * wallHp * (1 + T.hp * L) * dv(D.hp) * g,
       wallHp, // 준보스 leave this out: they already scale with the season and must stay killable (World.spawnEnemy)
-      dmgMul: (1 + 0.08 * idx) * gentle * (1 + W.dmg * w) * (1 + T.dmg * L),
+      dmgMul: (1 + 0.08 * idx) * gentle * (1 + W.dmg * w) * (1 + T.dmg * L) * dv(D.dmg) * g,
       wallDmg: 1 + W.dmg * w, // 준보스 leave this out too
       speedMul: 1 + 0.008 * idx + W.speed * w,
       poise: 1 / (1 + W.poise * w + T.poise * L), // × knockback and stun taken by ordinary enemies
-      spawnRate: (2.3 + 0.18 * idx) * (idx === 0 ? 0.5 : 1) * (1 + W.spawn * w) * (1 + T.spawn * L),
+      spawnRate: (2.3 + 0.18 * idx) * (idx === 0 ? 0.5 : 1) * (1 + W.spawn * w) * (1 + T.spawn * L) * dv(D.spawn),
+      healMul: dv(D.heal), // × the heal drop chance
       maxAlive: Math.min(420, 150 + 12 * idx),
       duration: 60 + (tw.extra || 0), // one minute per season (+ 연장전), then the boss
       // inside a stage enemies visibly toughen: by the end they have this much more HP / damage / speed
@@ -985,7 +1297,7 @@
       xpMul: 1 + 0.16 * idx,
       bossHpMul: 1 + 0.55 * idx + 0.03 * idx * idx,
       // the final duel keeps its own bite (tuned with World.finalScale / finalPace), outside the wall
-      bossDmgMul: y.final ? 1 + RS.FINAL_DMG * idx : (1 + 0.1 * idx) * gentle * (1 + W.boss * w) * (1 + T.boss * L),
+      bossDmgMul: (y.final ? 1 + RS.FINAL_DMG * idx : (1 + 0.1 * idx) * gentle * (1 + W.boss * w) * (1 + T.boss * L) * g) * dv(D.boss),
       bossCool: idx === 0 ? 1.2 : 1,
       bossDensity: Math.min(0.85, 0.7 + 0.04 * idx), // fewer bullets on screen: readable fights
       minis: 1 + Math.floor(idx / 10), // mini-bosses per wave (4 waves a stage; 2 in the debut year)

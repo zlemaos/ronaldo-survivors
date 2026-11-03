@@ -22,25 +22,34 @@ test('an old 메시 save holding 날두 moves gets 메시 moves back, levels and
   assert.deepEqual(n.relicOrder, ['messia']);
 });
 
-test('메시 never shoots himself: 챠비 runs beside him and plays the 티키타카 pass', () => withHero('messi', () => {
-  const b = RS.newBuild('messi');
-  b.skills.tiki = 1; b.skillOrder.push('tiki');
-  const w = new RS.World({ yearIdx: 8, seed: 3, build: b });
-  w.debug.godMode = true;
-  const xavi = w.passers.find((h) => h.id === 'xavino');
-  assert.ok(xavi, '챠비 takes the pitch with 메시');
-  const shots = [];
-  const spawn = w.spawnProj.bind(w);
-  w.spawnProj = (kind, x, y, ...rest) => { shots.push({ x, y, hx: xavi.x, hy: xavi.y, px: w.player.x, py: w.player.y }); return spawn(kind, x, y, ...rest); };
-  w.spawnEnemy('grunt', w.player.x + 70, w.player.y);
-  for (let i = 0; i < 240 && !shots.length; i++) {
-    if (w.phase === 'levelup') { w.choose(0); continue; }
-    w.update(1 / 60, { x: 0, y: 0 });
-  }
-  assert.ok(shots.length, 'the pass was played');
-  const s = shots[0];
-  assert.ok(s.x === s.hx && s.y === s.hy, 'played from 챠비');
-  assert.ok(Math.hypot(s.x - s.px, s.y - s.py) > 5, 'not from 메시');
+// Round 8: no extra runners — the pass comes from a teammate on the pitch, else long from off the screen.
+test('메시 never shoots himself: 챠비 on the pitch plays the 티키타카 pass, else a long ball from off the screen', () => withHero('messi', () => {
+  const firstPass = (withXavi) => {
+    const b = RS.newBuild('messi');
+    b.skills.tiki = 1; b.skillOrder.push('tiki');
+    if (withXavi) RS.addMate(b, 'xavino');
+    const w = new RS.World({ yearIdx: 8, seed: 3, build: b });
+    w.debug.godMode = true;
+    const shots = [];
+    const spawn = w.spawnProj.bind(w);
+    w.spawnProj = (kind, x, y, a, sp, o) => {
+      if (kind === 'tiki') { const m = w.mates.find((q) => q.id === 'xavino'); shots.push({ x, y, mx: m && m.x, my: m && m.y, px: w.player.x, dmg: o.dmg }); }
+      return spawn(kind, x, y, a, sp, o);
+    };
+    w.spawnEnemy('grunt', w.player.x + 70, w.player.y);
+    for (let i = 0; i < 240 && !shots.length; i++) {
+      if (w.phase === 'levelup') { w.choose(0); continue; }
+      w.update(1 / 60, { x: 0, y: 0 });
+    }
+    return { w, s: shots[0] };
+  };
+  const a = firstPass(true), b = firstPass(false);
+  assert.ok(a.s && b.s, 'the pass was played');
+  assert.ok(a.s.x === a.s.mx && a.s.y === a.s.my, 'played from 챠비 on the pitch');
+  assert.equal(a.w.mates.length, 1, 'nobody else runs on');
+  assert.equal(b.w.mates.length, 0);
+  assert.ok(Math.abs(b.s.x - b.s.px) > b.w.view.w / 2, 'alone, the ball comes long from off the screen, not from 메시');
+  assert.ok(a.s.dmg > b.s.dmg, '챠비 playing his own pass hits harder');
 }));
 
 test('teammate grades: a higher OVR hits harder, kids are rated against kids in youth seasons, swaps show ▲/▼', () => {

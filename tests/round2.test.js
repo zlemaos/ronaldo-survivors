@@ -76,7 +76,10 @@ test('club change opens a transfer window: sign or swap (level passes on)', () =
 
 test('squad follows the career: by the late eras teammates come from recent clubs', () => {
   const simCareer = require('./career-sim.js');
-  const c = simCareer({ seed: 3, to: 18 }); // through 2020 (Turin)
+  // played on 이지: this is about transfers; 노멀's wall stops a bot without 훈련장 upgrades around 2018 (round 8)
+  RS.setDiff('easy');
+  let c;
+  try { c = simCareer({ seed: 3, to: 18 }); } finally { RS.setDiff('normal'); } // through 2020 (Turin)
   assert.equal(c.stoppedAt, null);
   const eras = c.save.career.build.teammates.map((m) => RS.TEAMMATES[m.id].era);
   assert.ok(eras.some((e) => e === 'turin' || e === 'madrid'), eras.join());

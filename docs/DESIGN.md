@@ -243,6 +243,50 @@ invisible. This removes the power creep of the carried-over build: late bosses n
   fight) in 날두 2007 and 메시 2012.
 - `RS.threatStars` reads log10(enemy HP × damage) of the season, so the wall and the trials show; the final is ★5.
 
+### Round 8: difficulty, auto play, 메시's own moves, press conferences
+- **Difficulty** (`RS.DIFFS`, saved in `save.meta.diff`, picked on the title, shown in the HUD; default 노멀). The values
+  multiply the season curve (`RS.yearTuning`); `grow` adds × (1 + grow × season index). On 노멀/하드 the extra toughness
+  ramps in over the first three seasons, so the debut plays as before; 이지 applies fully at once.
+
+  | | enemy HP | enemy dmg | crowd | boss hits | grow | heal drops |
+  |---|---|---|---|---|---|---|
+  | 이지 | ×0.72 | ×0.65 | ×0.85 | ×0.8 | 0 | ×1.4 |
+  | 노멀 | ×1.3 | ×1.25 | ×1.1 | ×1.25 | 0.015 | ×1 |
+  | 하드 | ×1.75 | ×1.6 | ×1.22 | ×1.6 | 0.03 | ×0.6 |
+
+  Strong bot (`tests/career-sim.js`, seeds 3 / 7; "stops" = three deaths in one season): 날두 clears 이지 without 훈련장
+  upgrades; 노멀 stops at 2022 without them and clears with half of them; 하드 stops at 2017 / 2004 without and 2022 / 2020
+  with half. 메시: 노멀 stops at 2020 / clears without upgrades, clears with half; 하드 stops at 2016 / clears without,
+  clears with half. The round-7 curve sits between 이지 and 노멀.
+- **Auto play** (`save.meta.auto`: off / semi / full; title buttons and the HUD 오토 button). 반자동: the bot moves while the
+  screen is untouched, picks plain level-up hands, opens chests and starts the next season or the retry; graded, 약물 and
+  gamble cards, press answers, coach cards, boss rewards, story events and transfer offers stay with the player. 완전 오토 picks those
+  too: `RS.botChoose` takes 초히든 > 울트라 / a 약물 dose > 히든 > evolution > a card that links with the build now (a
+  passive that opens an evolution, a move whose passive is owned, a teammate completing a named pair) > upgrades; press
+  answers by their `ai` rank, never a career-ending gamble. A touch takes over at once; a badge with a bar shows the
+  next automatic step.
+- **Hero-only items**: `hero` on `RS.SKILLS` / `RS.RELICS` limits who can be offered them (`RS.relicOk`). 폭발 슈팅 and
+  별똥별 are 날두's; 메시 gets 알까기 연쇄 (히든: a kill nutmegs the ball through 3 nearby enemies, damage + stun) and
+  외계인 모드 (초히든: every 4 s an afterimage zigzags through 8 enemies, big damage + stun, invulnerable meanwhile).
+- **메시's ball moves**: 회전 공 (`orbit`), 드리볼 (`dribball`: balls leave him to chase and hit the enemies around him),
+  드롭볼 (`dropball`: balls circle him, rise over a crowd, fall like a meteor — area damage, crater, dust — and come back
+  after `respawn` s), 신의 손 (`hand`: a giant hand slams the thickest crowd, stuns it; also learned at the 2007 press
+  conference).
+- **Pitch**: two teammates at most (`RS.MAX_MATES`); passes come only from the two starters, no extra runners. 챠비 +
+  니에미스타 on the pitch = 티키타카 트리오 (`RS.NAMED_PAIRS`: 메시 공격력 +30 %, 쿨타임 -10 %, 동료 공격력 +20 %,
+  their passes +25 %); 뻽's 2009 story event can put both in.
+- **약물 꽂기 = stimpack** (메시 after the growth-hormone treatment; refusing the treatment still keeps the small body):
+  up to `RS.STIM.max` = 5 doses, each extra dose adds `RS.STIM.step` = 25 % of the first dose's mods; offered on
+  1.2 % (first) / 2.5 % (next) of level-ups. Every dose card can be taken or passed.
+- **Press conferences** (`RS.PRESS`, 5 per hero, `RS.pressFor(idx)`): typed lines with inner thoughts and camera
+  flashes, then 2–3 answers. Answers may roll odds, move 민심 (`b.fans`, 0–100; its tier is a lasting buff or curse),
+  fine coins, teach a move or end the career (`RS.ENDINGS` → bad-ending screen; coins, 발롱도르 and 훈련장 stay).
+  탈세: 아버지에게 미룬다 = 90 % it passes and the father goes to jail, 10 % bad ending; 자백한다 = 공격력 -8 %,
+  최대 체력 -10, 민심 +10, the career goes on.
+- **Look and motion**: the renderer draws between the last two fixed steps (`alpha`) so motion stays smooth at any
+  refresh rate; HD grass, a soft vignette, hit squash and enemies falling over on a kill; each new move has its own
+  effect (hand, impact ring + crater, nutmeg zip, afterimages).
+
 ### Hero readability (round 3)
 - The hero sprite alone has a gold double outline (`paint` `opt.glow`), a pulsing gold ring + soft light pool under
   the feet, a bobbing gold chevron above the head and a gold-framed HP bar.
@@ -251,7 +295,8 @@ invisible. This removes the power creep of the carried-over build: late bosses n
 
 ### Balance targets (checked by `tests/balance.test.js`)
 - A player who does not move survives the first 45 s of 2002 (5 seeds).
-- The repo bot clears 2002–2025; median season-boss fight 28–90 s, ≥75 % of fights within 20–100 s.
+- The repo bot clears 2002–2025 on 이지 without 훈련장 upgrades (and 노멀 with half of them, `round8`); the
+  final with 메시 and the single-season checks run on 노멀; median season-boss fight 28–90 s, ≥75 % of fights within 20–100 s.
 - At least 2 of the first 6 season bosses land hits on the bot.
 - 메시 takes the strong bot below half HP in at least 1 of 4 seeds while the bot still wins most.
 - The weak bot (`RS.WEAK_BOT`: 0.12 s reaction delay, ±0.3 rad steering noise, no meta) both loses and wins
@@ -328,6 +373,8 @@ sliders (saved in localStorage) and a 소리 테스트 button.
 corrupt saves, replays, 발롱도르, shop, new lap) · `messi` (phase-1 moves, telegraphs, 50 % roar, phase-2 moves, win) ·
 `sim` (bot clears 2002–2005 headlessly without NaNs; late-career stage keeps hundreds of enemies under the cap) ·
 `balance` (targets above) · `round2` (evolution hints and reachability, role lines, transfer window, in-run swap,
-boss stun immunity and HP calibration, 강슛).
+boss stun immunity and HP calibration, 강슛) · `round8` (difficulty order, 노멀 cleared with the 훈련장, 메시-only items,
+stimpack doses, two-mate pitch and the trio, 드리볼 / 드롭볼 / 신의 손, press conferences and endings, auto pickers,
+old saves).
 
 `tools/sim.js [from] [to] [seed] [weak]` prints per year: boss fight time, min HP, hits, boss damage, level, DPS.

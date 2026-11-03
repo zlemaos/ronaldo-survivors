@@ -6,6 +6,7 @@
   'use strict';
   const TAU = Math.PI * 2;
   const HD = 2; // low-res canvas pixels per world pixel
+  const H2 = (v) => Math.round(v * HD) / HD; // snap to one canvas pixel (half a world pixel)
 
   class Renderer {
     constructor(canvas) {
@@ -36,23 +37,31 @@
     }
 
     // ------------------------------------------------------------------ frame
+    // Where to draw a moving thing: between its position at the start of the last step (px, py) and now, by how
+    // far the clock is into the next step (ui.alpha), on the half-pixel grid of the 2× canvas.
+    lx(o) { return o.px === undefined ? o.x : o.px + (o.x - o.px) * this.alpha; }
+    ly(o) { return o.py === undefined ? o.y : o.py + (o.y - o.py) * this.alpha; }
+
     render(w, ui) {
       const L = this.lctx, V = this.view, S = RS.Sprites;
       L.setTransform(HD, 0, 0, HD, 0, 0);
       const p = w.player;
+      this.alpha = ui && ui.alpha != null ? ui.alpha : 1;
       if (this.shake > 0) this.shake = Math.max(0, this.shake - 1 / 60);
       const sh = this.shake > 0 ? Math.round((Math.random() - 0.5) * 6 * this.shake * 4) : 0;
       const camDy = ui && ui.camDy ? Math.round(ui.camDy * V.h) : 0; // title screen: player sits low
-      const camX = Math.round(p.x - V.w / 2) + sh, camY = Math.round(p.y - V.h / 2) - camDy;
+      const camX = H2(this.lx(p) - V.w / 2) + sh, camY = H2(this.ly(p) - V.h / 2) - camDy;
       this.camX = camX; this.camY = camY;
       const eraKey = w.yearDef.era;
       const th = RS.ERAS[eraKey].theme;
 
-      // grass
+      // grass (an HD tile: two canvas pixels per world pixel)
       const tile = S.grassTile(eraKey);
       const ox = -(((camX % 64) + 64) % 64), oy = -(((camY % 64) + 64) % 64);
-      for (let x = ox; x < V.w; x += 64) for (let y = oy; y < V.h; y += 64) L.drawImage(tile, x, y);
+      for (let x = ox; x < V.w; x += 64) for (let y = oy; y < V.h; y += 64) L.drawImage(tile, x, y, 64, 64);
       this.drawPitch(L, camX, camY, th);
+      // scorch marks of 드롭볼 landings sit on the turf, under everything else
+      for (const f of w.fx) if (f.kind === 'crater' && f.t < f.dur) this.drawCrater(L, f, camX, camY);
 
       // rescue marker
       if (w.rescue) this.drawRescue(L, w, camX, camY);
@@ -94,16 +103,16 @@
       const shd = S.shadow();
       for (const e of w.enemies) {
         if (!e.alive) continue;
-        const sx = e.x - camX, sy = e.y - camY;
+        const sx = this.lx(e) - camX, sy = this.ly(e) - camY;
         if (sx < -20 || sy < -20 || sx > V.w + 20 || sy > V.h + 20) continue;
-        L.drawImage(shd, Math.round(sx - 6), Math.round(sy + e.r * (e.boss && !RS.FINAL[e.sprite] ? 1.7 : 1.1) + 1));
+        L.drawImage(shd, H2(sx - 6), H2(sy + e.r * (e.boss && !RS.FINAL[e.sprite] ? 1.7 : 1.1) + 1));
       }
-      L.drawImage(shd, Math.round(p.x - camX - 6), Math.round(p.y - camY + 7));
+      L.drawImage(shd, H2(this.lx(p) - camX - 6), H2(this.ly(p) - camY + 7));
 
       // enemies
       for (const e of w.enemies) {
         if (!e.alive) continue;
-        const sx = e.x - camX, sy = e.y - camY;
+        const sx = this.lx(e) - camX, sy = this.ly(e) - camY;
         if (sx < -30 || sy < -40 || sx > V.w + 30 || sy > V.h + 40) continue;
         const spr = e.boss ? S.boss(e.sprite, w.yearIdx) : S.enemy(e.sprite, w.yearIdx, e.tier);
         if (!spr) continue;
@@ -111,7 +120,7 @@
         const fps = e.boss ? 8 : e.pace === 'slow' ? 4 : e.pace === 'fast' ? 13 : 8;
         const fr = spr.frames[e.stun > 0 ? 0 : (Math.floor(e.anim * fps) % Math.min(4, spr.frames.length))]; // run cycle only (the 날두 boss also has poses)
         const img = e.flash > 0 ? (e.face < 0 ? fr.wf : fr.w) : (e.face < 0 ? fr.f : fr.n);
-        const dx = Math.round(sx - spr.w / 2), dy = Math.round(sy - spr.h / 2);
+        const dx = H2(sx - spr.w / 2), dy = H2(sy - spr.h / 2);
         if (!e.boss && e.stun <= 0 && e.pace === 'fast') { // speed streaks behind the runner
           const ph = Math.floor(e.anim * 13) % 2, bx = Math.round(sx - e.face * (spr.w / 2 + 1));
           L.fillStyle = 'rgba(255,255,255,0.6)';
@@ -144,6 +153,9 @@
             L.fillStyle = 'rgba(0,0,0,0.65)'; L.fillRect(Math.round(sx - bw / 2) - 1, by - 1, bw + 2, 5);
             L.fillStyle = e.charging ? '#ffd23a' : '#ff5a3a'; L.fillRect(Math.round(sx - bw / 2), by, Math.round(bw * ratio), 3);
           }
+        } else if (e.flash > 0 && !e.boss) { // hit: a quick squash from the feet (wider, shorter)
+          const sw = spr.w * 1.14, shh = spr.h * 0.88;
+          L.drawImage(img, H2(sx - sw / 2), H2(sy + spr.h / 2 - shh), sw, shh);
         } else L.drawImage(img, dx, dy, spr.w, spr.h);
         if (near) L.globalAlpha = 1;
         if (e.stun > 0 && !e.boss) {
@@ -158,22 +170,13 @@
         }
       }
 
-      // 챠비 / 니에미스타 running beside 메시 to play his passes (frames 0-3 run, 4 kick)
-      for (const h of w.passers) {
-        const spr = S.mate(h.id, w.yearIdx);
-        const sx = h.x - camX, sy = h.y - camY;
-        L.drawImage(shd, Math.round(sx - 6), Math.round(sy + 7));
-        const fr = spr.frames[h.kickT > 0 ? 4 : h.moving ? Math.floor(h.anim * 10) % 4 : 0];
-        L.drawImage(h.face < 0 ? fr.f : fr.n, Math.round(sx - spr.w / 2), Math.round(sy - spr.h / 2), spr.w, spr.h);
-      }
-
       // teammates
       for (const m of w.mates) {
         const spr = S.mate(m.id, w.yearIdx);
-        const sx = m.x - camX, sy = m.y - camY;
-        L.drawImage(shd, Math.round(sx - 6), Math.round(sy + 7));
+        const sx = this.lx(m) - camX, sy = this.ly(m) - camY;
+        L.drawImage(shd, H2(sx - 6), H2(sy + 7));
         const fr = spr.frames[m.kickT > 0 ? 4 : Math.floor(m.anim * 8) % 4];
-        L.drawImage(m.face < 0 ? fr.f : fr.n, Math.round(sx - spr.w / 2), Math.round(sy - spr.h / 2), spr.w, spr.h);
+        L.drawImage(m.face < 0 ? fr.f : fr.n, H2(sx - spr.w / 2), H2(sy - spr.h / 2), spr.w, spr.h);
         if (m.role === 'keeper') {
           L.strokeStyle = 'rgba(80,255,150,' + (m.punch > 0 ? 0.7 : 0.18) + ')';
           L.lineWidth = 1; L.beginPath(); L.arc(Math.round(sx), Math.round(sy), RS.keeperRadius(m.ref.lv), 0, TAU); L.stroke();
@@ -186,13 +189,15 @@
       // player
       this.drawPlayer(L, w, camX, camY);
 
-      // 메시's orbiting balls (under the projectiles)
+      // 메시's ball moves (under the projectiles): 회전 공, 드리볼, 드롭볼
       if (w.orbs && w.orbs.length && w.build.skills.orbit) this.drawOrbs(L, w, camX, camY);
+      if (w.dribs && w.dribs.length) this.drawDribs(L, w, camX, camY);
+      if (w.drops && w.drops.length) this.drawDrops(L, w, camX, camY);
       // projectiles
       for (const pr of w.projs) {
         if (!pr.alive) continue;
         const it = S.item(pr.kind === 'ball' ? 'ball' : pr.kind);
-        const sx = Math.round(pr.x - camX), sy = Math.round(pr.y - camY);
+        const sx = H2(this.lx(pr) - camX), sy = H2(this.ly(pr) - camY);
         if (sx < -20 || sy < -20 || sx > V.w + 20 || sy > V.h + 20) continue;
         // motion trail: two fading dots behind every ball (hot colours for the power shots)
         const hot = pr.kind === 'cannon' || pr.kind === 'golden' || pr.kind === 'shot' || pr.kind === 'rabona2';
@@ -206,12 +211,15 @@
         if (!ep.alive) continue;
         const it = S.item(ep.kind === 'ball' ? 'eball' : ep.kind);
         if (ep.wait > 0) L.globalAlpha = 0.35 + 0.35 * Math.sin(w.t * 30); // closing ring: telegraph
-        L.drawImage(it.n, Math.round(ep.x - camX) - (it.w >> 1), Math.round(ep.y - camY) - (it.h >> 1));
+        L.drawImage(it.n, H2(this.lx(ep) - camX) - (it.w >> 1), H2(this.ly(ep) - camY) - (it.h >> 1));
         L.globalAlpha = 1;
       }
 
       // fx
       this.drawFx(L, w, camX, camY);
+
+      // soft vignette: the pitch falls off toward the screen edges, so the eye stays on the action
+      L.drawImage(this.vignette(), 0, 0, V.w, V.h);
 
       // night stadium for the final
       if (th.night) {
@@ -260,7 +268,7 @@
       const spin = Math.floor(w.t * 18);
       for (let i = 0; i < w.orbs.length; i++) {
         const o = w.orbs[i];
-        const sx = Math.round(o.x - camX), sy = Math.round(o.y - camY);
+        const sx = H2(this.lx(o) - camX), sy = H2(this.ly(o) - camY);
         if (sx < -50 || sy < -50 || sx > V.w + 50 || sy > V.h + 50) continue;
         const d = Math.max(6, Math.round(o.r * 2));
         const spr = S.orb(look, d, (spin + i * 3) % S.ORB_FRAMES);
@@ -298,6 +306,100 @@
       }
     }
 
+    // 드리볼: each ball spins along its path with two fading after-images behind it (look: RS.ballLook).
+    drawDribs(L, w, camX, camY) {
+      const S = RS.Sprites, V = this.view, look = RS.ballLook(w.build, 'dribball'), trophy = look === 'ballon';
+      for (const b of w.dribs) {
+        const sx = H2(this.lx(b) - camX), sy = H2(this.ly(b) - camY);
+        if (sx < -30 || sy < -30 || sx > V.w + 30 || sy > V.h + 30) continue;
+        const d = Math.max(6, Math.round(b.r * 2)), spr = S.orb(look, d, Math.floor(b.spin / 3) % S.ORB_FRAMES);
+        L.fillStyle = 'rgba(0,0,0,0.22)';
+        L.beginPath(); L.ellipse(sx, sy + spr.foot, b.r * 0.9, Math.max(1, b.r * 0.3), 0, 0, TAU); L.fill();
+        const sp = Math.hypot(b.vx, b.vy);
+        if (sp > 40) for (let k = 2; k >= 1; k--) { // after-images along the velocity
+          L.globalAlpha = 0.16 * (3 - k);
+          L.drawImage(spr.c, H2(sx - b.vx * 0.022 * k) - spr.cx, H2(sy - b.vy * 0.022 * k) - spr.cy);
+        }
+        L.globalAlpha = 1;
+        if (trophy) {
+          const gl = S.orbGlow(d);
+          L.globalCompositeOperation = 'lighter'; L.globalAlpha = 0.6;
+          L.drawImage(gl, sx - (gl.width >> 1), sy - (gl.height >> 1));
+          L.globalAlpha = 1; L.globalCompositeOperation = 'source-over';
+        }
+        L.drawImage(spr.c, sx - spr.cx, sy - spr.cy);
+      }
+    }
+
+    // 드롭볼: circling (bobbing over a shadow) → shooting up (light trail) → crashing down on a marked spot (meteor
+    // trail, a growing shadow and a closing ring) → gone until it pops back.
+    drawDrops(L, w, camX, camY) {
+      const S = RS.Sprites, V = this.view, look = RS.ballLook(w.build, 'dropball'), gold = look !== 'white';
+      const lv = w.build.skills.dropball || 1;
+      const st = RS.skillStats('dropball', lv, w.build.evolved.dropball, w.build.stars && w.build.stars.dropball);
+      const R = st.radius * w.stats.area, d = 8, spin = Math.floor(w.t * 16);
+      const hot = gold ? '255,214,90' : '255,255,255';
+      for (const b of w.drops) {
+        if (b.st === 'gone') continue;
+        const sx = H2(this.lx(b) - camX), sy = H2(this.ly(b) - camY);
+        if (sx < -60 || sy < -200 || sx > V.w + 60 || sy > V.h + 60) continue;
+        const spr = S.orb(look, d, (spin + b.i * 3) % S.ORB_FRAMES), by = H2(sy - b.h);
+        if (b.st === 'fall') {
+          const k = Math.min(1, b.t / 0.42);
+          L.strokeStyle = 'rgba(255,90,60,' + (0.35 + 0.45 * k) + ')'; L.lineWidth = 1;
+          L.beginPath(); L.arc(sx, sy, R * (1.25 - 0.25 * k), 0, TAU); L.stroke(); // where it will land
+          L.fillStyle = 'rgba(0,0,0,' + (0.12 + 0.3 * k) + ')';
+          L.beginPath(); L.ellipse(sx, sy, 2 + 7 * k, 1 + 3 * k, 0, 0, TAU); L.fill();
+          const g = L.createLinearGradient(sx, by - 34, sx, by);
+          g.addColorStop(0, 'rgba(' + hot + ',0)'); g.addColorStop(1, 'rgba(' + hot + ',0.75)');
+          L.strokeStyle = g; L.lineWidth = 3;
+          L.beginPath(); L.moveTo(sx, by - 34); L.lineTo(sx, by); L.stroke();
+        } else {
+          L.fillStyle = 'rgba(0,0,0,' + (b.st === 'rise' ? Math.max(0, 0.22 - b.h / 400) : 0.22) + ')';
+          L.beginPath(); L.ellipse(sx, sy + 2, 3.5, 1.3, 0, 0, TAU); L.fill();
+          if (b.st === 'rise') {
+            L.globalAlpha = Math.max(0, 1 - b.t / 0.35);
+            const g = L.createLinearGradient(sx, by, sx, sy);
+            g.addColorStop(0, 'rgba(' + hot + ',0.8)'); g.addColorStop(1, 'rgba(' + hot + ',0)');
+            L.strokeStyle = g; L.lineWidth = 2;
+            L.beginPath(); L.moveTo(sx, by); L.lineTo(sx, sy); L.stroke();
+          }
+        }
+        if (gold) {
+          const gl = S.orbGlow(d);
+          L.globalCompositeOperation = 'lighter';
+          L.drawImage(gl, sx - (gl.width >> 1), by - (gl.height >> 1));
+          L.globalCompositeOperation = 'source-over';
+        }
+        L.drawImage(spr.c, sx - spr.cx, by - spr.cy);
+        L.globalAlpha = 1;
+      }
+    }
+
+    // A dark burnt ring where a 드롭볼 landed, fading out (ground layer).
+    drawCrater(L, f, camX, camY) {
+      const k = f.t / f.dur, sx = H2(f.x - camX), sy = H2(f.y - camY);
+      L.globalAlpha = 0.55 * (1 - k);
+      const g = L.createRadialGradient(sx, sy, 1, sx, sy, f.r);
+      g.addColorStop(0, 'rgba(30,22,10,0.9)'); g.addColorStop(0.6, 'rgba(60,44,20,0.55)'); g.addColorStop(1, 'rgba(60,44,20,0)');
+      L.fillStyle = g; L.beginPath(); L.ellipse(sx, sy, f.r, f.r * 0.55, 0, 0, TAU); L.fill();
+      L.globalAlpha = 1;
+    }
+
+    // Edge darkening over the play area (cached per view size).
+    vignette() {
+      const V = this.view;
+      if (this._vig && this._vigW === V.w && this._vigH === V.h) return this._vig;
+      const c = document.createElement('canvas');
+      c.width = V.w; c.height = V.h;
+      const g = c.getContext('2d'), r = Math.hypot(V.w, V.h) / 2;
+      const gr = g.createRadialGradient(V.w / 2, V.h * 0.48, r * 0.45, V.w / 2, V.h * 0.48, r);
+      gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,0.32)');
+      g.fillStyle = gr; g.fillRect(0, 0, V.w, V.h);
+      this._vig = c; this._vigW = V.w; this._vigH = V.h;
+      return c;
+    }
+
     drawPlayer(L, w, camX, camY) {
       const p = w.player, S = RS.Sprites;
       const spr = S.hero(w.hero, w.yearIdx, 1, null, w.small);
@@ -308,7 +410,7 @@
       const bob = p.moving && fi < 4 && (step % 2) ? 1 : 0;
       const blink = p.iframe > 0 && !p.dash && Math.floor(w.t * 20) % 2 === 0;
       const jumpY = (p.jump > 0 ? Math.round(Math.sin((1 - p.jump / 0.35) * Math.PI) * 14) : 0) + bob;
-      const sx = Math.round(p.x - camX), sy = Math.round(p.y - camY) - jumpY;
+      const sx = H2(this.lx(p) - camX), sy = H2(this.ly(p) - camY) - jumpY;
       if (p.jump > 0) { // the ball he is about to head, rising with him
         const it = S.item('ball');
         L.drawImage(it.n, sx + p.face * 7 - (it.w >> 1), sy - (spr.h >> 1) - 4);
@@ -504,6 +606,97 @@
               L.beginPath(); L.arc(sx, sy, f.r * k * (1 - i * 0.2), 0, TAU); L.stroke();
             }
             L.globalAlpha = 1; break;
+          case 'hand': this.drawHand(L, f, sx, sy, w.t); break;
+          case 'impact': { // 드롭볼 landing: a white-hot flash, a shock ring and a second, slower ring
+            const c = f.gold ? '255,214,90' : '255,255,255';
+            if (k < 0.35) {
+              const q = k / 0.35, g = L.createRadialGradient(sx, sy, 1, sx, sy, f.r * (0.5 + 0.6 * q));
+              g.addColorStop(0, 'rgba(255,255,240,' + (0.9 * (1 - q)) + ')'); g.addColorStop(1, 'rgba(' + c + ',0)');
+              L.globalCompositeOperation = 'lighter'; L.fillStyle = g;
+              L.beginPath(); L.ellipse(sx, sy, f.r * (0.5 + 0.6 * q), f.r * (0.32 + 0.4 * q), 0, 0, TAU); L.fill();
+              L.globalCompositeOperation = 'source-over';
+            }
+            L.strokeStyle = 'rgba(' + c + ',' + (1 - k) + ')'; L.lineWidth = 3 - 2 * k;
+            L.beginPath(); L.ellipse(sx, sy, f.r * (0.4 + 0.75 * k), f.r * (0.25 + 0.48 * k), 0, 0, TAU); L.stroke();
+            L.strokeStyle = 'rgba(255,140,60,' + (0.7 * (1 - k)) + ')'; L.lineWidth = 1;
+            L.beginPath(); L.ellipse(sx, sy, f.r * 0.9 * k, f.r * 0.56 * k, 0, 0, TAU); L.stroke();
+            break;
+          }
+          case 'pop': // a 드롭볼 back in the circle
+            L.strokeStyle = 'rgba(255,255,255,' + (1 - k) + ')'; L.lineWidth = 1;
+            L.beginPath(); L.arc(sx, sy - 7, 2 + 7 * k, 0, TAU); L.stroke();
+            break;
+          case 'zip': { // 알까기 / 외계인 모드: a streak from (x0, y0) to the man beaten, the ball at its head
+            const x0 = f.x0 - camX, y0 = f.y0 - camY, h = Math.min(1, k * 3);
+            const hx = x0 + (sx - x0) * h, hy = y0 + (sy - y0) * h;
+            const col = f.alien ? '120,255,200' : '255,255,255';
+            const g = L.createLinearGradient(x0, y0, hx, hy);
+            g.addColorStop(0, 'rgba(' + col + ',0)'); g.addColorStop(1, 'rgba(' + col + ',' + (0.9 * (1 - k)) + ')');
+            L.strokeStyle = g; L.lineWidth = f.alien ? 3 : 2; L.lineCap = 'round';
+            L.beginPath(); L.moveTo(x0, y0); L.lineTo(hx, hy); L.stroke();
+            L.lineCap = 'butt';
+            if (!f.alien && k < 0.6) { const it = S.item('ball'); L.drawImage(it.n, H2(hx) - (it.w >> 1), H2(hy) - (it.h >> 1)); }
+            break;
+          }
+          case 'down': { // a fallen man tips over backwards and fades
+            const spr = S.enemy(f.sprite, w.yearIdx, f.tier);
+            if (!spr) break;
+            const img = f.face < 0 ? spr.frames[0].f : spr.frames[0].n, sc = f.elite ? 1.5 : 1;
+            L.save();
+            L.translate(sx, sy + spr.h * 0.5 * sc);
+            L.rotate(-(f.face || 1) * k * 1.35);
+            L.globalAlpha = 0.85 * (1 - k * k);
+            L.drawImage(img, -spr.w * sc / 2, -spr.h * sc, spr.w * sc, spr.h * sc);
+            L.restore();
+            L.globalAlpha = 1;
+            break;
+          }
+          case 'stim': { // 약물 꽂기: a red heartbeat aura and rising sparks around 메시
+            const beat = Math.abs(Math.sin(k * Math.PI * 3));
+            L.strokeStyle = 'rgba(255,60,60,' + (0.8 * (1 - k)) + ')'; L.lineWidth = 2;
+            L.beginPath(); L.arc(sx, sy, 10 + 14 * k + 3 * beat, 0, TAU); L.stroke();
+            L.fillStyle = 'rgba(255,90,90,' + (0.9 * (1 - k)) + ')';
+            for (let i = 0; i < 6; i++) {
+              const a = i * TAU / 6 + 0.4;
+              L.fillRect(H2(sx + Math.cos(a) * 9), H2(sy - 4 - 22 * ((k + i * 0.13) % 1)), 1, 2);
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    // 신의 손: a giant open hand drops out of the sky onto the spot (its shadow grows under it), slams flat at
+    // f.hit, then fades over a dust ring. Evolved: a golden halo.
+    drawHand(L, f, sx, sy, time) {
+      const S = RS.Sprites, spr = S.hand(), hit = f.hit, k1 = Math.min(1, f.t / hit);
+      const size = f.r * 1.7, sc = size / spr.w; // world px across
+      const shadowA = f.t < hit ? 0.12 + 0.33 * k1 : 0.45 * (1 - (f.t - hit) / (f.dur - hit));
+      L.fillStyle = 'rgba(0,0,0,' + shadowA + ')';
+      L.beginPath(); L.ellipse(sx, sy, f.r * (0.35 + 0.65 * k1), f.r * (0.2 + 0.36 * k1), 0, 0, TAU); L.fill();
+      let h, sqY = 1, alpha = 1;
+      if (f.t < hit) h = 120 * (1 - k1 * k1);
+      else { const q = (f.t - hit) / (f.dur - hit); h = 0; sqY = 0.86 + 0.14 * q; alpha = 1 - q; }
+      const dw = spr.w * sc * (f.t < hit ? 0.75 + 0.25 * k1 : 1), dh = spr.h * sc * (f.t < hit ? 0.75 + 0.25 * k1 : 1) * sqY;
+      const top = sy - h - dh + dh * 0.18;
+      if (f.evo || f.t >= hit) { // divine glow behind the palm
+        const g = L.createRadialGradient(sx, top + dh / 2, 2, sx, top + dh / 2, dw * 0.8);
+        g.addColorStop(0, 'rgba(255,236,160,' + (0.55 * alpha) + ')'); g.addColorStop(1, 'rgba(255,220,120,0)');
+        L.globalCompositeOperation = 'lighter'; L.fillStyle = g;
+        L.beginPath(); L.arc(sx, top + dh / 2, dw * 0.8, 0, TAU); L.fill();
+        L.globalCompositeOperation = 'source-over';
+      }
+      L.globalAlpha = alpha;
+      L.drawImage(spr.c, H2(sx - dw / 2), H2(top), dw, dh);
+      L.globalAlpha = 1;
+      if (f.t >= hit) { // dust ring and two shock rings
+        const q = (f.t - hit) / (f.dur - hit);
+        L.strokeStyle = 'rgba(255,248,220,' + (1 - q) + ')'; L.lineWidth = 3 - 2 * q;
+        L.beginPath(); L.ellipse(sx, sy, f.r * (0.6 + 0.6 * q), f.r * (0.36 + 0.36 * q), 0, 0, TAU); L.stroke();
+        L.fillStyle = 'rgba(225,215,185,' + (0.7 * (1 - q)) + ')';
+        for (let i = 0; i < 10; i++) {
+          const a = i * TAU / 10 + time;
+          L.fillRect(H2(sx + Math.cos(a) * f.r * (0.7 + 0.5 * q)), H2(sy + Math.sin(a) * f.r * 0.45 * (0.7 + 0.5 * q) - 3 * q), 2, 1);
         }
       }
     }
@@ -546,7 +739,7 @@
       for (const f of w.fx) {
         if ((f.kind !== 'martial' && f.kind !== 'whistle') || f.t >= f.dur) continue;
         const k = f.t / f.dur, mart = f.kind === 'martial';
-        const x = (w.player.x - camX + (mart ? (f.n - 1) * 15 : 0)) * s, y = (w.player.y - camY - 28 - k * 12) * s;
+        const x = (w.player.x - camX + (mart && !f.center ? (f.n - 1) * 15 : 0)) * s, y = (w.player.y - camY - 28 - k * 12) * s;
         const pop = 1 + 0.8 * Math.max(0, 1 - k * 6);
         C.font = '900 ' + Math.round(base * (mart ? 2 : 1.4) * pop) + 'px system-ui, sans-serif';
         C.globalAlpha = 1 - k * k;

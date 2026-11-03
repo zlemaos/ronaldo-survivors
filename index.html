@@ -29,6 +29,7 @@
       </div>
       <div id="hud-time">0:00</div>
       <div class="hud-right">
+        <button id="btn-auto" class="icon-btn auto" aria-label="자동 진행">수동</button>
         <button id="btn-speed" class="icon-btn speed" aria-label="게임 속도">1x</button>
         <button id="btn-mute-hud" class="icon-btn" aria-label="소리 켜기/끄기">🔊</button>
         <button id="btn-pause" class="icon-btn" aria-label="일시정지">⏸</button>
@@ -88,8 +89,21 @@
       <div id="title-progress" class="sub"></div>
       <div id="hero-pick" class="hero-pick">
         <button class="hero" data-hero="ronaldo"><b>호날두</b><span>투사체 공격 · 슬라이딩 5초</span></button>
-        <button class="hero" data-hero="messi"><b>메시</b><span>유소년부터 · 빠른 발 · 회전 공 · 성장호르몬 선택 = 난이도</span></button>
+        <button class="hero" data-hero="messi"><b>메시</b><span>유소년부터 · 드리블과 공 기술 · 성장호르몬·약물 선택</span></button>
       </div>
+      <div class="opt-row" role="group" aria-label="난이도">
+        <span class="opt-lb">난이도</span>
+        <button class="opt" data-diff="easy">🙂 이지</button>
+        <button class="opt" data-diff="normal">⚽ 노멀</button>
+        <button class="opt" data-diff="hard">🔥 하드</button>
+      </div>
+      <div class="opt-row" role="group" aria-label="진행 방식">
+        <span class="opt-lb">진행</span>
+        <button class="opt" data-auto="off">✋ 수동</button>
+        <button class="opt" data-auto="semi">🤖 반자동</button>
+        <button class="opt" data-auto="full">🚀 완전 오토</button>
+      </div>
+      <div id="opt-hint" class="opt-hint"></div>
       <button id="btn-play" class="btn primary big">커리어 시작</button>
       <div class="row">
         <button id="btn-years" class="btn">📅 연도 선택</button>
@@ -109,7 +123,11 @@
       <h2>플레이 방법</h2>
       <ul class="howto">
         <li>👆 화면 아무 곳이나 누르고 끌면 이동. PC는 WASD·방향키.</li>
-        <li>⚽ 공격은 자동! 날두는 가장 가까운 적에게 공을 차고, 메시는 몸 주위를 도는 공으로 때린다(강화하면 흰 공 → 황금 공 → 진화 시 발롱도르).</li>
+        <li>⚽ 공격은 자동! 날두는 가장 가까운 적에게 공을 찬다. 메시는 공 기술로 싸운다: 회전 공(몸 주위를 돈다) · 드리볼(주변 적을 쫓아다니며 때린다) · 드롭볼(돌다가 적 무리 위로 떨어져 터진다). 강화하면 흰 공 → 황금 공 → 진화 시 발롱도르.</li>
+        <li>🤝 메시는 직접 슛하지 않는다. 패스는 필드 동료(최대 2명)가 찔러 주고, 동료가 없으면 화면 밖에서 롱패스가 날아온다. 챠비·니에미스타가 함께 뛰면 티키타카 트리오로 메시가 강해진다.</li>
+        <li>🎚 난이도: 이지 · 노멀(기본) · 하드. 타이틀에서 언제든 바꿀 수 있다.</li>
+        <li>🤖 진행 방식: 반자동은 이동과 평범한 카드를 AI가 고르고, 등급 카드·기자회견·감독 카드 같은 중요한 선택은 내가 고른다. 완전 오토는 전부 AI가 고른다(등급 카드 → 지금 연계되는 카드 순). 화면을 누르면 그동안은 직접 움직인다.</li>
+        <li>🎤 시즌 전에 가끔 기자회견이 열린다. 대답에 따라 능력치·민심(팬 여론)이 바뀌고, 잘못 고르면 커리어가 끝나는 배드 엔딩도 있다.</li>
         <li>💎 적이 떨군 공을 주워 레벨 업 → 카드 4장 중 1장 선택.</li>
         <li>🎴 4번째 카드는 가끔 등급 카드: <b style="color:#4aa8ff">레어</b> · <b style="color:#b65cff">히든</b> · <b style="color:#ff4a4a">초히든</b> · <b style="color:#ffd84a">슈퍼히든</b> (예: 🥋 호날도). 한 번 얻으면 커리어 내내 유지.</li>
         <li>🎰 도박 카드는 확률이 적혀 있고, 고르는 순간 결과가 정해진다.</li>
@@ -120,7 +138,7 @@
         <li>✈️ 클럽을 옮기면 이적 시장: 새 클럽 동료와 교체 가능 (레벨 승계).</li>
         <li>👔 시즌마다 감독 카드 1장. 효과는 커리어 내내 누적.</li>
         <li>🏆 시즌 보스를 쓰러뜨리면 다음 해로. 2026년 최종 보스는 라이벌(날두 커리어는 메시, 메시 커리어는 날두).</li>
-        <li>💉 메시 커리어는 8세 유소년부터. 11세에 성장호르몬 주사를 거절하면 끝까지 작은 몸으로 싸우는 하드 모드.</li>
+        <li>💉 메시 커리어는 8세 유소년부터. 11세에 성장호르몬 주사를 거절하면 끝까지 작은 몸으로 싸운다(작은 몸 도전). 주사를 맞으면 레벨업 때 가끔 "약물 꽂기"(스팀팩)가 나오고, 받을지 말지 고를 수 있다. 최대 5번까지 쌓인다.</li>
         <li>💰 코인·발롱도르로 훈련장에서 영구 강화.</li>
       </ul>
       <button class="btn primary" data-back>확인</button>
@@ -212,12 +230,52 @@
     </div>
   </section>
 
+  <!-- 기자회견: a visual-novel scene before some seasons (RS.PRESS) -->
+  <section id="press" class="screen hidden">
+    <div class="panel press-panel">
+      <div class="sub" id="pr-season"></div>
+      <h2 id="pr-title" class="glow"></h2>
+      <div class="tag" id="pr-who"></div>
+      <div class="press-stage" id="pr-stage">
+        <div class="pr-backdrop" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="pr-table" aria-hidden="true"></div>
+        <div id="pr-hero" class="pr-hero"></div>
+        <div id="pr-crowd" class="pr-crowd"></div>
+        <div class="pr-flashes" id="pr-flashes" aria-hidden="true"></div>
+      </div>
+      <button class="press-box" id="pr-box" type="button">
+        <span class="pr-by" id="pr-by"></span>
+        <span class="pr-text" id="pr-text"></span>
+        <span class="pr-next" id="pr-next">▼</span>
+      </button>
+      <div id="pr-cards" class="cards hidden"></div>
+      <div id="pr-result" class="press-result hidden">
+        <div class="pr-res-text" id="pr-res-text"></div>
+        <div class="pr-res-note" id="pr-res-note"></div>
+        <button id="btn-pr-ok" class="btn primary big">계속</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="ending" class="screen hidden">
+    <div class="panel ending-panel">
+      <div class="ending-icon" id="end-icon">⚖️</div>
+      <div class="parody">BAD ENDING</div>
+      <h2 id="end-title"></h2>
+      <div id="end-sprite" class="end-sprite"></div>
+      <p class="story" id="end-text"></p>
+      <div class="sub">코인·발롱도르·훈련장 강화는 그대로 남는다.</div>
+      <button id="btn-end-new" class="btn primary big">새 커리어 시작</button>
+      <button class="btn ghost" data-home>메뉴</button>
+    </div>
+  </section>
+
   <section id="victory" class="screen hidden">
     <div class="confetti" id="confetti"></div>
     <div class="panel">
       <div class="parody">2026 최종 결전</div>
-      <h1 class="win-title">메시를 꺾었다!</h1>
-      <div class="siuu-big">SIUUUU!</div>
+      <h1 class="win-title" id="win-title">메시를 꺾었다!</h1>
+      <div class="siuu-big" id="win-cheer">SIUUUU!</div>
       <div id="win-sprites" class="win-sprites"></div>
       <div id="win-stats" class="stats"></div>
       <button id="btn-win-new" class="btn primary big">새 커리어 (n회차)</button>
@@ -226,6 +284,7 @@
   </section>
 
   <div id="tap-hint" class="hidden">화면을 눌러 이동</div>
+  <button id="auto-badge" class="auto-badge hidden" type="button"></button>
 
   <script src="js/core.js"></script>
   <script src="js/data.js"></script>

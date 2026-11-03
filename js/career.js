@@ -13,6 +13,8 @@
         yearIdx: 0, // next year to play
         cleared: [], // cleared[idx] = true
         eventDone: -1, // story event of year idx (RS.EVENTS) resolved when eventDone >= idx
+        pressDone: -1, // press conference of year idx (RS.PRESS) answered when pressDone >= idx
+        over: null, // a bad ending (RS.ENDINGS id) stopped this career; only a new career goes on
         coachDone: -1, // coach card for year idx picked when coachDone >= idx
         transferDone: -1, // transfer window for year idx handled when transferDone >= idx
         rewardDone: -1, // boss reward for year idx picked when rewardDone >= idx
@@ -22,9 +24,11 @@
         laps: 0
       },
       careers: {}, // parked careers of the other heroes (see RS.switchHero)
-      meta: { coins: 0, ballons: 0, upgrades: {}, ballonYears: [], muted: false, totalKills: 0, wins: 0 }
+      // diff: RS.DIFFS key; auto: 'off' | 'semi' (반자동: important choices are the player's) | 'full' (완전 오토)
+      meta: { coins: 0, ballons: 0, upgrades: {}, ballonYears: [], muted: false, totalKills: 0, wins: 0, diff: 'normal', auto: 'off' }
     };
   };
+  RS.AUTO_MODES = ['off', 'semi', 'full'];
 
   // Load with defaults filled in; never throws.
   RS.loadSave = function (storage) {
@@ -48,6 +52,9 @@
     RS.selectHero(s.career.build.hero);
     s.career.yearIdx = Math.max(0, Math.min(RS.YEARS.length - 1, s.career.yearIdx | 0));
     for (const k of Object.keys(s.meta.upgrades)) if (!RS.META[k]) delete s.meta.upgrades[k];
+    if (!RS.DIFFS[s.meta.diff]) s.meta.diff = 'normal';
+    if (!RS.AUTO_MODES.includes(s.meta.auto)) s.meta.auto = 'off';
+    RS.setDiff(s.meta.diff);
     return s;
   };
 
@@ -101,7 +108,7 @@
   // Can this year be played? Cleared years can be replayed; the current year can be played.
   RS.canPlay = function (save, idx) {
     const c = save.career;
-    if (idx < 0 || idx >= RS.YEARS.length) return false;
+    if (c.over || idx < 0 || idx >= RS.YEARS.length) return false;
     return idx <= c.yearIdx || !!c.cleared[idx];
   };
   RS.isReplay = (save, idx) => idx !== save.career.yearIdx || save.career.finished;
@@ -123,10 +130,62 @@
     if (card.skill && !b.skills[card.skill] && b.skillOrder.length < RS.MAX_SKILLS) { b.skills[card.skill] = 1; b.skillOrder.push(card.skill); }
     if (card.skillsUp) for (const id of b.skillOrder) b.skills[id] = Math.min(RS.SKILL_MAX, b.skills[id] + card.skillsUp);
     if (card.mods && !b.coachCards.includes(card.id)) b.coachCards.push(card.id);
+    if (card.trio) { RS.formTrio(b); info.trio = true; }
     if (ev.mate && RS.addMate(b, ev.mate)) info.mate = ev.mate;
     c.eventDone = idx;
     c.snapshots[idx] = RS.cloneBuild(b);
     return info;
+  };
+
+  // ---------------------------------------------------------------- 기자회견 (RS.PRESS)
+  // Once in a career season that has one (RS.YEARS[idx].press), after the story event and before the coach.
+  RS.needsPress = (save, idx) => !RS.isReplay(save, idx) && !!RS.YEARS[idx].press && (save.career.pressDone == null ? -1 : save.career.pressDone) < idx;
+  RS.pressFor = (idx) => RS.PRESS[RS.YEARS[idx].press];
+  // Answer `choiceId`: its odds are rolled once (rng), the outcome is applied to the career and returned as
+  // { choice, text, note, win, mood: 'good' | 'bad' | 'sad' | 'calm', ending, skill: 'learned' | 'up' | 'full' }.
+  RS.applyPress = function (save, idx, choiceId, rng) {
+    const c = save.career, b = c.build, pid = RS.YEARS[idx].press;
+    const ch = RS.PRESS[pid].choices.find((x) => x.id === choiceId) || RS.PRESS[pid].choices[0];
+    let o = ch.result, roll = null;
+    if (ch.rolls) {
+      let r = rng();
+      roll = ch.rolls.length - 1;
+      for (let i = 0; i < ch.rolls.length; i++) { if (r < ch.rolls[i].p) { roll = i; break; } r -= ch.rolls[i].p; }
+      o = ch.rolls[roll];
+    }
+    const fx = o.fx || {};
+    const out = { choice: ch.id, text: o.text, note: o.note || '', win: !!o.win, roll,
+      mood: o.mood || (o.ending ? 'bad' : o.win ? 'good' : ch.rolls ? 'bad' : (fx.fans || 0) < 0 ? 'bad' : 'good') };
+    if (fx.fans) b.fans = RS.clampFans((b.fans == null ? RS.FANS.start : b.fans) + fx.fans);
+    if (fx.coins != null) save.meta.coins = Math.floor(save.meta.coins * fx.coins); // a fine: share of the wallet
+    const card = RS.pressCardId(pid, ch.id, roll);
+    if (fx.mods && !b.coachCards.includes(card)) b.coachCards.push(card);
+    if (fx.skill) { // learn the move; Lv.+1 when owned; a small lasting boost when there is no room or it is maxed
+      const id = fx.skill;
+      if (b.skills[id] && b.skills[id] < RS.SKILL_MAX) { b.skills[id]++; out.skill = 'up'; }
+      else if (!b.skills[id] && b.skillOrder.length < RS.MAX_SKILLS) { b.skills[id] = 1; b.skillOrder.push(id); out.skill = 'learned'; }
+      else { if (!b.coachCards.includes(card + '_full')) b.coachCards.push(card + '_full'); out.skill = 'full'; }
+    }
+    if (fx.flag) b.flags[fx.flag] = true;
+    if (o.ending) { c.over = o.ending; out.ending = o.ending; }
+    c.pressDone = idx;
+    c.snapshots[idx] = RS.cloneBuild(b);
+    return out;
+  };
+
+  // ---------------------------------------------------------------- 완전 오토 picks between seasons
+  // Story events and press answers: the lowest `ai` rank (never a career-ending gamble). Coach: a lasting card
+  // first, a recruit when the pitch has room. Boss reward: toughness first.
+  RS.autoEventPick = (cards) => cards.reduce((bi, c, i) => ((c.ai || 0) < (cards[bi].ai || 0) ? i : bi), 0);
+  RS.autoPressPick = (choices) => choices.reduce((bi, c, i) => (c.ai < choices[bi].ai ? i : bi), 0);
+  RS.autoCoachPick = function (cards, build) {
+    const roomy = build.teammates.length < RS.MAX_MATES;
+    const rank = (c) => (c.id === 'recruit' ? (roomy ? 0 : 2) : c.id === 'train' ? 1.5 : c.id === 'rest' ? 3 : 1);
+    return cards.reduce((bi, c, i) => (rank(c) < rank(cards[bi]) ? i : bi), 0);
+  };
+  RS.autoRewardPick = function (cards) {
+    const order = ['hp', 'reroll', 'train', 'coach', 'coins'];
+    return cards.reduce((bi, c, i) => (order.indexOf(c.id) < order.indexOf(cards[bi].id) ? i : bi), 0);
   };
 
   // Coach cards for year idx: 2 coach cards + 1 extra (recruit or train) when possible.
@@ -285,7 +344,7 @@
   };
   RS.needsBossReward = (save, idx) => !RS.YEARS[idx].final && !!save.career.cleared[idx] && (save.career.rewardDone == null ? -1 : save.career.rewardDone) < idx && save.career.yearIdx === idx + 1;
 
-  // New career lap after beating 메시 (meta upgrades are kept).
+  // New career lap after beating the rival or after a bad ending (meta upgrades are kept).
   RS.newCareer = function (save) {
     const laps = save.career.laps + (save.career.finished ? 1 : 0);
     const hero = save.career.build.hero;

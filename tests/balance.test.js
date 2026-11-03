@@ -5,9 +5,13 @@ const RS = require('./load.js');
 const simCareer = require('./career-sim.js');
 
 const LAST = RS.YEARS.length - 1;
+// Round 8: the career guards (a bot plays a whole career without 훈련장 upgrades) run on 이지. The old single curve
+// sits between 이지 and 노멀; on 노멀 such a bot is meant to hit the mid-career wall (tests/round8.test.js checks
+// that 노멀 is cleared with the 훈련장). The single-season tests below stay on 노멀, the default.
+const onEasy = (fn) => { const prev = RS.DIFF; RS.setDiff('easy'); try { return fn(); } finally { RS.setDiff(prev); } };
 let career = null;
 function getCareer() {
-  if (!career) career = simCareer({ seed: 7, to: LAST - 1 });
+  if (!career) career = onEasy(() => simCareer({ seed: 7, to: LAST - 1 }));
   return career;
 }
 
@@ -16,7 +20,7 @@ function messiRun(save0, seed, bot) {
   const rng = RS.makeRng(seed);
   if (RS.needsCoach(save, LAST)) RS.applyCoach(save, LAST, RS.coachChoices(save, LAST, rng)[0], rng);
   RS.autoTransfers(save, LAST, rng);
-  const w = RS.startYear(save, LAST, { seed });
+  const w = RS.startYear(save, LAST, { seed }); // the final itself is played on 노멀, the default
   w.t = w.stageTime - 25; // skip most of the warm-up; the crowd still ramps in before 메시
   for (const ev of w.schedule) if (ev.t < w.t) ev.done = true; // skipped time does not fire all its waves at once
   while (w.t < 900) {
@@ -70,7 +74,8 @@ test('준보스 AI: approaches, telegraphs a charge, then charges', () => {
   assert.ok(slam, 'ground slam telegraph');
 });
 
-test('준보스 waves spawn in numbers and drop rewards when killed', () => {
+test('준보스 waves spawn in numbers and drop rewards when killed', () => onEasy(() => {
+  // the same difficulty as the career that made this build
   const w = new RS.World({ yearIdx: 20, seed: 2, build: getCareer().save.career.snapshots[20] });
   w.debug.godMode = true;
   let minis = 0, miniKill = false;
@@ -85,7 +90,7 @@ test('준보스 waves spawn in numbers and drop rewards when killed', () => {
   }
   assert.ok(minis >= 2 || miniKill, 'several 준보스 in 2022 (' + minis + ') or one already killed');
   assert.ok(miniKill, 'a 준보스 died and announced its reward');
-});
+}));
 
 test('the manual slide is invulnerable, has a cooldown and a shorter one for 메시', () => {
   const w = new RS.World({ yearIdx: 2, seed: 1 });

@@ -508,18 +508,47 @@
         return c;
       });
     },
+    // 64×64 world px of turf at twice the detail (128×128 canvas; the renderer draws it at 64×64): two mowing
+    // stripes with a soft sheen across each, short grass blades and a few tufts.
     grassTile(themeKey) {
-      return get('grass|' + themeKey, () => {
+      return get('grass2|' + themeKey, () => {
         const th = RS.ERAS[themeKey].theme;
-        const c = canvas(64, 64); const x = c.getContext('2d');
-        x.fillStyle = th.g1; x.fillRect(0, 0, 32, 64);
-        x.fillStyle = th.g2; x.fillRect(32, 0, 32, 64);
+        const c = canvas(128, 128); const x = c.getContext('2d');
+        x.fillStyle = th.g1; x.fillRect(0, 0, 64, 128);
+        x.fillStyle = th.g2; x.fillRect(64, 0, 64, 128);
+        for (const [x0, a] of [[0, 0.05], [64, 0.035]]) {
+          const g = x.createLinearGradient(x0, 0, x0 + 64, 0);
+          g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.5, 'rgba(255,255,255,' + a + ')'); g.addColorStop(1, 'rgba(255,255,255,0)');
+          x.fillStyle = g; x.fillRect(x0, 0, 64, 128);
+        }
         const rng = RS.makeRng(themeKey.length * 77 + 5);
-        for (let i = 0; i < 70; i++) {
-          x.fillStyle = rng() < 0.5 ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)';
-          x.fillRect(Math.floor(rng() * 64), Math.floor(rng() * 64), 1, rng() < 0.3 ? 2 : 1);
+        for (let i = 0; i < 560; i++) { // blades: 1-px strokes, lit ones and shaded ones
+          const bx = Math.floor(rng() * 128), by = Math.floor(rng() * 128);
+          x.fillStyle = rng() < 0.55 ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.09)';
+          x.fillRect(bx, by, 1, 1 + Math.floor(rng() * 3));
+        }
+        for (let i = 0; i < 24; i++) { // tufts: three blades over a dark root
+          const bx = 2 + Math.floor(rng() * 122), by = 3 + Math.floor(rng() * 121);
+          x.fillStyle = 'rgba(0,0,0,0.13)'; x.fillRect(bx - 1, by + 2, 4, 1);
+          x.fillStyle = 'rgba(255,255,255,0.11)'; x.fillRect(bx - 1, by, 1, 2); x.fillRect(bx + 2, by, 1, 2); x.fillRect(bx + 1, by - 1, 1, 3);
         }
         return c;
+      });
+    },
+    // 신의 손: an open hand seen from above (fingers up, thumb out to the left), built from simple shapes and
+    // painted in HD with the people's rim light and outline. { c: canvas, w, h } in world px.
+    hand() {
+      return get('hand', () => {
+        const W = 16, Hh = 19, g = [];
+        for (let j = 0; j < Hh; j++) g.push(new Array(W).fill('.'));
+        const rect = (x0, y0, x1, y1, ch) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (x >= 0 && y >= 0 && x < W && y < Hh) g[y][x] = ch; };
+        for (const [fx, top] of [[3, 2], [6, 0], [9, 1], [12, 4]]) { rect(fx, top, fx + 1, 9, 's'); g[top][fx] = 'y'; g[top][fx + 1] = 'y'; } // fingers, nails
+        rect(3, 8, 13, 15, 's'); // palm
+        rect(4, 16, 12, 18, 'S'); // cuff
+        for (const [tx, ty] of [[0, 7], [1, 8], [1, 9], [2, 9], [2, 10], [2, 11], [0, 8], [1, 10]]) g[ty][tx] = 's'; // thumb
+        rect(5, 12, 11, 12, 'b'); // a crease across the palm
+        const c = paint(g.map((r) => r.join('')), { s: '#f0c39a', y: '#f8e2cf', b: '#d79a72', S: '#2a63c8' }, { hd: true });
+        return { c, w: c.width / 2, h: c.height / 2 };
       });
     },
     // Canvas element (CSS-scaled) for DOM screens.
