@@ -1,5 +1,6 @@
-// Bundles tools/fx-entry.js (pixelfx runtime + the game's effects) into js/pixelfx.js as one classic script that
-// defines window.PFX. Run after changing tools/fx-entry.js or vendor/pixelfx: `npm run build:fx`.
+// Bundles tools/fx-entry.js (pixelfx runtime + the game's effects) into src/js/pixelfx.js as one classic script that
+// defines window.PFX. Run after changing tools/fx-entry.js or vendor/pixelfx: `npm run build:fx`. The footer is the
+// file's build stamp (bump it with RS.VERSION in src/js/core.js).
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -14,6 +15,7 @@ await build({
   target: ['es2020'],
   legalComments: 'none',
   banner: { js: '/* pixelfx (https://github.com/patch-gg/pixelfx, MIT) + 호날두 서바이버즈 effects. Built by tools/build-fx.mjs; see vendor/pixelfx/NOTICE.md. */' },
-  outfile: path.join(root, 'js', 'pixelfx.js')
+  footer: { js: "(globalThis.RS_FILES = globalThis.RS_FILES || {}).pixelfx = 'R12';" },
+  outfile: path.join(root, 'src', 'js', 'pixelfx.js')
 });
-console.log('js/pixelfx.js written');
+console.log('src/js/pixelfx.js written');

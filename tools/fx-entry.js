@@ -1,4 +1,4 @@
-// Entry for js/pixelfx.js (tools/build-fx.mjs): the pixelfx runtime (vendor/pixelfx, MIT), the library effects
+// Entry for src/js/pixelfx.js (tools/build-fx.mjs): the pixelfx runtime (vendor/pixelfx, MIT), the library effects
 // the game uses, and the game's own small effects written to the same contract (docs/FX_RESEARCH_KO.md).
 // Everything is drawn in HD canvas pixels (2 per world pixel), where a person is about 26 × 32 px — the scale the
 // library's effects were drawn for.

@@ -44,6 +44,7 @@ test('stage stays under the enemy cap and pools are reused', () => {
     w.update(1 / 60, RS.botInput(w));
     maxE = Math.max(maxE, w.enemies.length);
   }
-  assert.ok(maxE <= w.tune.maxAlive + 60, 'enemy count bounded: ' + maxE);
-  assert.ok(maxE > 100, 'hundreds of enemies on screen late in the career: ' + maxE);
+  assert.ok(maxE <= w.tune.maxAlive + RS.CROWD.room, 'enemy count bounded: ' + maxE);
+  // round 12: a late season still brings a crowd, though no longer hundreds of men (the user: far too many)
+  assert.ok(maxE > 40, 'a crowd late in the career: ' + maxE);
 });

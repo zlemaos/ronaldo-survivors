@@ -142,7 +142,7 @@ test("메시's moves work: 감아차기 bends onto its target, 칩슛 lands on t
   assert.ok(t.hp < t.maxHp, 'and bends back onto the target');
   const wp = mk('chip');
   wp.spawnEnemy('grunt', 40, 0);
-  const far = wp.spawnEnemy('tank', 150, 0);
+  const far = wp.spawnEnemy('tank', 110, 0); // on screen: the moves aim only at men in sight (round 12)
   for (let i = 0; i < 90; i++) wp.update(1 / 60, { x: 0, y: 0 });
   assert.ok(far.hp < far.maxHp, 'the lob lands on the tank, not the nearest grunt');
   const wb = mk('bobo');

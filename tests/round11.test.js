@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const RS = require('./load.js');
 const simCareer = require('./career-sim.js');
-require('../js/render.js');
+require('../src/js/render.js');
 
 test('enemy shots render as red streaks with a forward aiming line while waiting', () => {
   const strokes = [];
@@ -75,14 +75,19 @@ test('stacked armor cannot remove more than half a hit', () => {
 });
 
 test('a stationary debut hero is badly hurt before the season ends', () => {
-  const w = new RS.World({ yearIdx: 0, seed: 4 });
-  for (let i = 0; i < 3600 && w.phase !== 'dead'; i++) {
-    if (w.phase === 'levelup') w.choose(RS.botChoose(w.choices, w.build));
-    if (w.phase === 'chest') w.closeChest();
-    if (w.phase === 'swap') w.chooseSwap(w.swapChoices.length - 1);
-    w.update(1 / 60, { x: 0, y: 0 });
+  // round 12: judged over eight seeds — the thinner crowd of round 12 comes in packs, so one seed is a coin toss
+  let hurt = 0;
+  for (let seed = 1; seed <= 8; seed++) {
+    const w = new RS.World({ yearIdx: 0, seed });
+    for (let i = 0; i < 3600 && w.phase !== 'dead'; i++) {
+      if (w.phase === 'levelup') w.choose(RS.botChoose(w.choices, w.build));
+      if (w.phase === 'chest') w.closeChest();
+      if (w.phase === 'swap') w.chooseSwap(w.swapChoices.length - 1);
+      w.update(1 / 60, { x: 0, y: 0 });
+    }
+    if (w.dmgTaken >= w.stats.maxHp / 2 || w.phase === 'dead') hurt++;
   }
-  assert.ok(w.dmgTaken >= w.stats.maxHp / 2 || w.phase === 'dead');
+  assert.ok(hurt >= 5, 'badly hurt or dead in ' + hurt + ' of 8 seeds');
 });
 
 test('season bosses clear the crowd instead of hiding behind it', () => {

@@ -436,6 +436,51 @@ big in the 20s and the 첼씨 seasons.
 - The weak bot (`RS.WEAK_BOT`: 0.12 s reaction delay, ±0.3 rad steering noise, no meta) both loses and wins
   against 메시 over the same builds.
 
+### Round 12: the crowd trickles in and comes in packs, attacks you can see, a burning carpet, no stale builds
+- **Crowd** (`RS.CROWD`, `World.updateSpawns`): a thin trickle from every side (`trickle` × the season's spawn rate,
+  from `start` of it at kick-off to all of it) plus packs of `packN[0] + packN[1] × season` men (× `packGrow` over the
+  minute) every 13 → 8 s from one direction. Running away meets only the trickle (`World.awayAngle`): every man of a
+  pack stays more than 60° off a running hero's heading (the pack's centre keeps its half-width more), and a straggler
+  left far behind comes back behind or beside him, never ahead — R11 put half of the spawns and every recycled straggler
+  ahead of a runner. Alive cap `cap[0] + cap[1] × season` (≤ `cap[2]`); wave events may go `room` past it (was +40).
+  The 포위 ring is three quarters of a circle, with a gap to run through.
+- Each man is worth `value` (1.6) × the XP, the coin drop chance and the kill coins, so levels and coins keep their R11
+  pace with about a third of the men. Strong bot in god mode on 노멀, avg / peak alive and XP per stage before the boss:
+  2002 8.5/19 → 4.8/12 (XP 90 → 90), 2005 32.5/58 → 12.6/25 (88 → 94), 2014 36.3/76 → 21.0/45 (135 → 158),
+  2025 120/181 → 40.6/75 (338 → 301).
+- **Aim on screen** (`World.inSight`): every pick — the hero's moves and items (`nearestEnemies`), teammates, homing,
+  bouncing and item shots (`nearestFrom`), 드리볼 (`dribTarget`) and a homing, dribbled or rising 드롭볼 ball keeping its
+  target (a 드롭볼 whose man walks off screen lands where he was last seen) —
+  takes only men inside the view (+8 px); bosses, the 클라시코 rival and 토레쓰 always. A 390 × 844 phone shows
+  147 × 317 game pixels while the moves reached 240: 7 hits of 12 (kick) and 8 of 11 (SIUU) landed out of sight, so
+  the pitch looked empty. After: kick 11 of 14 on screen (SIUU's ring still rolls past the edge, where it is seen going).
+- Focused shots shorten the measured boss fights: `BOSS_FIGHT_SECONDS` 22 → 25 — on R11's own builds the 2005-10
+  bosses then last 21-34 s as on R11 (22-32 s; at 22 they were 2-3 s shorter); the guard careers' median is 24 s.
+  `FINAL_DMG` stays 0.065: the finals of the guard careers give the strong bot 10 wins of 12 (5 below half HP) and the
+  weak bot 4 of 18, the same at 0.07.
+- **Career guards** (tests): a career is a draw, and any change to the random sequence reshuffles it. 이지: the four
+  careers the finals use, one may stop (R12 code: 1 of 30 seeded careers stopped, R11: 2 of 30). 노멀 with half the
+  훈련장: 20 careers of 30 reach Madrid — of 130 seeded careers R11 stopped 25 and R12 21; R12 stops more in 2004-06
+  (9 of 100 against 1) and less at the 2007 wall (4 against 16).
+- **불꽃 질주 carpet**: a slide (any dash) lays a patch every 0.8 radius of its path; patches draw in passes (rims,
+  fires, flames) so the row reads as one burning strip.
+- **Attack visibility** (render): ball trails, orbit and dribble outlines, SIUU rings, swings and lob markers carry the
+  weapon's grade colour (`RS.GRADES[g].color`) and are thicker; enemy shots stay red lasers.
+- **Squad screen**: pick a player, then one on the other side to swap them (works with a full pitch and bench); a free
+  slot shows a move button. Transfer cards say who leaves and who comes (🔻 / 🔺).
+- **Builds**: `RS.VERSION` (core.js) = `<meta name="build">` = `?v=` on every file index.html loads = the stamp each
+  file carries (`RS_FILES.<name>` on a script's last line, `--build` in the stylesheet); a test keeps them equal. The
+  build is shown on the title screen. `App.boot` compares the stamps with the page's build: a page that loaded files of
+  two builds (a phone's cache across an update — `?v=` alone cannot stop it, the server answers any `?v=` with the files
+  it has now) does not start, fetches the page and every file past the cache and reloads, twice at most, then leaves
+  the update button. Back on the tab, `App.checkUpdate` reads the live index.html and offers the same reload when its
+  build differs. Why: a phone screenshot 1.5 h after round 11 went live still showed round 10's HUD.
+- **Files moved to `src/`** (`src/js`, `src/css`): round 11's main.js has no such check, and a phone's cache keeps or
+  drops each file on its own, so a cached round-11 page could run its own main.js with round-12 files fetched at the
+  same addresses. `js/` and `css/` therefore keep round 11's files byte for byte, for round-11 pages only: whatever its
+  cache dropped, a round-11 page fetches round-11 files. From round 12 on every main.js has the check, so later rounds
+  can keep src/. Keep `js/` and `css/` unchanged while cached R11 pages remain supported; never repurpose their URLs.
+
 ### Round-2 tuning (before → after)
 
 | Value | Before | After |
@@ -454,7 +499,8 @@ big in the 20s and the 첼씨 seasons.
 ### Meta progression (`RS.META`, bought on 훈련장)
 Coins: 근력 훈련 dmg, 심폐 지구력 HP, 스프린트 speed, 시야 magnet, 전술 이해 XP, 스폰서 계약 coins, 회복 훈련 cooldown.
 발롱도르: 불사조 정신 (one revive per year), 전술 보드 (+1 reroll, ×3).
-Coins per run: picked coins + kills/8 + clear bonus (40 + 8 × year index), × coin multiplier. Kept on death too.
+Coins per run: picked coins + kills × `RS.CROWD.value` / 8 + clear bonus (40 + 8 × year index), × coin multiplier.
+Kept on death too.
 
 ## Career, saves, replays (`js/career.js`)
 

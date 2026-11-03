@@ -13,10 +13,14 @@
   <link rel="icon" type="image/png" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <title>호날두 서바이버즈</title>
-  <link rel="stylesheet" href="css/style.css">
+  <!-- the build: bump it with RS.VERSION (src/js/core.js), every ?v= below, each script's RS_FILES stamp and --build in the css.
+       The game is in src/; js/ and css/ keep round 11's files for pages a phone cached before round 12: do not load or edit them. -->
+  <meta name="build" content="R12">
+  <link rel="stylesheet" href="src/css/style.css?v=R12">
 </head>
 <body>
   <canvas id="game" aria-label="게임 화면"></canvas>
+  <button id="btn-update" class="btn primary update-btn hidden">🔄 새 버전이 나왔어요 · 눌러서 새로고침</button>
 
   <!-- In-game HUD -->
   <div id="hud" class="hidden">
@@ -119,7 +123,7 @@
       </div>
       <div class="wallet" id="title-wallet"></div>
       <div class="sub pk-line" id="title-pk"></div>
-      <p class="fine">실제 구단·선수·감독과 무관한 비상업 팬 패러디입니다. 구단 로고 없음.</p>
+      <p class="fine">실제 구단·선수·감독과 무관한 비상업 팬 패러디입니다. 구단 로고 없음. · <span id="build-ver"></span></p>
     </div>
   </section>
 
@@ -320,19 +324,19 @@
   <div id="tap-hint" class="hidden">화면을 눌러 이동</div>
   <button id="auto-badge" class="auto-badge hidden" type="button"></button>
 
-  <script src="js/core.js"></script>
-  <script src="js/data.js"></script>
-  <script src="js/game.js"></script>
-  <script src="js/career.js"></script>
-  <script src="js/pk.js"></script>
-  <script src="js/pkscene.js"></script>
-  <script src="js/sprites.js"></script>
-  <script src="js/pixelfx.js"></script>
-  <script src="js/render.js"></script>
-  <script src="js/pkrender.js"></script>
-  <script src="js/audio.js"></script>
-  <script src="js/input.js"></script>
-  <script src="js/pkui.js"></script>
-  <script src="js/main.js"></script>
+  <script src="src/js/core.js?v=R12"></script>
+  <script src="src/js/data.js?v=R12"></script>
+  <script src="src/js/game.js?v=R12"></script>
+  <script src="src/js/career.js?v=R12"></script>
+  <script src="src/js/pk.js?v=R12"></script>
+  <script src="src/js/pkscene.js?v=R12"></script>
+  <script src="src/js/sprites.js?v=R12"></script>
+  <script src="src/js/pixelfx.js?v=R12"></script>
+  <script src="src/js/render.js?v=R12"></script>
+  <script src="src/js/pkrender.js?v=R12"></script>
+  <script src="src/js/audio.js?v=R12"></script>
+  <script src="src/js/input.js?v=R12"></script>
+  <script src="src/js/pkui.js?v=R12"></script>
+  <script src="src/js/main.js?v=R12"></script>
 </body>
 </html>

@@ -49,17 +49,25 @@ test('difficulty: 노멀 is the default; 이지 < 노멀 < 하드 in enemy tough
   assert.ok(ratio('hard', 14) > ratio('hard', 2));
 });
 
-test('노멀 training purchases carry a strong bot through Manchester into Madrid', () => {
+// Round 12: judged over thirty careers (seeds 7-36), not one seed. One career is a draw: of 130 seeded careers the
+// round-11 code stopped 25 before Madrid and the round-12 code 21 (mostly three deaths in a row at a boss), so any
+// change to the random sequence could flip seed 7 either way. Twenty of thirty fails a game whose careers stop as
+// often as round 11's (19%) 2% of the time, and one where half of them stop 95% of the time.
+test('노멀 training purchases carry a strong bot through Manchester into Madrid in two careers of three', () => {
   const simCareer = require('./career-sim.js');
-  const save = RS.newSave();
-  for (const k of Object.keys(RS.META)) save.meta.upgrades[k] = Math.floor(RS.META[k].max / 2);
-  const c = simCareer({ seed: 7, save, to: 8, train(s, rng) {
-    if (s.meta.coins >= 320) RS.buyBox(s, 'box2', rng);
-    RS.buyEnhance(s, rng);
-    for (const m of RS.allMates(s.career.build)) RS.buyMateTrain(s, m.id);
-    while (s.meta.coins >= 90) RS.buyBox(s, 'box1', rng);
-  } });
-  assert.equal(c.stoppedAt, null, JSON.stringify({ stoppedAt: c.stoppedAt, build: c.save.career.build, last: c.years.at(-1) }));
+  const stops = [];
+  for (let seed = 7; seed <= 36; seed++) {
+    const save = RS.newSave();
+    for (const k of Object.keys(RS.META)) save.meta.upgrades[k] = Math.floor(RS.META[k].max / 2);
+    const c = simCareer({ seed, save, to: 8, train(s, rng) {
+      if (s.meta.coins >= 320) RS.buyBox(s, 'box2', rng);
+      RS.buyEnhance(s, rng);
+      for (const m of RS.allMates(s.career.build)) RS.buyMateTrain(s, m.id);
+      while (s.meta.coins >= 90) RS.buyBox(s, 'box1', rng);
+    } });
+    if (c.stoppedAt != null) stops.push(seed + '@' + RS.YEARS[c.stoppedAt].year);
+  }
+  assert.ok(stops.length <= 10, 'stopped before Madrid: ' + stops.join(', '));
 });
 
 test('메시 gets his own items: never 폭발 슈팅 or 별똥별 (날두 only), and his 알까기 / 외계인 모드 work', () => withHero('messi', () => {
