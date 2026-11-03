@@ -273,16 +273,16 @@
           btn(row, '장착', false, () => { if (RS.equipFromArmory(b, a.id)) { RS.Audio.sfx('click'); this.toast('무기 교체: ' + RS.weaponName(b, b.weapon)); redo(); } });
         }
       }
-      head('🎁 무기 상자', '지금 무기보다 세면 바로 장착, 아니면 무기고로');
+      head('🎁 무기 상자', '희귀까지만 · 영웅·전설은 경기 중 운으로만');
       for (const d of RS.WEAPON_BOXES) {
         const odds = d.odds.map((p, g) => [p, g]).filter((x) => x[0] > 0).map(([p, g]) => RS.GRADES[g].name + ' ' + (p < 0.01 ? (p * 100).toFixed(1) : Math.round(p * 100)) + '%');
-        const row = item(d.icon, d.name, odds.join(' · '), { box1: 1, box2: 3, box3: 4 }[d.id]);
+        const row = item(d.icon, d.name, odds.join(' · ') + ' · 지금 무기보다 세면 바로 장착', d.g);
         btn(row, '💰 ' + d.cost, coins < d.cost, () => {
           const res = RS.buyBox(save, d.id, this.rng);
           if (!res) return;
-          RS.Audio.sfx(res.w.g >= 4 ? 'jackpot' : res.kept ? 'chest' : 'coin');
+          RS.Audio.sfx(res.w.g >= 2 ? 'jackpot' : res.kept ? 'chest' : 'coin');
           const c = this.boxCard(b, res);
-          this.toast((res.w.g >= 4 ? '🎉 ' : '') + c.tag + ' ' + c.name + (res.kept === 'hand' ? ' 장착!' : res.kept ? ' → 무기고' : ' 중복 · 코인 +' + res.refund));
+          this.toast((res.w.g >= 2 ? '🎉 ' : '') + c.tag + ' ' + c.name + (res.kept === 'hand' ? ' 장착!' : res.kept ? ' → 무기고' : ' 중복 · 코인 +' + res.refund));
           redo();
         });
       }
@@ -291,7 +291,7 @@
         head('🤝 동료 훈련', '강화할수록 피해와 팀 효과가 커진다');
         for (const m of mates) {
           const t = RS.TEAMMATES[m.id], mc = RS.mateTrainCost(m);
-          const row = item(RS.ROLES[t.role].icon, t.name + ' · ' + RS.mateBadge(m.id, m.lv), RS.mateLine(m.id), RS.mateGrade(m.id, m.lv));
+          const row = item(RS.ROLES[t.role].icon, t.name + ' · ' + RS.mateBadge(m.id, m.lv), RS.mateLine(m.id), RS.mateGrade(m.id));
           if (mc == null) btn(row, '최대', true);
           else btn(row, '📈 +' + (m.lv + 1) + ' 💰' + mc, coins < mc, () => { if (RS.buyMateTrain(save, m.id)) { RS.Audio.sfx('levelup'); redo(); } });
         }
@@ -416,7 +416,7 @@
       const r = $('pr-result');
       r.className = 'press-result ' + out.mood;
       $('pr-res-text').textContent = out.text;
-      const sk = { learned: ' · 새 무기 (레어 +1)!', up: ' · 그 무기 강화 +1', full: ' · 그 무기가 이미 +10이라 공격력 +5%로 대신' }[out.skill] || '';
+      const sk = { learned: ' · 새 무기 (희귀 +1)!', up: ' · 그 무기 강화 +1', full: ' · 그 무기가 이미 +10이라 공격력 +5%로 대신' }[out.skill] || '';
       $('pr-res-note').textContent = out.ending ? '⚖️ 커리어가 여기서 멈춘다…' : (out.win ? '🎉 ' : out.mood === 'bad' ? '💥 ' : '') + out.note + sk;
       if (out.mood === 'bad') { const h = $('pr-hero'); h.classList.remove('hit'); void h.offsetWidth; h.classList.add('hit'); }
       RS.Audio.sfx(out.ending ? 'gavel' : out.mood === 'bad' ? 'lose' : out.mood === 'sad' ? 'heart' : 'recruit');
@@ -494,16 +494,16 @@
       const b = this.save.career.build;
       $('tr-club').textContent = yd.year + ' · ' + RS.ERAS[yd.era].club + ' 이적 시장 (' + (k + 1) + '/' + offers.length + ')';
       $('tr-name').textContent = nm.name + ' · ' + RS.mateBadge(id, lv);
-      $('tr-name').className = 'g-text g-' + RS.mateGrade(id, lv);
+      $('tr-name').className = 'g-text g-' + RS.mateGrade(id);
       $('tr-role').textContent = RS.mateLine(id);
       const sp = $('tr-sprite'); sp.innerHTML = '';
       sp.appendChild(RS.Sprites.toCanvas(RS.Sprites.mate(id, idx), 0, 4));
-      const cards = [], g = RS.mateGrade(id, lv);
+      const cards = [], g = RS.mateGrade(id);
       if (b.teammates.length < RS.MAX_MATES) cards.push({ kind: 'recruit', icon: '🤝', name: '선발로 영입', desc: nm.name + ' 강화 +' + lv + ' 합류', tag: RS.mateBadge(id, lv), g, hint: RS.synergyHint(b, id), out: null, take: true });
       else if (b.bench.length < RS.MAX_BENCH) cards.push({ kind: 'recruit', icon: '🪑', name: '벤치로 영입', desc: nm.name + ' 강화 +' + lv + ' 합류', tag: RS.mateBadge(id, lv), g, hint: RS.synergyHint(b, id), out: null, take: true });
       // swaps: OVR and 강화 of both men, so the verdict says whether it pays off
       for (const m of RS.allMates(b)) cards.push({ kind: 'swap', icon: '🔄', name: RS.TEAMMATES[m.id].name + ' 방출', desc: RS.TEAMMATES[m.id].name + ' (' + RS.mateBadge(m.id, m.lv) + ') 대신 ' + nm.name + ' +' + lv + (b.bench.includes(m) ? ' · 벤치' : ' · 선발'),
-        tag: RS.mateBadge(m.id, m.lv), g: RS.mateGrade(m.id, m.lv), hint: RS.swapVerdict(m.id, id, m.lv, lv), out: m.id, take: true });
+        tag: RS.mateBadge(m.id, m.lv), g: RS.mateGrade(m.id), hint: RS.swapVerdict(m.id, id, m.lv, lv), out: m.id, take: true });
       cards.push({ kind: 'keep', icon: '✋', name: '영입하지 않기', desc: '지금 스쿼드 그대로 간다.', tag: '유지', take: false });
       const pick = (i) => {
         const c = cards[i];
@@ -596,9 +596,10 @@
       const w = b.weapon; // the one weapon in hand, in its grade colour; the rest wait in the 무기고
       h += '<span class="chip g-' + w.g + '"><b class="g-text g-' + w.g + '">' + RS.weaponIcon(w) + ' ' + esc(RS.weaponName(b, w)) + ' ' + esc(RS.gradeTag(w)) + '</b></span>';
       if (b.armory.length) h += '<span class="chip">🗄️ 무기고 ' + b.armory.length + '개</span>';
-      for (const id of b.passiveOrder) h += '<span class="chip">' + RS.PASSIVES[id].icon + ' ' + b.passives[id] + '</span>';
+      // a passive chip: its level, edged in the best grade among its cards
+      for (const id of b.passiveOrder) h += '<span class="chip g-' + Math.max(...b.passiveGrades[id]) + '">' + RS.PASSIVES[id].icon + ' Lv.' + b.passives[id] + '</span>';
       for (const id in b.drills || {}) h += '<span class="chip">' + RS.DRILLS[id].icon + ' ' + esc(RS.DRILLS[id].name) + ' ×' + b.drills[id] + '</span>';
-      for (const id of b.relicOrder || []) { const r = RS.RELICS[id]; h += '<span class="chip g-' + RS.TIER_GRADE[r.tier] + '">' + r.icon + ' ' + esc(r.name) + (r.stack ? ' ' + b.relics[id] + '/' + RS.STIM.max : '') + '</span>'; }
+      for (const id of b.relicOrder || []) { const r = RS.RELICS[id]; h += '<span class="chip g-' + r.g + '">' + r.icon + ' ' + esc(r.name) + (r.stack ? ' ' + b.relics[id] + '/' + RS.STIM.max : '') + '</span>'; }
       if (b.coachCards.length) h += '<span class="chip">👔 감독 카드 ' + b.coachCards.length + '</span>';
       // 발롱도르 won in this career: trophy balls come only from these (RS.ballonCount)
       h += '<span class="chip">🏆 발롱도르 ' + RS.ballonCount(b) + '회 수상</span>';
@@ -613,7 +614,7 @@
     squadLines(b) {
       const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
       if (!RS.allMates(b).length) return '<div class="squad"><div class="sq empty">동료 없음 — 필드의 ! 표시로 영입</div></div>';
-      const row = (m, onPitch) => '<div class="sq' + (onPitch ? '' : ' bench') + '"><b>' + esc(RS.TEAMMATES[m.id].name) + '</b> <span class="ovr g-text g-' + RS.mateGrade(m.id, m.lv) + '">' + esc(RS.mateBadge(m.id)) + '</span> <span class="lv">강화 +' + m.lv + '</span>' +
+      const row = (m, onPitch) => '<div class="sq' + (onPitch ? '' : ' bench') + '"><b>' + esc(RS.TEAMMATES[m.id].name) + '</b> <span class="ovr g-text g-' + RS.mateGrade(m.id) + '">' + esc(RS.mateBadge(m.id)) + '</span> <span class="lv">강화 +' + m.lv + '</span>' +
         '<button class="sqbtn" data-sq="' + m.id + '">교체 선택</button>' +
         '<div class="rl">' + esc(RS.mateLine(m.id)) + (onPitch ? '' : ' (벤치: 1/3)') + '</div></div>';
       let h = '<div class="squad"><div class="sqhelp" role="status">교체할 선수 선택 → 반대쪽 선수 선택<br>선발: 필드 출전 · 효과 100% / 벤치: 팀 효과 1/3</div><div class="sqh">선발 ' + b.teammates.length + '/' + RS.MAX_MATES + '</div>';
@@ -715,12 +716,12 @@
       const w = this.world;
       this.input.release();
       $('levelup').classList.remove('hidden');
-      // a graded, 약물 or gamble card in the hand is announced in the title
+      // an item, 약물 or gamble card in the hand is announced in the title, in its grade colour
       const sp = w.choices.find(SPECIAL);
-      const tier = sp ? sp.tier || 'gamble' : '';
+      const t = !sp ? '' : sp.kind === 'gamble' ? 'gamble' : 'g' + sp.g;
       $('lv-title').textContent = sp && sp.kind === 'stim' ? '💉 약물 꽂기 등장! 받을까, 말까?' :
-        { super: '🌈 슈퍼히든 카드 등장!!', ultra: '🔥 초히든 카드 등장!', hidden: '🔮 히든 카드 등장!', rare: '💎 레어 카드 등장', gamble: '🎰 도박 카드 등장' }[tier] || '레벨 업!';
-      $('lv-title').className = 'glow' + (tier ? ' t-' + tier : '');
+        { g4: '🌟 전설 아이템 등장!!', g3: '🔮 영웅 아이템 등장!', g2: '💎 희귀 아이템 등장', gamble: '🎰 도박 카드 등장' }[t] || '레벨 업!';
+      $('lv-title').className = 'glow' + (t ? ' t-' + t : '');
       this.renderWeaponLine($('lv-weapon'), w.build);
       $('reroll-n').textContent = w.rerolls;
       $('btn-reroll').classList.toggle('hidden', w.rerolls <= 0);
@@ -728,8 +729,6 @@
       dice.classList.toggle('hidden', !w.build.relics.dice);
       dice.disabled = w.diceUsed;
       dice.textContent = w.diceUsed ? '🎲 주사위 사용함' : '🎲 행운의 주사위 (무료 1회)';
-      this.renderDraw();
-      this.renderShop();
       this.renderCards($('lv-cards'), w.choices, (i) => this.pickLevel(i));
       this.lvShown = true;
       this.lvAutoT = 0;
@@ -754,50 +753,12 @@
       el.lastChild.textContent = '· 무기 공격력 ' + RS.weaponPower(w) + (b.armory.length ? ' · 무기고 ' + b.armory.length + '개' : '');
     },
 
-    // What the grade draw and the 무기 상자 of this level-up gave, shown above the hand.
-    renderDraw() {
-      const w = this.world, el = $('lv-draw'), cards = [];
-      if (w.lastDraw) cards.push(Object.assign({}, w.lastDraw, { tag: RS.TIERS[w.lastDraw.tier].name + ' 획득!', hint: '뽑기 결과 · 바로 적용됨' }));
-      if (w.lastBox) cards.push(this.boxCard(w.build, w.lastBox));
-      if (!cards.length) { el.classList.add('hidden'); el.innerHTML = ''; return; }
-      el.classList.remove('hidden');
-      this.renderCards(el, cards, () => {});
-      for (const c of el.children) c.classList.add('reveal');
-    },
     // A 무기 상자 result as a card: into the hand, into the 무기고, or a copy no better than one owned (coins back).
     boxCard(b, res) {
       const w = res.w;
       return { kind: 'weapon', g: w.g, icon: RS.weaponIcon(w), name: RS.weaponName(b, w), tag: RS.gradeTag(w),
         desc: res.kept === 'hand' ? '🎉 지금 무기보다 세다 — 바로 장착!' : res.kept === 'armory' ? '무기고에 보관 (훈련장에서 바꿔 들 수 있다)' : '이미 더 좋은 같은 무기가 있다 — 코인 ' + res.refund + ' 돌려받음',
         hint: '무기 공격력 ' + RS.weaponPower(w) };
-    },
-
-    // Coin shop on every level-up screen: paid rerolls, and one grade draw per level-up.
-    renderShop() {
-      const w = this.world, row = $('lv-shop-row');
-      $('lv-shop').classList.remove('hidden');
-      $('lv-purse').textContent = '💰 ' + w.purse().toLocaleString() + ' 코인';
-      row.innerHTML = '';
-      const left = RS.relicsLeft(w.build);
-      const add = (label, cost, cls, off, onClick) => {
-        const b = document.createElement('button');
-        b.className = 'btn small coin ' + cls;
-        b.innerHTML = '<span class="cl"></span><span class="cc"></span>';
-        b.querySelector('.cl').textContent = label;
-        b.querySelector('.cc').textContent = '💰' + cost;
-        b.disabled = off || w.purse() < cost;
-        b.onclick = (ev) => { ev.stopPropagation(); onClick(); };
-        row.appendChild(b);
-      };
-      add('🔁 다시 뽑기', RS.COIN_REROLL, 'c-reroll', false, () => { if (w.coinReroll()) { RS.Audio.sfx('coin'); this.refreshLevelUp(); } });
-      for (const d of RS.COIN_DRAWS) {
-        add(d.icon + ' ' + (left ? d.name : '모두 보유'), RS.drawCost(d, w.build), 'c-' + d.id, w.drawUsed || !left, () => { if (w.coinDraw(d.id)) this.refreshLevelUp(); });
-      }
-      const box = RS.WEAPON_BOXES[0]; // one small 무기 상자 per level-up (the 훈련장 sells all three)
-      add(box.icon + ' ' + (w.boxUsed ? '무기 상자 열었음' : box.name + ' (무기 1개 · 등급 랜덤)'), box.cost, 'c-box', w.boxUsed, () => {
-        const res = w.coinBox();
-        if (res) { RS.Audio.sfx(res.w.g >= 4 ? 'jackpot' : res.kept ? 'chest' : 'coin'); this.refreshLevelUp(); }
-      });
     },
 
     // In-run transfer offer (rescue marker with a full squad).
@@ -809,8 +770,6 @@
       $('lv-title').className = 'glow';
       $('btn-reroll').classList.add('hidden');
       $('btn-dice').classList.add('hidden');
-      $('lv-shop').classList.add('hidden');
-      $('lv-draw').classList.add('hidden');
       this.renderCards($('lv-cards'), w.swapChoices, (i) => {
         w.chooseSwap(i);
         $('levelup').classList.add('hidden');
@@ -948,7 +907,7 @@
         this.pickRewards(steps, idx, done);
       };
       this.renderCards($('res-reward-cards'), cards, pick);
-      // 완전 오토: 토레쓰's weapon (a 황금 or 무지개 one), the boss reward by RS.autoRewardPick
+      // 완전 오토: 토레쓰's weapon (a 영웅 or 전설 one), the boss reward by RS.autoRewardPick
       this.armAuto(() => pick(torres ? Math.max(0, cards.findIndex((c) => c.id === 'weapon')) : RS.autoRewardPick(cards)), 2200, 'AI가 보상을 고른다', 'full');
     },
 
@@ -1090,8 +1049,8 @@
           case 'slide': this.renderer.shake = Math.max(this.renderer.shake, 0.05); break;
           case 'chest': RS.Audio.sfx('chest'); break;
           case 'evolve': RS.Audio.sfx('evolve'); this.renderer.shake = 0.2; break;
-          case 'special': // a graded / gamble card was dealt
-            if (e.tier === 'super' || e.tier === 'ultra') { RS.Audio.sfx('jackpot'); this.renderer.shake = Math.max(this.renderer.shake, 0.15); } else RS.Audio.sfx('sparkle');
+          case 'special': // an item / 약물 / gamble card was dealt (a gamble card has no grade)
+            if (e.g >= 4) { RS.Audio.sfx('jackpot'); this.renderer.shake = Math.max(this.renderer.shake, 0.15); } else RS.Audio.sfx('sparkle');
             break;
           case 'stim':
             this.banner('💉 약물 꽂기 ' + e.n + '/' + RS.STIM.max + (e.n >= RS.STIM.max ? ' — 풀강!!' : ' — 몸이 끓어오른다!'));
@@ -1100,9 +1059,9 @@
             break;
           case 'relic': {
             const r = RS.RELICS[e.id];
-            this.banner(RS.TIERS[e.tier].name + ' 획득! ' + r.icon + ' ' + r.name);
-            RS.Audio.sfx(e.tier === 'rare' ? 'chest' : e.tier === 'hidden' ? 'evolve' : 'jackpot');
-            if (e.tier === 'ultra' || e.tier === 'super') this.renderer.shake = 0.4;
+            this.banner(RS.GRADES[e.g].name + ' 아이템 획득! ' + r.icon + ' ' + r.name);
+            RS.Audio.sfx(e.g >= 4 ? 'jackpot' : e.g === 3 ? 'evolve' : 'chest');
+            if (e.g >= 4) this.renderer.shake = 0.4;
             break;
           }
           case 'gamble': {
@@ -1300,4 +1259,4 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => App.boot());
   else App.boot();
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).main = 'R12';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).main = 'R13';

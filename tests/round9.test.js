@@ -32,17 +32,17 @@ test('하드 bites from the first pro season and its crowd shrugs off knockback;
   assert.ok(n4.hpMul / withDiff('easy', () => RS.yearTuning(4)).hpMul > n1.hpMul / withDiff('easy', () => RS.yearTuning(1)).hpMul);
 });
 
-test('graded cards are rare: about one 히든-or-better in 80 level-ups on 노멀, half that on 하드, and draws cost real coins', () => {
+test('graded items are rare: about one 영웅 in 200 debut level-ups on 노멀 and no 전설, half that on 하드', () => {
   const b = RS.newBuild('ronaldo');
   const count = (diff) => withDiff(diff, () => {
-    const rng = RS.makeRng(11); let n = 0;
-    for (let i = 0; i < 40000; i++) { const c = RS.rollSpecial(b, rng, 0, 0); if (c && c.kind === 'relic' && c.tier !== 'rare') n++; }
-    return n / 40000;
+    const rng = RS.makeRng(11); let n = 0, top = 0;
+    for (let i = 0; i < 40000; i++) { const c = RS.rollSpecial(b, rng, 0, 0, 0); if (c && c.kind === 'relic' && c.g >= 3) n++; if (c && c.g >= 4) top++; }
+    return { rate: n / 40000, top };
   });
   const normal = count('normal'), hard = count('hard');
-  assert.ok(normal > 0.006 && normal < 0.016, '노멀 rate ' + normal);
-  assert.ok(hard < normal * 0.7, '하드 rate ' + hard + ' vs ' + normal);
-  assert.ok(RS.COIN_DRAWS.find((d) => d.id === 'hidden').cost >= 150 && RS.COIN_DRAWS.find((d) => d.id === 'hidden').odds.hidden >= 0.85);
+  assert.ok(normal.rate > 0.003 && normal.rate < 0.008, '노멀 rate ' + normal.rate);
+  assert.ok(hard.rate < normal.rate * 0.7, '하드 rate ' + hard.rate + ' vs ' + normal.rate);
+  assert.equal(normal.top + hard.top, 0, 'no 전설 item in the debut');
 });
 
 test('엘 클라시코 seasons: 날두 2009–2017 and 메시 2010–2018, numbered from the first; 메시 2009 is the Rome final against 호날두', () => {

@@ -20,10 +20,11 @@ function runWorld(w, secs) {
   }
   return w;
 }
-const messiWorld = (setup, yearIdx) => {
+// g: the weapon's grade (default 희귀)
+const messiWorld = (setup, yearIdx, g) => {
   const b = RS.newBuild('messi'); b.hgh = true;
   setup(b);
-  const id = b.skillOrder[0]; b.weapon = { id, g: 2, p: 1 }; RS.syncWeapon(b);
+  const id = b.skillOrder[0]; b.weapon = { id, g: g == null ? 2 : g, p: 1 }; RS.syncWeapon(b);
   const w = new RS.World({ yearIdx: yearIdx || 10, seed: 7, build: b });
   w.debug.godMode = true;
   return w;
@@ -72,15 +73,16 @@ test('노멀 training purchases carry a strong bot through Manchester into Madri
 
 test('메시 gets his own items: never 폭발 슈팅 or 별똥별 (날두 only), and his 알까기 / 외계인 모드 work', () => withHero('messi', () => {
   const mb = RS.newBuild('messi'), rb = RS.newBuild('ronaldo');
-  for (const tier of RS.TIER_ORDER) {
-    const pool = RS.relicPool(mb, tier);
+  for (const g of [2, 3, 4]) {
+    const pool = RS.relicPool(mb, g);
     for (const id of ['bomb', 'meteor', 'honaldo', 'lunchbox']) assert.ok(!pool.includes(id), id + ' is 날두 only');
-    for (const id of ['nutmeg', 'alien', 'messia', 'mate']) assert.ok(!RS.relicPool(rb, tier).includes(id), id + ' is 메시 only');
+    for (const id of ['nutmeg', 'alien', 'messia', 'mate']) assert.ok(!RS.relicPool(rb, g).includes(id), id + ' is 메시 only');
   }
   // a crowd of weak men around 메시, so the 회전 공 keeps knocking them down
   const crowd = (w) => { for (let i = 0; i < 30; i++) { const a = i * 0.7, e = w.spawnEnemy('grunt', w.player.x + Math.cos(a) * (36 + i), w.player.y + Math.sin(a) * (36 + i)); e.maxHp = e.hp = 25; } return w; };
-  const base = runWorld(crowd(messiWorld((b) => { b.skills = { orbit: 3 }; b.skillOrder = ['orbit']; })), 4).dmgDealt;
-  const nut = runWorld(crowd(messiWorld((b) => { b.skills = { orbit: 3 }; b.skillOrder = ['orbit']; b.relics = { nutmeg: 1 }; b.relicOrder = ['nutmeg']; })), 4).dmgDealt;
+  // a 고급 회전 공 (Lv.2): a 희귀 one (Lv.4 since round 13) fells the whole crowd alone, leaving the chain nothing
+  const base = runWorld(crowd(messiWorld((b) => { b.skills = { orbit: 2 }; b.skillOrder = ['orbit']; }, null, 1)), 4).dmgDealt;
+  const nut = runWorld(crowd(messiWorld((b) => { b.skills = { orbit: 2 }; b.skillOrder = ['orbit']; b.relics = { nutmeg: 1 }; b.relicOrder = ['nutmeg']; }, null, 1)), 4).dmgDealt;
   assert.ok(nut > base * 1.1, '알까기 연쇄 adds damage: ' + Math.round(base) + ' → ' + Math.round(nut));
   const w = messiWorld((b) => { b.skills = { orbit: 1 }; b.skillOrder = ['orbit']; b.relics = { alien: 1 }; b.relicOrder = ['alien']; });
   for (let i = 0; i < 8; i++) w.spawnEnemy('grunt', w.player.x + 30 + i * 6, w.player.y + (i % 2 ? 10 : -10));
@@ -93,7 +95,7 @@ test('약물 꽂기: only after the treatment, a stimpack of up to five doses, e
   const refused = RS.newBuild('messi'); refused.hgh = false;
   const undecided = RS.newBuild('messi');
   assert.ok(!RS.stimReady(refused) && !RS.stimReady(undecided), 'no 약물 without the treatment');
-  assert.ok(RS.TIER_ORDER.every((t) => !RS.relicPool(refused, t).includes('doping')));
+  assert.ok([2, 3, 4].every((g) => !RS.relicPool(refused, g).includes('doping')));
   const b = RS.newBuild('messi'); b.hgh = true;
   assert.ok(RS.stimReady(b));
   const dmg = [RS.computeStats(b, {}).dmg];
@@ -217,7 +219,7 @@ test('auto pickers prefer special items, doses and better weapons, rejecting dow
     { kind: 'enhance', id: 'orbit' },
     { kind: 'weapon', id: 'tiki', wpn: { id: 'tiki', g: 2, p: 1 } },
     { kind: 'stim', id: 'doping' },
-    { kind: 'relic', id: 'goat', tier: 'super' }
+    { kind: 'relic', id: 'goat' }
   ];
   assert.equal(RS.botChoose(hand, b), 3);
   assert.equal(RS.botChoose(hand.slice(0, 3), b), 2);

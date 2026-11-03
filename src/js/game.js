@@ -15,7 +15,7 @@
       weapon: { id: start, g: 0, p: 1 }, armory: [],
       // runtime mirror of the weapon (RS.syncWeapon): World and Renderer read these as one move at a level
       skills: {}, skillOrder: [], evolved: {}, stars: {},
-      passives: {}, passiveOrder: [],
+      passives: {}, passiveOrder: [], passiveGrades: {}, // passiveGrades[id]: the grade of each level's card (round 13)
       teammates: [], // on the pitch [{id, lv}], at most MAX_MATES (lv = the teammate's 강화 +1 … +10)
       bench: [], // bench warmers [{id, lv}], at most MAX_BENCH (weak passive synergy)
       coachCards: [], // card ids, stack for the career
@@ -55,9 +55,9 @@
   RS.weaponMul = (w) => (w ? RS.gradeOf(w.g).mul * (1 + RS.PLUS_STEP * (RS.plusOf(w.p) - 1)) : 1);
   RS.weaponPower = (w) => Math.round(100 * RS.weaponMul(w)); // 무기 공격력 on the cards (일반 +1 = 100)
   RS.weaponBetter = (a, b) => !b || RS.weaponMul(a) > RS.weaponMul(b) + 1e-9;
-  // Moves a hero can wield at grade g: his own, no story gifts (RS.EVENTS teach those), 합체 moves from 황금 up.
+  // Moves a hero can wield at grade g: his own, no story gifts (RS.EVENTS teach those), 합체 moves from 영웅 up.
   RS.weaponIds = (hero, g) => Object.keys(RS.SKILLS).filter((id) => RS.skillFor(id, hero) && !RS.SKILLS[id].gift && (!RS.SKILLS[id].fusion || g >= RS.FUSED_FROM));
-  // The mirror the World and the Renderer read: one move at the grade's table row (RS.GRADES lv); 무지개 is its
+  // The mirror the World and the Renderer read: one move at the grade's table row (RS.GRADES lv); 전설 is its
   // evolved form (the 회전 공 only once a 발롱도르 is won), with the variant w.v for moves that have several.
   RS.syncWeapon = function (b) {
     const w = b.weapon, s = RS.SKILLS[w.id], G = RS.gradeOf(w.g);
@@ -106,26 +106,37 @@
     for (let i = 0; i < weights.length; i++) { if (r < weights[i]) return i + 1; r -= weights[i]; }
     return 1;
   };
-  // luck (행운 부적, items): × (1 + luck) on the odds of 레어 and up, taken from 일반
+  // luck (행운 부적, items): × (1 + luck) on the odds of 희귀 and up, taken from 일반, then 고급; when those run out,
+  // the odds are scaled back to a sum of 1. A grade the season has not opened (odds 0) stays closed. (Taking the
+  // excess from 일반 alone left the odds over 1 once a late season had no 일반, and RS.rollGrade never reached the
+  // top: from season 10 a 20 % 행운 부적 dealt no 전설 at all.)
   RS.luckOdds = function (odds, luck) {
     if (!luck) return odds;
     const o = odds.map((p, g) => (g >= 2 ? p * (1 + luck) : p));
-    o[0] = Math.max(0, o[0] - (o.reduce((a, x) => a + x, 0) - 1));
+    let over = o.reduce((a, x) => a + x, 0) - 1;
+    for (let g = 0; g < 2 && over > 0; g++) { const t = Math.min(o[g], over); o[g] -= t; over -= t; }
+    if (over > 0) for (let g = 0; g < o.length; g++) o[g] /= 1 + over;
     return o;
   };
-  // A random weapon: a grade from `odds` (RS.GRADE_ODDS or a 무기 상자), a move of this hero for that grade, a 강화.
+  // A random weapon: a grade from `odds` (a season's RS.GRADE_STAGES row, a 무기 상자, 토레쓰's reward), a move of
+  // this hero for that grade, a 강화.
   RS.rollWeapon = function (b, rng, odds) {
-    const g = RS.rollGrade(rng, odds || RS.GRADE_ODDS), ids = RS.weaponIds(b.hero, g);
+    const g = RS.rollGrade(rng, odds), ids = RS.weaponIds(b.hero, g);
     const id = ids[Math.floor(rng() * ids.length)], evos = RS.SKILLS[id].evos;
     const w = { id, g, p: RS.rollPlus(rng, RS.WEAPON_PLUS_W) };
     if (evos) { const ks = Object.keys(evos); w.v = ks[Math.floor(rng() * ks.length)]; }
     return w;
   };
-  // Grade odds of the level-up weapon card at pro season idx (RS.GRADE_STAGES).
+  // Grade odds of the level-up weapon and passive cards at pro season idx (RS.GRADE_STAGES); the difficulty's `top`
+  // (하드) moves part of the 영웅 and 전설 share down to 희귀.
   RS.gradeOddsAt = function (idx) {
     let o = RS.GRADE_STAGES[0].odds;
     for (const s of RS.GRADE_STAGES) if ((idx || 0) >= s.from) o = s.odds;
-    return o;
+    const top = (RS.DIFFS[RS.DIFF] || RS.DIFFS.normal).top;
+    if (top == null || top === 1) return o;
+    const r = o.slice();
+    for (const g of [3, 4]) { r[2] += r[g] * (1 - top); r[g] *= top; }
+    return r;
   };
   // The weapon card of a level-up: a few rolls for one worth taking (a move not owned, or a better copy).
   RS.offerWeapon = function (b, rng, luck, idx) {
@@ -145,7 +156,7 @@
   RS.weaponIcon = (w) => { const s = RS.SKILLS[w.id], v = s.evos && s.evos[w.v]; return RS.gradeOf(w.g).evo ? (v ? v.icon : s.evoIcon) : s.icon; };
   RS.weaponDesc = (b, w) => (RS.gradeOf(w.g).evo ? RS.evoDescFor(b, w.id, w.v) : RS.SKILLS[w.id].desc);
   // Old saves held up to six moves: each becomes a weapon of the grade its level earned (Lv.1 일반, Lv.2–3 고급,
-  // Lv.4–5 레어, Lv.6 에픽, evolved 황금 with +2 per 각성 star; a 합체 move at least 황금).
+  // Lv.4–5 희귀, Lv.6 영웅, evolved 전설 with +2 per 각성 star; a 합체 move at least 영웅).
   RS.weaponFromSkill = function (b, id) {
     const lv = b.skills[id] || 1, ev = b.evolved && b.evolved[id], st = (b.stars && b.stars[id]) || 0;
     let g = ev ? 4 : lv >= 6 ? 3 : lv >= 4 ? 2 : lv >= 2 ? 1 : 0;
@@ -203,6 +214,15 @@
     b.bench.length = Math.min(b.bench.length, RS.MAX_BENCH);
     if (!RS.HEROES || !RS.HEROES[b.hero]) b.hero = 'ronaldo';
     if (b.hero === 'messi') RS.toMessiMoves(b);
+    // round 13: every passive level keeps its card's grade; a level saved before has none and counts as
+    // RS.PASSIVE_OLD_G (희귀, the old card's full value)
+    const pg = b.passiveGrades && typeof b.passiveGrades === 'object' ? b.passiveGrades : {};
+    b.passiveGrades = {};
+    for (const id of b.passiveOrder) {
+      const gs = (Array.isArray(pg[id]) ? pg[id] : []).slice(0, b.passives[id]).map(RS.clampGrade);
+      while (gs.length < b.passives[id]) gs.push(RS.PASSIVE_OLD_G);
+      b.passiveGrades[id] = gs;
+    }
     for (const k of ['stars', 'drills', 'flags']) if (!b[k] || typeof b[k] !== 'object') b[k] = {};
     // round 11: the weapon in hand and the 무기고 (old saves: from their moves, RS.weaponFromSkill), one copy per move
     const mine = (w) => w && typeof w === 'object' && RS.SKILLS[w.id] && RS.skillFor(w.id, b.hero);
@@ -213,6 +233,8 @@
       b.weapon = old.shift() || { id: RS.HEROES[b.hero].startSkill, g: 0, p: 1 };
       arm = arm.concat(old);
     }
+    // grades saved before round 13 keep their index (일반 · 고급 · 레어→희귀 · 에픽→영웅 · 황금→전설); 무지개 (5)
+    // clamps to 전설, the top of the five-step ladder
     b.weapon = Object.assign({}, b.weapon, { g: RS.clampGrade(b.weapon.g), p: RS.plusOf(b.weapon.p) });
     b.armory = [];
     for (const w of arm) RS.gainWeapon(b, Object.assign({}, w), false);
@@ -246,14 +268,14 @@
       b.skills = skills; b.skillOrder = order; b.evolved = evolved;
     }
     if (b.passiveOrder.some((id) => !RS.passiveFor(id, 'messi'))) {
-      const passives = {}, order = [];
+      const passives = {}, order = [], grades = {}, G = b.passiveGrades || {};
       for (const id of b.passiveOrder) {
         const to = RS.passiveFor(id, 'messi') ? id : C.passives[id];
         if (!to || !RS.PASSIVES[to]) continue;
-        if (passives[to]) passives[to] = Math.max(passives[to], b.passives[id]);
-        else { passives[to] = b.passives[id]; order.push(to); }
+        if (!passives[to]) order.push(to);
+        if (!passives[to] || b.passives[id] > passives[to]) { passives[to] = b.passives[id]; grades[to] = G[id] || []; }
       }
-      b.passives = passives; b.passiveOrder = order;
+      b.passives = passives; b.passiveOrder = order; b.passiveGrades = grades;
     }
     for (const id of b.relicOrder.slice()) {
       if (RS.relicFor(id, 'messi')) continue;
@@ -272,8 +294,8 @@
   RS.samePerson = (a, b) => (RS.TEAMMATES[a].same || a) === (RS.TEAMMATES[b].same || b);
   // Teammates sign already trained: 강화 +1 … +10 (RS.MATE_PLUS_W: +1 common, +10 rare).
   RS.rollMatePlus = (rng) => RS.rollPlus(rng, RS.MATE_PLUS_W);
-  // A teammate's card colour on the RS.GRADES scale: his OVR tier, one grade more from +8.
-  RS.mateGrade = (id, lv) => RS.clampGrade(RS.MATE_GRADE[RS.mateTier(id).key] + ((lv || 1) >= 8 ? 1 : 0));
+  // A teammate's card colour on the RS.GRADES scale: his OVR tier (강화 never changes a grade).
+  RS.mateGrade = (id) => RS.MATE_GRADE[RS.mateTier(id).key];
   // His strength in one number (OVR power × 강화), used to compare a transfer.
   RS.mateValue = (id, lv) => RS.mateMul(id) * (1 + RS.ROLE_PLUS * ((lv || 1) - 1));
   // Transfer verdict: OVR and 강화 of the newcomer against the man he replaces, and the position change.
@@ -300,9 +322,9 @@
   // One number the player can watch grow: the weapon (grade and 강화), passives, teammates and level.
   RS.powerScore = function (b, youth) {
     let s = b.level * 2 + RS.weaponMul(b.weapon) * 40;
-    for (const id of b.passiveOrder) s += b.passives[id] * 8;
+    for (const id of b.passiveOrder) s += RS.passivePow(b, id) * 8;
     for (const m of b.teammates) s += (6 + m.lv * 5) * RS.mateMul(m.id, youth);
-    for (const id of b.relicOrder || []) s += RS.TIER_POWER[RS.RELICS[id].tier] * (RS.RELICS[id].stack ? RS.stackMul(b.relics[id]) : 1);
+    for (const id of b.relicOrder || []) s += RS.GRADES[RS.RELICS[id].g].power * (RS.RELICS[id].stack ? RS.stackMul(b.relics[id]) : 1);
     for (const id in b.drills || {}) s += b.drills[id] * 2;
     return Math.round(s);
   };
@@ -347,7 +369,7 @@
     const a = { dmg: 0, cd: 0, area: 0, projSpeed: 0, moveSpeed: 0, hp: 0, magnet: 0, crit: 0, dur: 0, regen: 0,
       armor: 0, xp: 0, gold: 0, teamDmg: 0, teamCd: 0, bossDmg: 0, revive: 0, reroll: 0, luck: 0 };
     const add = (mods, times) => { for (const k in mods) if (k in a) a[k] += mods[k] * times; };
-    for (const id in build.passives) if (RS.PASSIVES[id]) add(RS.PASSIVES[id].mods, build.passives[id]);
+    for (const id in build.passives) if (RS.PASSIVES[id]) add(RS.PASSIVES[id].mods, RS.passivePow(build, id));
     for (const id in build.relics || {}) if (RS.RELICS[id] && RS.RELICS[id].mods) add(RS.RELICS[id].mods, RS.RELICS[id].stack ? RS.stackMul(build.relics[id]) : 1);
     for (const cid of build.coachCards) { const c = RS.coachCard(cid); if (c) add(c.mods, 1); }
     for (const id in build.drills || {}) if (RS.DRILLS[id]) add(RS.DRILLS[id].mods, build.drills[id]);
@@ -494,7 +516,26 @@
 
   // ================================================================ Level-up choices
   // Passives are plain stat boosts (round 11: no evolution pairs any more): MAX_PASSIVES slots, Lv.PASSIVE_MAX each.
+  // Round 13: every card (a new passive or a level) has a grade and adds the passive's mods × RS.GRADES[g].pmul.
   RS.canTakePassive = (build, pid) => !build.passives[pid] && !!RS.PASSIVES[pid] && build.passiveOrder.length < RS.MAX_PASSIVES;
+  // The sum of pmul over a passive's levels (a level without a grade counts as RS.PASSIVE_OLD_G).
+  RS.passivePow = function (b, id) {
+    const gs = (b.passiveGrades && b.passiveGrades[id]) || [];
+    let s = 0;
+    for (let i = 0; i < (b.passives[id] || 0); i++) s += RS.gradeOf(gs[i] != null ? gs[i] : RS.PASSIVE_OLD_G).pmul;
+    return s;
+  };
+  RS.cardGrade = (c) => RS.clampGrade(c.g != null ? c.g : RS.PASSIVE_OLD_G); // a passive card dealt without a grade
+  RS.scaleMods = (mods, k) => { const o = {}; for (const key in mods) o[key] = mods[key] * k; return o; };
+  // "공격력 +6% · 이동속도 +4.8%": a mods table as card text (RS.MOD_TEXT).
+  RS.modsText = function (mods) {
+    const out = [];
+    for (const key in mods) {
+      const t = RS.MOD_TEXT[key], v = mods[key] * (t[2] || 1) * (t[1] === '%' ? 100 : 1);
+      out.push(t[0] + ' ' + (v < 0 ? '-' : '+') + Math.round(Math.abs(v) * 100) / 100 + t[1]);
+    }
+    return out.join(' · ');
+  };
   // A teammate's one job with its icon, and what he lends the team (cards and the squad panel).
   RS.mateLine = function (id) {
     const m = RS.TEAMMATES[id], r = RS.ROLES[m.role];
@@ -521,23 +562,25 @@
       case 'enhance': { const w = build.weapon, nw = Object.assign({}, w, { p: w.p + 1 });
         return Object.assign(c, { name: RS.weaponName(build, w) + ' 강화', icon: '🔨', desc: RS.gradeTag(w) + ' → +' + nw.p + ' · 무기 공격력 ' + RS.weaponPower(w) + ' → ' + RS.weaponPower(nw),
           tag: '강화 +' + nw.p, g: w.g, hint: '강화는 +' + RS.PLUS_MAX + '까지 · 등급이 한 단계 오르는 것이 +10보다 세다' }); }
-      case 'passive': { const p = RS.PASSIVES[c.id];
-        return Object.assign(c, { name: p.name, icon: p.icon, desc: p.desc, tag: '새 패시브', hint: '패시브 칸 ' + (build.passiveOrder.length + 1) + '/' + RS.MAX_PASSIVES + ' · 레벨마다 같은 효과가 더해진다' }); }
-      case 'passiveUp': { const p = RS.PASSIVES[c.id]; const nl = build.passives[c.id] + 1;
-        return Object.assign(c, { name: p.name, icon: p.icon, desc: p.desc, tag: 'Lv.' + nl + (nl === RS.PASSIVE_MAX ? ' MAX' : '') }); }
+      case 'passive': { const p = RS.PASSIVES[c.id], G = RS.gradeOf(c.g);
+        return Object.assign(c, { name: p.name, icon: p.icon, desc: RS.modsText(RS.scaleMods(p.mods, G.pmul)), tag: G.name + ' · 새 패시브',
+          hint: '패시브 칸 ' + (build.passiveOrder.length + 1) + '/' + RS.MAX_PASSIVES + ' · 레벨 카드마다 등급만큼 더해진다' }); }
+      case 'passiveUp': { const p = RS.PASSIVES[c.id], G = RS.gradeOf(c.g), nl = build.passives[c.id] + 1;
+        return Object.assign(c, { name: p.name, icon: p.icon, desc: RS.modsText(RS.scaleMods(p.mods, G.pmul)), tag: G.name + ' · Lv.' + nl + (nl === RS.PASSIVE_MAX ? ' MAX' : ''),
+          hint: '지금까지 ' + RS.modsText(RS.scaleMods(p.mods, RS.passivePow(build, c.id))) }); }
       case 'mate': { const m = RS.TEAMMATES[c.id]; const toBench = build.teammates.length >= RS.MAX_MATES; const syn = RS.synergyHint(build, c.id);
-        return Object.assign(c, { name: m.name, icon: RS.ROLES[m.role].icon, desc: RS.mateLine(c.id), tag: RS.mateBadge(c.id, c.lv), g: RS.mateGrade(c.id, c.lv),
+        return Object.assign(c, { name: m.name, icon: RS.ROLES[m.role].icon, desc: RS.mateLine(c.id), tag: RS.mateBadge(c.id, c.lv), g: RS.mateGrade(c.id),
           hint: (toBench ? '벤치 합류' : '선발 합류') + (syn ? ' · ' + syn : '') }); }
       case 'mateUp': { const m = RS.TEAMMATES[c.id]; const cur = RS.allMates(build).find((x) => x.id === c.id).lv;
-        return Object.assign(c, { name: m.name + ' 강화', icon: '📈', desc: RS.mateLine(c.id), tag: '+' + cur + ' → +' + (cur + 1), g: RS.mateGrade(c.id, cur + 1), hint: '동료 강화 · 피해와 팀 효과가 커진다' }); }
+        return Object.assign(c, { name: m.name + ' 강화', icon: '📈', desc: RS.mateLine(c.id), tag: '+' + cur + ' → +' + (cur + 1), g: RS.mateGrade(c.id), hint: '동료 강화 · 피해와 팀 효과가 커진다' }); }
       case 'drill': { const d = RS.DRILLS[c.id]; const n = ((build.drills && build.drills[c.id]) || 0) + 1;
         return Object.assign(c, { name: d.name + (n > 1 ? ' ' + n + '회차' : ''), icon: d.icon, desc: d.desc + ' (영구)', tag: '개인 훈련', hint: '횟수 제한 없음 · 커리어 내내 유지' }); }
       case 'gold': return Object.assign(c, { name: '스폰서 보너스', icon: '💰', desc: '코인 +30', tag: '보너스' });
       case 'heal': return Object.assign(c, { name: '에그타르트', icon: '🥧', desc: '체력 40% 회복', tag: '보너스' });
       case 'relic': { const r = RS.RELICS[c.id];
-        return Object.assign(c, { name: r.name, icon: r.icon, desc: r.desc, tag: RS.TIERS[r.tier].name, tier: r.tier, g: RS.TIER_GRADE[r.tier], hint: r.stack ? '스팀팩 1/' + RS.STIM.max + ' · 커리어 내내 유지' : '특수 아이템 · 커리어 내내 유지' }); }
+        return Object.assign(c, { name: r.name, icon: r.icon, desc: r.desc, tag: RS.GRADES[r.g].name + ' 아이템', g: r.g, hint: r.stack ? '스팀팩 1/' + RS.STIM.max + ' · 커리어 내내 유지' : '특수 아이템 · 커리어 내내 유지' }); }
       case 'stim': { const r = RS.RELICS.doping, n = RS.stimDoses(build) + 1;
-        return Object.assign(c, { name: r.name + ' ' + n + '회차', icon: r.icon, tier: 'ultra', g: RS.TIER_GRADE.ultra, tag: '스팀팩 ' + n + '/' + RS.STIM.max,
+        return Object.assign(c, { name: r.name + ' ' + n + '회차', icon: r.icon, g: r.g, tag: '스팀팩 ' + n + '/' + RS.STIM.max,
           desc: n === 1 ? r.desc : '한 방 더! 첫 투여 효과의 ' + Math.round(RS.STIM.step * 100) + '%가 더해진다 (지금까지 ' + (n - 1) + '번 투여)',
           hint: n === RS.STIM.max ? '마지막 투여 · 풀강' : '최대 ' + RS.STIM.max + '번까지 · 커리어 내내 유지' }); }
       case 'gamble': { const g = RS.GAMBLES[c.id];
@@ -548,11 +591,14 @@
 
   // A hand of n cards. The weapon gets one card for a new weapon (another move to swap to, or a better copy) and
   // one for a 강화 step of the one held; new passives share one weight between them, so they never crowd it out.
+  // Weapon and passive cards take their grade from the season's odds (RS.gradeOddsAt, raised by luck).
+  RS.seasonIdx = (yearIdx) => RS.tuneIdx(Math.min(yearIdx || 0, RS.YEARS.length - 1));
   RS.makeChoices = function (build, rng, yearIdx, n, luck) {
     n = n || 3;
     const pool = [], out = [];
     const hero = build.hero || 'ronaldo';
-    const wpn = RS.offerWeapon(build, rng, luck, RS.tuneIdx(Math.min(yearIdx || 0, RS.YEARS.length - 1)));
+    const idx = RS.seasonIdx(yearIdx), odds = RS.luckOdds(RS.gradeOddsAt(idx), luck);
+    const wpn = RS.offerWeapon(build, rng, luck, idx);
     if (wpn) pool.push({ kind: 'weapon', id: wpn.id, wpn, w: 2.4 });
     if (build.weapon.p < RS.PLUS_MAX) pool.push({ kind: 'enhance', id: build.weapon.id, w: 2.6 });
     for (const id of build.passiveOrder) if (build.passives[id] < RS.PASSIVE_MAX) pool.push({ kind: 'passiveUp', id, w: 1.2 });
@@ -566,7 +612,8 @@
     while (out.length < n && pool.length) {
       const c = RS.pickWeighted(rng, pool);
       pool.splice(pool.indexOf(c), 1);
-      out.push(c.kind === 'weapon' ? { kind: 'weapon', id: c.id, wpn: c.wpn } : c.kind === 'mate' ? { kind: 'mate', id: c.id, lv: RS.rollMatePlus(rng) } : { kind: c.kind, id: c.id });
+      out.push(c.kind === 'weapon' ? { kind: 'weapon', id: c.id, wpn: c.wpn } : c.kind === 'mate' ? { kind: 'mate', id: c.id, lv: RS.rollMatePlus(rng) }
+        : c.kind === 'passive' || c.kind === 'passiveUp' ? { kind: c.kind, id: c.id, g: RS.rollGrade(rng, odds) } : { kind: c.kind, id: c.id });
     }
     // The offer ran short (a maxed build): 개인 훈련 cards (no cap) keep the hand a real choice; a heal stays last.
     if (out.length < n) {
@@ -578,51 +625,44 @@
   };
 
   // ---------------------------------------------------------------- 특수 카드 (graded items, gambles)
-  RS.relicPool = (build, tier) => Object.keys(RS.RELICS).filter((id) => RS.RELICS[id].tier === tier && !build.relics[id] && RS.relicOk(id, build));
+  RS.relicPool = (build, g) => Object.keys(RS.RELICS).filter((id) => RS.RELICS[id].g === g && !build.relics[id] && RS.relicOk(id, build));
   RS.relicsLeft = (build) => Object.keys(RS.RELICS).some((id) => !build.relics[id] && RS.relicOk(id, build));
   // The next 약물 꽂기 dose can be offered: 메시 after the treatment, below the dose cap.
   RS.stimReady = (build) => RS.relicOk('doping', build) && RS.stimDoses(build) < RS.STIM.max;
-  // A coin draw costs more with every item already owned (RS.DRAW_COST_STEP).
-  RS.drawCost = (d, build) => Math.round(d.cost * (1 + RS.DRAW_COST_STEP * (build.relicOrder || []).length));
-  // One item the build lacks. The grade comes from `odds` ({tier: p}, summing to 1); an exhausted grade falls to
-  // the nearest grade that still has items — upward first when `up` (paid draws never come back empty),
-  // downward only otherwise (free rolls). Returns a described card or null.
-  RS.drawRelic = function (build, rng, odds, up) {
-    const tiers = Object.keys(odds);
-    let r = rng(), tier = tiers[tiers.length - 1];
-    for (const t of tiers) { if (r < odds[t]) { tier = t; break; } r -= odds[t]; }
-    let pool = RS.relicPool(build, tier);
-    if (!pool.length) {
-      const i = RS.TIER_ORDER.indexOf(tier);
-      const lower = RS.TIER_ORDER.slice(0, i).reverse(), higher = RS.TIER_ORDER.slice(i + 1);
-      for (const t of up ? higher.concat(lower) : lower) { pool = RS.relicPool(build, t); if (pool.length) break; }
+  // The item odds of pro season idx (RS.ITEM_STAGES: { chance, odds }).
+  RS.itemStageAt = function (idx) {
+    let s = RS.ITEM_STAGES[0];
+    for (const x of RS.ITEM_STAGES) if ((idx || 0) >= x.from) s = x;
+    return s;
+  };
+  // One item the build lacks, of grade g or — all of that grade owned — the nearest lower grade that has one (never
+  // a higher one: no luck gives more than it rolled). Returns a described card or null.
+  RS.relicOfGrade = function (build, rng, g) {
+    for (let k = g; k >= 0; k--) {
+      const pool = RS.relicPool(build, k);
+      if (pool.length) return describe({ kind: 'relic', id: pool[Math.floor(rng() * pool.length)] }, build);
     }
-    if (!pool.length) return null;
-    return describe({ kind: 'relic', id: pool[Math.floor(rng() * pool.length)] }, build);
+    return null;
   };
   // A gamble card among those that make sense now (올인 needs coins from this match).
   RS.gambleCard = function (build, rng, coins) {
     const ids = Object.keys(RS.GAMBLES).filter((id) => !RS.GAMBLES[id].needCoins || (coins || 0) >= RS.GAMBLES[id].needCoins);
     return describe({ kind: 'gamble', id: ids[Math.floor(rng() * ids.length)] }, build);
   };
-  // The 4th card of a level-up: a 약물 꽂기 dose (RS.STIM: its own chance once 메시 took the treatment), a graded
-  // item (odds × (1 + luck)), a gamble card, or null (a normal card).
-  RS.rollSpecial = function (build, rng, luck, coins) {
+  // The 4th card of a level-up at pro season idx: a 약물 꽂기 dose (RS.STIM: its own chance once 메시 took the
+  // treatment), an item (the season's chance × (1 + luck), its grade from the season's odds), a gamble card, or null.
+  RS.rollSpecial = function (build, rng, luck, coins, idx) {
     const L = (1 + (luck || 0)) * ((RS.DIFFS[RS.DIFF] || RS.DIFFS.normal).special || 1);
     if (RS.stimReady(build) && rng() < (RS.stimDoses(build) ? RS.STIM.odds : RS.STIM.first) * L) return describe({ kind: 'stim', id: 'doping' }, build);
-    const r = rng();
-    let acc = 0;
-    for (const t of ['super', 'ultra', 'hidden', 'rare']) {
-      acc += RS.SPECIAL_ODDS[t] * L;
-      if (r < acc) return RS.drawRelic(build, rng, { [t]: 1 }, false);
-    }
-    return r < acc + RS.SPECIAL_ODDS.gamble ? RS.gambleCard(build, rng, coins) : null;
+    const st = RS.itemStageAt(idx), r = rng();
+    if (r < st.chance * L) return RS.relicOfGrade(build, rng, RS.rollGrade(rng, st.odds));
+    return r < st.chance * L + RS.GAMBLE_ODDS ? RS.gambleCard(build, rng, coins) : null;
   };
   // Level-up hand (round 11): three cards; a graded item, 약물 or gamble card, when one is rolled, comes as a 4th.
   RS.LEVEL_CARDS = 3;
   RS.levelChoices = function (build, rng, yearIdx, luck, coins) {
     const out = RS.makeChoices(build, rng, yearIdx, RS.LEVEL_CARDS, luck);
-    const sp = RS.rollSpecial(build, rng, luck, coins);
+    const sp = RS.rollSpecial(build, rng, luck, coins, RS.seasonIdx(yearIdx));
     if (sp) out.push(sp);
     return out;
   };
@@ -634,10 +674,10 @@
       case 'enhance': return RS.enhanceWeapon(build, 1);
       case 'passive':
         if (!RS.canTakePassive(build, c.id)) return false;
-        build.passives[c.id] = 1; build.passiveOrder.push(c.id); return true;
+        build.passives[c.id] = 1; build.passiveOrder.push(c.id); build.passiveGrades[c.id] = [RS.cardGrade(c)]; return true;
       case 'passiveUp':
         if (!build.passives[c.id] || build.passives[c.id] >= RS.PASSIVE_MAX) return false;
-        build.passives[c.id]++; return true;
+        build.passives[c.id]++; (build.passiveGrades[c.id] = build.passiveGrades[c.id] || []).push(RS.cardGrade(c)); return true;
       case 'mate': return !!RS.addMate(build, c.id, c.lv);
       case 'mateUp': return RS.levelMate(build, c.id, 1);
       case 'drill':
@@ -729,10 +769,8 @@
       this.spawnAcc = 0;
       this.rescue = null; this.recruitedThisRun = [];
       this.wstate = {};
-      // coin shop at level-ups: this match's coins first, then the wallet (walletSpent is settled by finishYear)
-      this.wallet = Math.max(0, Math.floor(opt.wallet || 0)); this.walletSpent = 0; this.coinsSpent = 0;
       this.zones = []; this.relicT = {}; this._boomBudget = 0;
-      this.diceUsed = false; this.drawUsed = false; this.lastDraw = null; this.lastGamble = null;
+      this.diceUsed = false; this.lastGamble = null;
       this.debug = { godMode: false };
       this.recalc();
       this.player.hp = this.stats.maxHp;
@@ -747,7 +785,7 @@
       const prevMax = this.stats ? this.stats.maxHp : null;
       this.stats = RS.computeStats(this.build, this.metaUp, this.youth);
       this.wmul = RS.weaponMul(this.build.weapon); // the weapon's grade and 강화 (World.weaponStats)
-      this.botR = this.weaponReach();
+      this.botR = this.weaponReach(); this.botBoss = this.bossReach();
       if (prevMax != null && this.stats.maxHp > prevMax) this.player.hp += this.stats.maxHp - prevMax;
       this.player.hp = Math.min(this.player.hp, this.stats.maxHp);
       // The final stays a duel. 메시/날두 hit harder by exactly the toughness the graded items added (max HP + a
@@ -1157,7 +1195,7 @@
         kind: 'swap', id: newId, lv, out: m.id, icon: '🔄', name: nm.name + ' 영입 · ' + RS.TEAMMATES[m.id].name + ' 방출',
         desc: '🔻 나감: ' + RS.TEAMMATES[m.id].name + ' +' + m.lv + (this.build.bench.some((b) => b.id === m.id) ? ' (벤치)' : ' (선발)') +
           '\n🔺 들어옴: ' + nm.name + ' +' + lv + '\n' + RS.mateLine(newId),
-        tag: RS.mateBadge(newId, lv), g: RS.mateGrade(newId, lv), hint: RS.swapVerdict(m.id, newId, m.lv, lv)
+        tag: RS.mateBadge(newId, lv), g: RS.mateGrade(newId), hint: RS.swapVerdict(m.id, newId, m.lv, lv)
       }));
       this.swapChoices.push({ kind: 'keep', id: newId, icon: '✋', name: '지금 스쿼드 유지', desc: nm.name + ' 영입을 거절한다.', tag: '거절' });
       this.phase = 'swap';
@@ -1360,6 +1398,19 @@
       if (use === 'stepover') return STEP_REACH + 12; // the dash fires at a man this close
       if (!s.radius || BOT_REMOTE[use]) return 75;
       return Math.max(26, Math.min(75, s.radius * this.stats.area * 0.85));
+    }
+    // How close the bot closes on a boss: a move with a radius around the hero to its edge (a SIUU ring of 130 px
+    // as well — weaponReach keeps the crowd at 75 px at most); 불꽃 질주 to 70 px, so the boss chasing him walks on
+    // fire that is still burning (it burns out in about 2 s; from 180 px he arrived after it); a 라보나 inside the
+    // distance its boomerangs fly before they turn (it aims at men 220 px off, but a 희귀 one turns at about 130);
+    // any other shot within 180 px. Round 13's career bot, held at 180 px with these, fought 2009-11 bosses for two
+    // to nine minutes.
+    bossReach() {
+      const id = this.build.weapon.id, s = this.weaponStats(id), use = RS.skillUse(id);
+      if (use === 'trail') return 70;
+      if (use === 'rabona') return Math.min(180, s.range * this.stats.area * 0.85);
+      if (use === 'stepover' || !s.radius || BOT_REMOTE[use]) return this.botR < 75 ? this.botR : 180;
+      return Math.max(26, Math.min(180, s.radius * this.stats.area * 0.85));
     }
     // The weapon in hand changed mid-match: its runtime state and the balls of the old move go.
     weaponChanged() {
@@ -1859,7 +1910,7 @@
       let dx = threat.x - p.x, dy = threat.y - p.y;
       const n = Math.hypot(dx, dy) || 1; dx /= n; dy /= n;
       const dur = 0.16;
-      // every grade leaves the afterimage burst where the dash began (the evolved 무지개 form a bigger one)
+      // every grade leaves the afterimage burst where the dash began (the evolved 전설 form a bigger one)
       p.dash = { dx, dy, t: 0, dur, speed: s.dist / dur, dmg: s.dmg, hits: new Set(), burst: s.burst || STEP_BURST, sx: p.x, sy: p.y };
       p.iframe = Math.max(p.iframe, dur + 0.04);
       ws.timer = s.cd * this.stats.cd;
@@ -2774,7 +2825,7 @@
     // ------------------------------------------------------------ level-up / chest
     openLevelUp() {
       this.phase = 'levelup';
-      this.diceUsed = false; this.drawUsed = false; this.lastDraw = null; this.boxUsed = false; this.lastBox = null;
+      this.diceUsed = false;
       this.deal();
       this.addFx('levelburst', this.player.x, this.player.y, { dur: 0.7, follow: true });
       this.emit('levelup', { level: this.build.level });
@@ -2783,7 +2834,7 @@
     deal() {
       this.choices = RS.levelChoices(this.build, this.rng, this.yearIdx, this.stats.luck, this.coinsPicked);
       const sp = this.choices.find((c) => c.kind === 'relic' || c.kind === 'gamble' || c.kind === 'stim');
-      if (sp) this.emit('special', { tier: sp.tier || 'gamble' });
+      if (sp) this.emit('special', { g: sp.g }); // a gamble card has no grade
     }
 
     choose(i) {
@@ -2811,52 +2862,6 @@
       return true;
     }
 
-    // ------------------------------------------------------------ coin shop (every level-up screen)
-    purse() { return Math.max(0, Math.floor(this.coinsPicked + this.wallet - this.walletSpent)); }
-    spend(n) {
-      if (this.purse() < n) return false;
-      const fromRun = Math.min(Math.floor(this.coinsPicked), n);
-      this.coinsPicked -= fromRun;
-      this.walletSpent += n - fromRun;
-      this.coinsSpent += n;
-      return true;
-    }
-    coinReroll() {
-      if (this.phase !== 'levelup' || !this.spend(RS.COIN_REROLL)) return false;
-      this.deal();
-      return true;
-    }
-    // One grade draw per level-up: the item is applied at once and the hand stays to pick from.
-    coinDraw(id) {
-      const d = RS.COIN_DRAWS.find((x) => x.id === id);
-      const cost = d && RS.drawCost(d, this.build);
-      if (!d || this.phase !== 'levelup' || this.drawUsed || this.purse() < cost) return null;
-      const c = RS.drawRelic(this.build, this.rng, d.odds, true);
-      if (!c) return null;
-      this.spend(cost);
-      this.drawUsed = true;
-      this.applyChoiceRuntime(c);
-      this.lastDraw = c;
-      this.choices = this.choices.filter((x) => !(x.kind === 'relic' && this.build.relics[x.id])); // already owned now
-      return c;
-    }
-
-    // 무기 상자 at a level-up (the small box, once per screen): bought from this match's coins, then the wallet.
-    // The weapon goes into the hand when it beats the one held, else to the 무기고; a copy no better than one owned
-    // pays RS.SELL_BACK of the price back. The hand of cards stays to pick from.
-    coinBox() {
-      const d = RS.WEAPON_BOXES[0];
-      if (this.phase !== 'levelup' || this.boxUsed || !this.spend(d.cost)) return null;
-      this.boxUsed = true;
-      const res = RS.openBox(this.build, RS.rollWeapon(this.build, this.rng, d.odds), d);
-      if (res.refund) this.coinsPicked += res.refund;
-      if (res.kept === 'hand') { this.weaponSwapped(); this.recalc(); }
-      this.lastBox = res;
-      // the hand was dealt for the old weapon: its weapon and 강화 cards are dealt again
-      if (res.kept) this.choices = this.choices.map((c) => (c.kind === 'weapon' || c.kind === 'enhance' ? RS.makeChoices(this.build, this.rng, this.yearIdx, 1, this.stats.luck)[0] : c));
-      return res;
-    }
-
     // 도박 카드: roll the printed odds now and apply the outcome.
     resolveGamble(c) {
       const g = RS.GAMBLES[c.id];
@@ -2865,7 +2870,7 @@
       const res = { id: c.id, win: !!out.win, text: out.text, relic: null };
       if (out.levels) { this.build.level += out.levels; this.levelQueue += out.levels; }
       if (out.relic) {
-        const rc = RS.drawRelic(this.build, this.rng, out.relic, true);
+        const rc = RS.relicOfGrade(this.build, this.rng, out.relic);
         if (rc) { this.applyChoiceRuntime(rc); res.relic = rc.id; } else { this.coinsPicked += 50; res.text += ' (아이템 대신 코인 +50)'; }
       }
       if (out.hpHalf) this.player.hp = Math.max(1, Math.round(this.player.hp / 2));
@@ -2882,14 +2887,14 @@
         this.recalc();
         const r = RS.RELICS[c.id];
         if (r.fx === 'fullheal') this.player.hp = this.stats.maxHp;
-        this.addFx('levelburst', this.player.x, this.player.y, { dur: 0.9, follow: true, tier: r.tier });
-        this.emit('relic', { id: c.id, tier: r.tier });
-        if (r.tier === 'ultra' || r.tier === 'super') { this.emit('siuu'); this.pfx('goldBurst', this.player.x, this.player.y, { follow: this.player, dy: 8 }); }
+        this.addFx('levelburst', this.player.x, this.player.y, { dur: 0.9, follow: true, g: r.g });
+        this.emit('relic', { id: c.id, g: r.g });
+        if (r.g >= 4) { this.emit('siuu'); this.pfx('goldBurst', this.player.x, this.player.y, { follow: this.player, dy: 8 }); }
         return true;
       }
       if (c.kind === 'stim') { // one more 약물 꽂기 dose: a red surge around 메시
         this.recalc();
-        this.addFx('levelburst', this.player.x, this.player.y, { dur: 0.9, follow: true, tier: 'ultra' });
+        this.addFx('levelburst', this.player.x, this.player.y, { dur: 0.9, follow: true, g: RS.RELICS.doping.g });
         this.addFx('stim', this.player.x, this.player.y, { dur: 1.1, follow: true });
         this.emit('stim', { n: RS.stimDoses(this.build) });
         return true;
@@ -2903,7 +2908,7 @@
       this.recalc();
       return true;
     }
-    // A new weapon in hand (level-up card or 무기 상자): the old move's balls go, a banner names it, 황금+ shines.
+    // A new weapon in hand (a level-up card): the old move's balls go, a banner names it, a 전설 one shines.
     weaponSwapped() {
       const w = this.build.weapon;
       this.weaponChanged();
@@ -2920,8 +2925,8 @@
         const c = opts[0] || { kind: 'gold', id: 'gold', name: '스폰서 보너스', icon: '💰', desc: '코인 +30', tag: '보너스' };
         if (this.applyChoiceRuntime(c)) res.push(c);
       }
-      if (this.rng() < RS.CHEST_RELIC.chance && RS.relicsLeft(this.build)) { // sometimes a graded item sits in the chest
-        const rc = RS.drawRelic(this.build, this.rng, RS.CHEST_RELIC.odds, false);
+      if (this.rng() < RS.CHEST_RELIC.chance && RS.relicsLeft(this.build)) { // sometimes an item sits in the chest
+        const rc = RS.relicOfGrade(this.build, this.rng, RS.rollGrade(this.rng, RS.itemStageAt(this.lvl).odds));
         if (rc && this.applyChoiceRuntime(rc)) res.push(rc);
       }
       const coins = 10 + this.lvl * 2;
@@ -3179,7 +3184,7 @@
     // that only backed away never touched the boss and the match ran 14 minutes)
     const bs = w.boss && w.boss.alive ? w.boss : w.rival && w.rival.alive ? w.rival : null;
     if (bs) {
-      const near = w.botR || 75, want = near < 75 ? near : 180;
+      const want = w.botBoss || 180;
       const dx = bs.x - p.x, dy = bs.y - p.y, d = Math.hypot(dx, dy) || 1;
       if (d > want) { const k = danger > 2 ? 0.5 : 1.2; vx += dx / d * k; vy += dy / d * k; }
     }
@@ -3208,14 +3213,14 @@
     return n > 0.01 ? { x: vx / n, y: vy / n } : { x: 0, y: 0 };
   };
 
-  // Strong default bot, also the 완전 오토 picker. Order: graded items by grade (히든 and up, a 약물 꽂기 dose like
-  // 초히든) > a better weapon (a higher grade first) > a teammate completing a named partnership > 강화 > a
-  // teammate > passives > ... It never takes a weaker weapon and never gambles.
+  // Strong default bot, also the 완전 오토 picker. Order: 전설 items > a 약물 꽂기 dose > 영웅 items > a better weapon
+  // (a higher grade first) > a teammate completing a named partnership > 희귀 items > 강화 > a teammate > passives
+  // > ... It never takes a weaker weapon and never gambles.
   RS.botChoose = function (choices, build) {
     const pr = { enhance: 2, mate: 3, passive: 4, passiveUp: 5, mateUp: 6, drill: 7.5, heal: 8, gold: 9, gamble: 10, stim: -2 };
-    const tierScore = { super: -3, ultra: -2, hidden: -1, rare: 1.5 };
+    const itemScore = { 2: 1.5, 3: -1, 4: -3 };
     const score = (c) => {
-      if (c.kind === 'relic') return tierScore[c.tier];
+      if (c.kind === 'relic') return itemScore[RS.RELICS[c.id].g];
       if (c.kind === 'weapon') return !build || !RS.weaponBetter(c.wpn, build.weapon) ? 11 : c.wpn.g > build.weapon.g ? 0 : 1;
       if (c.kind === 'mate' && build && build.teammates.length === 1 && RS.NAMED_PAIRS[[build.teammates[0].id, c.id].sort().join('+')]) return 1.2;
       return pr[c.kind];
@@ -3241,4 +3246,4 @@
     };
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).game = 'R12';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).game = 'R13';

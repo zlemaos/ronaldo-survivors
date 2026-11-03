@@ -59,8 +59,8 @@ test('passive slots cap at six while existing passives can improve', () => {
 
 test('a maxed build can keep training and healing', () => {
   const b = RS.newBuild();
-  b.weapon.g = 5; b.weapon.p = 10;
-  b.armory = RS.weaponIds('ronaldo', 5).filter(id => id !== b.weapon.id).map(id => ({ id, g: 5, p: 10 }));
+  b.weapon.g = 4; b.weapon.p = 10;
+  b.armory = RS.weaponIds('ronaldo', 4).filter(id => id !== b.weapon.id).map(id => ({ id, g: 4, p: 10 }));
   RS.syncWeapon(b);
   for (const id of Object.keys(RS.PASSIVES).slice(0, 6)) { b.passives[id] = RS.PASSIVE_MAX; b.passiveOrder.push(id); }
   const all = Object.keys(RS.TEAMMATES).map((id) => ({ id, lv: RS.MATE_MAX_LV }));

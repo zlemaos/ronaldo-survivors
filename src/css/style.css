@@ -1,5 +1,5 @@
 :root {
-  --build: "R12"; /* the build of this file (App.mixedFiles; bump with RS.VERSION) */
+  --build: "R13"; /* the build of this file (App.mixedFiles; bump with RS.VERSION) */
   --bg: #0b1d12;
   --panel: rgba(12, 22, 16, 0.94);
   --line: rgba(255, 255, 255, 0.14);
@@ -128,34 +128,20 @@ h2 { font-size: 22px; }
 .card.k-mate, .card.k-recruit { border-color: var(--cyan); }
 .card.k-mate .tg { background: #1d5a6a; }
 .card.k-passive .tg, .card.k-passiveUp .tg { background: #3a3a6a; }
-/* level-up: graded cards (레어 · 히든 · 초히든 · 슈퍼히든), gamble cards, the coin shop */
+/* level-up: item cards in their grade colour (희귀 · 영웅 · 전설), gamble cards */
 #levelup .panel { max-height: 100%; overflow-y: auto; gap: 8px; }
-#lv-cards .card, .lv-draw .card { min-height: 64px; padding: 9px 12px; }
-#lv-cards .card .ic, .lv-draw .card .ic { flex-basis: 46px; height: 46px; font-size: 26px; }
+#lv-cards .card { min-height: 64px; padding: 9px 12px; }
+#lv-cards .card .ic { flex-basis: 46px; height: 46px; font-size: 26px; }
 .card:nth-child(4) { animation-delay: 0.15s; }
-@keyframes rainbow { to { background-position: 0 0, 300% 0; } }
 .card.k-gamble { border-color: #ff9a2a; background: repeating-linear-gradient(135deg, #2e1c08 0 10px, #24160a 10px 20px); }
 .card.k-gamble .tg { background: #ff9a2a; color: #1f1000; }
 .card.k-gamble .hn { color: #ffb86a; }
-#lv-title.t-super { background: linear-gradient(90deg, #ff4a4a, #ffd84a, #4ae06a, #4aa8ff, #b65cff); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; }
-#lv-title.t-ultra { color: #ffd45a; } #lv-title.t-hidden { color: #cf96ff; } #lv-title.t-rare { color: #6aa8ff; } #lv-title.t-gamble { color: #ffb86a; }
+#lv-title.t-g4 { color: #ffd45a; } #lv-title.t-g3 { color: #cf96ff; } #lv-title.t-g2 { color: #6aa8ff; } #lv-title.t-gamble { color: #ffb86a; }
 /* the weapon in hand, above the level-up hand (round 11) */
 .lv-weapon { font-size: 13px; font-weight: 800; color: #dfe8de; background: rgba(0,0,0,0.3); border: 1px solid var(--line); border-radius: 10px; padding: 5px 10px; }
 .lv-weapon .dim { color: var(--muted); font-weight: 700; }
 .lv-tools { display: flex; gap: 8px; }
 .lv-tools .btn { flex: 1; }
-.lv-shop { border-top: 1px dashed var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 6px; }
-.lv-purse { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-weight: 900; color: var(--gold); font-size: 14px; }
-.lv-purse .dim { font-size: 11px; color: var(--muted); font-weight: 700; }
-.lv-shop-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.btn.coin { display: flex; justify-content: space-between; align-items: center; gap: 6px; min-height: 40px; font-size: 13px; padding: 6px 10px; word-break: keep-all; }
-.btn.coin .cc { color: var(--gold); font-weight: 900; white-space: nowrap; }
-.btn.coin.c-rare { border-color: rgba(61,139,255,0.8); }
-.btn.coin.c-hidden { border-color: rgba(176,92,255,0.85); }
-.btn.coin.c-ultra { border-color: rgba(255,200,58,0.9); }
-.btn.coin.c-box { border-color: rgba(255,200,58,0.6); grid-column: 1 / -1; }
-.lv-draw .card { pointer-events: none; }
-.lv-draw .card.reveal { animation: reveal 0.6s ease-out both; }
 @keyframes reveal { 0% { transform: scale(0.3) rotate(-8deg); opacity: 0; } 60% { transform: scale(1.08); opacity: 1; } 100% { transform: none; } }
 .chest-icon { font-size: 48px; animation: pop2 0.5s ease-out; }
 @keyframes pop2 { 0% { transform: scale(0.2) rotate(-20deg); } 70% { transform: scale(1.2); } 100% { transform: none; } }
@@ -203,7 +189,6 @@ h2 { font-size: 22px; }
 .shop-h .dim { color: var(--muted); font-weight: 700; font-size: 11px; }
 .shop-item.g-0 { border-color: #7d8693; } .shop-item.g-1 { border-color: #46d36e; } .shop-item.g-2 { border-color: #3d8bff; }
 .shop-item.g-3 { border-color: #b05cff; } .shop-item.g-4 { border-color: #ffc83a; box-shadow: 0 0 12px rgba(255,200,58,0.35); }
-.shop-item.g-5 { border-color: #ff5ad0; box-shadow: 0 0 14px rgba(255,90,208,0.4); }
 .shop-item.hand { background: rgba(255,214,102,0.08); }
 .shop-item .btn + .btn { margin-left: 4px; }
 .shop-btns { display: flex; flex-direction: column; gap: 4px; }
@@ -246,9 +231,9 @@ ul.howto { text-align: left; padding-left: 4px; list-style: none; margin: 0; dis
 /* transfer verdicts: ▲ stronger (green), ▼ weaker (red) */
 .card .hn.up { color: #6dff8a; font-size: 13px; font-weight: 900; }
 .card .hn.down { color: #ff7a6a; font-size: 13px; font-weight: 900; }
-/* round 11: one colour scale for every card, badge and chip (RS.GRADES): 일반 grey · 고급 green · 레어 blue ·
-   에픽 purple · 황금 gold with a light sweep · 무지개 an animated rainbow edge. The rarer, the stronger the colour.
-   Weapons, teammates (OVR tier, +1 grade from 강화 +8) and graded items (RS.TIER_GRADE) all use it. */
+/* one colour scale for every card, badge and chip (RS.GRADES, round 13): 일반 grey · 고급 green · 희귀 blue ·
+   영웅 purple · 전설 gold with a light sweep. The rarer, the stronger the colour. Weapons, passive cards, items
+   (RELICS[].g) and teammates (OVR tier) all use it. */
 .card.g-0 { border-color: #7d8693; background: linear-gradient(180deg, #262b32, #1a1e24); }
 .card.g-0 .tg { background: #5d6673; color: #fff; }
 .card.g-1 { border-color: #46d36e; background: linear-gradient(180deg, #17402a, #0e281a); box-shadow: 0 0 10px rgba(70,211,110,0.35); }
@@ -263,22 +248,13 @@ ul.howto { text-align: left; padding-left: 4px; list-style: none; margin: 0; dis
   background-image: linear-gradient(110deg, transparent 38%, rgba(255,246,205,0.38) 50%, transparent 62%); animation: shine 2.4s ease-in-out infinite; }
 .card.g-4 .tg { background: #ffc83a; color: #2a1a00; }
 .card.g-4 .n { color: #ffe9a0; }
-.card.g-5 { border: 3px solid transparent; box-shadow: 0 0 26px rgba(255,90,208,0.65);
-  background: linear-gradient(180deg, #2b1442, #110722) padding-box,
-    linear-gradient(90deg, #ff4a4a, #ffb03a, #ffe84a, #4ae06a, #3dc8ff, #6a5cff, #ff5ad0, #ff4a4a) border-box;
-  background-size: 100% 100%, 300% 100%; animation: cardin 0.25s ease-out both, rainbow 2s linear infinite; }
-.card.g-5 .tg { background: linear-gradient(90deg, #ff4a4a, #ffe84a, #4ae06a, #3dc8ff, #b05cff); color: #111; }
-.card.g-5 .n { background: linear-gradient(90deg, #ff8a8a, #ffe88a, #8af0a0, #8ad8ff, #d0a0ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.card.g-2 .hn, .card.g-3 .hn, .card.g-4 .hn, .card.g-5 .hn { color: #eef0ff; }
+.card.g-2 .hn, .card.g-3 .hn, .card.g-4 .hn { color: #eef0ff; }
 @keyframes shine { from { background-position: 130% 0; } to { background-position: -130% 0; } }
 /* the same scale as text (badges, names, the HUD weapon) and as chip edges */
 .g-text.g-0 { color: #c4cad3; } .g-text.g-1 { color: #6ee892; } .g-text.g-2 { color: #6aa8ff; } .g-text.g-3 { color: #cf96ff; }
 .g-text.g-4 { color: #ffd45a; text-shadow: 0 0 8px rgba(255,200,58,0.6); }
-.g-text.g-5 { background: linear-gradient(90deg, #ff6a6a, #ffe06a, #6ae890, #6ac8ff, #c080ff, #ff6ad0); background-size: 200% 100%;
-  -webkit-background-clip: text; background-clip: text; color: transparent; animation: rainbowtx 2.5s linear infinite; }
-@keyframes rainbowtx { to { background-position: 200% 0; } }
 .chip.g-1 { border-color: #46d36e; } .chip.g-2 { border-color: #3d8bff; } .chip.g-3 { border-color: #b05cff; }
-.chip.g-4 { border-color: #ffc83a; color: #ffe08a; } .chip.g-5 { border-color: #ff5ad0; }
+.chip.g-4 { border-color: #ffc83a; color: #ffe08a; }
 .ovr { display: inline-block; font-size: 10px; font-weight: 900; padding: 0 6px; border-radius: 7px; vertical-align: 1px; background: rgba(255,255,255,0.1); }
 .ovr.g-text { background: rgba(0,0,0,0.35); }
 .card.k-swap { border-color: var(--cyan); }

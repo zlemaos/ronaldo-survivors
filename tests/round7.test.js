@@ -67,14 +67,10 @@ test('teammate grades: a higher OVR hits harder, kids are rated against kids in 
   assert.ok(gain >= Math.floor(RS.ROLE_BUFF.keeper.mods.hp * 0.9), 'the kid keeper lends nearly his whole buff in the youth: ' + gain);
 });
 
-test('the same player at another club is never signed twice; a coin draw costs more for every item owned', () => {
+test('the same player at another club is never signed twice', () => {
   const b = RS.newBuild('messi');
   assert.equal(RS.addMate(b, 'busquetsorch'), 'pitch');
   assert.equal(RS.addMate(b, 'busquetsmia'), false);
-  const d = RS.COIN_DRAWS[0], c0 = RS.drawCost(d, b);
-  const id = Object.keys(RS.RELICS)[0];
-  b.relics[id] = 1; b.relicOrder.push(id);
-  assert.ok(RS.drawCost(d, b) > c0);
 });
 
 test('the wall: late-season crowds shrug off knockback, and a 고난의 시즌 is tougher than the same season without it', () => {

@@ -58,8 +58,8 @@ test('메시 has his own moves, passives and items: nothing of 날두 crosses ov
       if (c.kind === 'weapon') assert.ok(RS.skillFor(c.id, 'ronaldo'), '날두 offered ' + c.id);
       if (c.kind === 'passive') assert.ok(RS.passiveFor(c.id, 'ronaldo'), '날두 offered ' + c.id);
     }
-    const sp = RS.drawRelic(m, rng, { super: 1 }, true);
-    assert.ok(sp && sp.id !== 'honaldo', '메시 super item: ' + (sp && sp.id));
+    const sp = RS.relicOfGrade(m, rng, 4);
+    assert.ok(sp && sp.id !== 'honaldo', '메시 전설 item: ' + (sp && sp.id));
   }
   for (const id of ['tiki', 'curler', 'solo', 'bobo', 'killpass', 'chip']) assert.ok(seen.has(id), '메시 is offered ' + id);
 });
@@ -226,8 +226,8 @@ test('메시 first level-up hands offer a weapon among other training choices', 
   RS.selectHero('ronaldo');
 });
 
-test('약물 꽂기: 메시\'s 초히든 item raises every stat; a 하드 모드 body stays small', () => {
-  assert.equal(RS.RELICS.doping.tier, 'ultra');
+test('약물 꽂기: 메시\'s 영웅 item raises every stat; a 하드 모드 body stays small', () => {
+  assert.equal(RS.RELICS.doping.g, 3);
   assert.equal(RS.relicFor('doping', 'messi'), true);
   assert.equal(RS.relicFor('doping', 'ronaldo'), false);
   const b = RS.newBuild('messi');

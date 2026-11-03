@@ -481,6 +481,64 @@ big in the 20s and the 첼씨 seasons.
   cache dropped, a round-11 page fetches round-11 files. From round 12 on every main.js has the check, so later rounds
   can keep src/. Keep `js/` and `css/` unchanged while cached R11 pages remain supported; never repurpose their URLs.
 
+### Round 13: one ladder 일반 → 전설, the top grades only from luck in a match
+Player feedback: coins bought 초히든 items at Lv.1 and an 8-coin reroll could be pressed again and again, so a fresh
+career started with the strongest gear ("다 운으로만 나와야지"); and the grades should be one system with 전설 on top,
+for passives, weapons and items alike.
+- **One ladder** (`RS.GRADES`): 일반 grey · 고급 green · 희귀 blue · 영웅 purple · 전설 gold — the order and colours
+  Korean games use. Round 11's 레어 / 에픽 / 황금 / 무지개 and round 9's 레어 / 히든 / 초히든 / 슈퍼히든 are gone.
+
+  | | 일반 | 고급 | 희귀 | 영웅 | 전설 |
+  |---|---|---|---|---|---|
+  | weapon (table row, damage) | Lv.1 ×1 | Lv.2 ×1.3 | Lv.4 ×1.69 | Lv.6 ×2.2 | evolved ×2.86 |
+  | passive card (× the passive's base, `pmul`) | 0.7 | 0.85 | 1 | 1.3 | 1.7 |
+  | special item (전투력 `power`) | — | — | 12 | 25 | 60 |
+  | teammate card colour (OVR tier) | — | 유망주 | 주전급 | 월드클래스 | 레전드 |
+
+  Weapons: 합체 moves from 영웅 (`RS.FUSED_FROM` 3); 강화 +1 … +10 never changes a grade. Passives: every card — a
+  new passive or a level — carries a grade; `build.passiveGrades[id]` keeps one per level and `RS.passivePow` sums
+  their `pmul`; the card text comes from the mods (`RS.modsText`, `RS.MOD_TEXT`). Items (`RELICS[].g`): 레어 → 희귀,
+  히든 → 영웅, 초히든 → 전설 (약물 꽂기 → 영웅), 슈퍼히든 → 전설. Teammates: OVR tier only (강화 +8 no longer adds a
+  grade).
+- **Only luck, opened by the season** (pro season `RS.tuneIdx`; the same odds for the weapon card and every passive
+  card, `RS.GRADE_STAGES`; the item card per level-up and chest items, `RS.ITEM_STAGES`):
+
+  | from season | weapon / passive card 일반 · 고급 · 희귀 · 영웅 · 전설 | item card chance | item 희귀 · 영웅 · 전설 |
+  |---|---|---|---|
+  | 0 (debut) | 60 · 30 · 9 · 1 · 0 % | 5 % | 90 · 10 · 0 % |
+  | 3 | 40 · 38 · 18 · 4 · 0 % | 5 % | 90 · 10 · 0 % |
+  | 5 (the wall, 2007) | 20 · 42 · 26 · 10 · 2 % | 5.5 % | 78 · 20 · 2 % |
+  | 10 | 0 · 30 · 42 · 22 · 6 % | 6 % | 66 · 28 · 6 % |
+  | 16 | 0 · 0 · 45 · 40 · 15 % | 6.5 % | 56 · 34 · 10 % |
+
+  From season 5 on, 전설 comes as often as round 12's 황금 and 무지개 together; the debut, which dealt both at 1 %,
+  deals none, and season 3 bridges the debut and the wall. 행운 부적 / items (`luck`) raise 희귀 and up and the item
+  chance but never open a grade early (`RS.luckOdds` keeps a 0 at 0). Luck used to take its extra share from 일반
+  alone: from season 10 (no 일반) the odds summed over 1 and the roll never reached the top, so a 20 % 행운 부적 or
+  a 네잎클로버 dealt no 전설 at all (round 12 too, for 황금 and 무지개). It now takes from 일반, then 고급, then
+  scales the odds back to 1.
+- **하드 deals the top grades at ×0.25** (`RS.DIFFS.hard.top`; the rest goes to 희귀). 하드 had been tuned with the
+  luck bug above: once it was fixed, 완전 오토 with the whole 훈련장 cleared 하드 on seed 7 (×0.5: seeds 7 and 3, of
+  7 · 3 · 5 · 9). At ×0.25 its season-10 hand is 영웅 8 % · 전설 2 % (round 12 dealt it 에픽 7 % and no 황금), and
+  it stalls on all six seeds tried (7 · 3 · 5 · 9 · 11 · 13) between 2011 and 2022. The 하드 card says so. 도박 cards win 영웅 at most. 토레쓰's weapon reward is 영웅 (전설 15 %), and he only runs on from 2007 (날두,
+  season 5) or 2012 (메시).
+- **Coins buy no grade above 희귀**: the level-up coin shop is gone (the 8-coin reroll, the 45 / 160 / 420 grade draws
+  and the small box), and so is the wallet a match could spend. Coins buy the 훈련장's 무기 상자 (90: 일반 65 · 고급 30
+  · 희귀 5 %, 320: 고급 75 · 희귀 25 %; `RS.WEAPON_BOXES`), 강화, teammate training and the META upgrades. Free
+  rerolls (전술 보드, boss rewards) and 행운의 주사위 stay: they deal again from the same season's odds.
+- **Old saves** (`RS.normalizeBuild`): weapon grades keep their index (레어 → 희귀 now on Lv.4, 에픽 → 영웅 on Lv.6,
+  황금 → 전설 evolved) and 무지개 clamps to 전설 (×3.71 → ×2.86); a passive level without a grade counts as 희귀, the
+  old card's full value (`RS.PASSIVE_OLD_G`); items stay, named by their new grade.
+- **Auto play closes on a boss by its move** (`World.bossReach`): to the edge of a move with a radius around the hero
+  (a SIUU ring too), to 70 px with 불꽃 질주 (the boss then walks on fire that still burns), inside the turning
+  distance of 라보나's boomerangs, within 180 px with any other shot. Held at 180 px, round 13's weaker early builds
+  fought 2009–11 bosses for two to nine minutes.
+- **Measured** (이지 career bot, seeds 7 · 3 · 5 · 9 to the last season; round 12 → round 13): median boss fight
+  20–28 → 23–27 s, the longest 31–101 → 33–78 s, and seed 7 now finishes (it fell at 2011). The debut over 24 seeds,
+  이지 / 노멀: median boss 22 → 23 / 29 → 24 s, the longest 61 → 61 / 107 → 95 s. The bot only picks dealt cards and
+  never bought draws, so these numbers show the honest path stays playable; the coin route players used is gone by
+  design.
+
 ### Round-2 tuning (before → after)
 
 | Value | Before | After |

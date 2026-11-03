@@ -8,10 +8,10 @@ const withHero = (hero, fn) => { RS.selectHero(hero); try { return fn(); } final
 const withDiff = (k, fn) => { RS.setDiff(k); try { return fn(); } finally { RS.setDiff('normal'); } };
 const memStore = (raw) => { const m = { [RS.SAVE_KEY]: raw }; return { get: (k) => m[k] || null, set: (k, v) => { m[k] = v; } }; };
 const years = (hero) => RS.HEROES[hero].years.filter((y) => y.ballon).map((y) => y.year);
-// A rainbow weapon with only trophies actually won in this career.
+// A 전설 (evolved) weapon with only trophies actually won in this career.
 function evolvedBuild(hero, id, won, variant) {
   const b = RS.newBuild(hero);
-  b.weapon = { id, g: 5, p: 1, v: variant };
+  b.weapon = { id, g: 4, p: 1, v: variant };
   b.ballons = years(hero).slice(0, won);
   RS.syncWeapon(b);
   return b;

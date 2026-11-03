@@ -10,49 +10,53 @@
   RS.BENCH_FACTOR = 0.34;
   RS.MATE_MAX_LV = 10;
 
-  // ---------------------------------------------------------------- Round 11: one weapon, 등급 and 강화
+  // ---------------------------------------------------------------- Round 13: one ladder 일반 · 고급 · 희귀 · 영웅 · 전설
+  // Every graded thing sits on RS.GRADES (the ladder and colours of Korean games: grey, green, blue, purple, gold):
+  // the weapon, each passive card, the special items and the teammates' card colour (RS.MATE_GRADE).
   // The hero fights with ONE weapon at a time (build.weapon = { id, g, p }; the weapons are the moves of RS.SKILLS).
-  // Its grade g picks the move's behaviour — level table row lv (Lv.1-6) or its evolved form (evo) — and multiplies
-  // the damage by mul; 강화 p (+1 … PLUS_MAX) adds PLUS_STEP per step on top. One grade is worth more than nine
-  // steps (1.3 > 1 + 9 × 0.03), so a +10 always stays below the next grade's +1. color: the grade colour of cards,
-  // badges and the HUD (무지개 is animated in CSS). Owned weapons wait in the 무기고 (build.armory).
+  // Its grade g picks the move's behaviour — level table row lv (Lv.1-6) or, at 전설, its evolved form (evo) — and
+  // multiplies the damage by mul; 강화 p (+1 … PLUS_MAX) adds PLUS_STEP per step on top. One grade is worth more than
+  // nine steps (1.3 > 1 + 9 × 0.03), so a +10 always stays below the next grade's +1. pmul: what one passive card of
+  // that grade adds (× the passive's base, RS.passiveMods); power: 전투력 of a special item of that grade.
+  // Owned weapons wait in the 무기고 (build.armory).
   RS.GRADES = [
-    { key: 'common', name: '일반', color: '#b4bcc8', lv: 1, mul: 1 },
-    { key: 'uncommon', name: '고급', color: '#46d36e', lv: 2, mul: 1.3 },
-    { key: 'rare', name: '레어', color: '#3d8bff', lv: 3, mul: 1.69 },
-    { key: 'epic', name: '에픽', color: '#b05cff', lv: 4, mul: 2.2 },
-    { key: 'gold', name: '황금', color: '#ffc83a', lv: 6, mul: 2.86 },
-    { key: 'rainbow', name: '무지개', color: '#ff5ad0', lv: 6, evo: true, mul: 3.71 }
+    { key: 'common', name: '일반', color: '#b4bcc8', lv: 1, mul: 1, pmul: 0.7 },
+    { key: 'uncommon', name: '고급', color: '#46d36e', lv: 2, mul: 1.3, pmul: 0.85 },
+    { key: 'rare', name: '희귀', color: '#3d8bff', lv: 4, mul: 1.69, pmul: 1, power: 12 },
+    { key: 'epic', name: '영웅', color: '#b05cff', lv: 6, mul: 2.2, pmul: 1.3, power: 25 },
+    { key: 'legend', name: '전설', color: '#ffc83a', lv: 6, evo: true, mul: 2.86, pmul: 1.7, power: 60 }
   ];
   RS.PLUS_MAX = 10;
   RS.PLUS_STEP = 0.03;
-  RS.GRADE_ODDS = [0.56, 0.27, 0.12, 0.04, 0.009, 0.001]; // a weapon found at a level-up (the debut stage)
-  // The level-up weapon card climbs with the career (pro season, RS.tuneIdx): later stages drop the lowest grades,
-  // and inside every stage a higher grade stays rarer. 무기 상자 keep their own fixed odds.
+  // Grade odds of every graded level-up card — the weapon card and each passive card — by pro season (RS.tuneIdx).
+  // Round 13: the top grades come only from luck in a match, and never early. The debut deals mostly 일반 and 고급,
+  // a 영웅 once in a hundred and no 전설; from season 3 the cards climb, 전설 opens at the wall (season 5) and grows
+  // from there (from 5 on as often as round 12's 황금 and 무지개 together). Luck (RS.luckOdds) raises 희귀 and up
+  // but never opens a grade early.
   RS.GRADE_STAGES = [
-    { from: 0, odds: RS.GRADE_ODDS },
-    { from: 5, odds: [0.2, 0.42, 0.26, 0.1, 0.017, 0.003] },
-    { from: 10, odds: [0, 0.3, 0.42, 0.22, 0.054, 0.006] },
-    { from: 16, odds: [0, 0, 0.45, 0.4, 0.14, 0.01] }
+    { from: 0, odds: [0.6, 0.3, 0.09, 0.01, 0] },
+    { from: 3, odds: [0.4, 0.38, 0.18, 0.04, 0] },
+    { from: 5, odds: [0.2, 0.42, 0.26, 0.1, 0.02] },
+    { from: 10, odds: [0, 0.3, 0.42, 0.22, 0.06] },
+    { from: 16, odds: [0, 0, 0.45, 0.4, 0.15] }
   ];
   RS.WEAPON_PLUS_W = [62, 24, 10, 4]; // and it comes at +1 … +4
-  RS.FUSED_FROM = 4; // 합체 weapons (two moves in one) only come at 황금 or better
-  // 무기 상자 (coins, in the level-up shop and the 훈련장): grade odds of each box
+  RS.FUSED_FROM = 3; // 합체 weapons (two moves in one) only come at 영웅 or better
+  // 무기 상자 (coins, 훈련장 only): 일반 to 희귀. Coins never buy 영웅 or 전설 (round 13: the user bought 초히든 items at
+  // Lv.1 and rerolled at once). g: the colour of the box's row.
   RS.WEAPON_BOXES = [
-    { id: 'box1', icon: '🎁', name: '무기 상자', cost: 90, odds: [0.5, 0.3, 0.14, 0.05, 0.009, 0.001] },
-    { id: 'box2', icon: '💎', name: '고급 무기 상자', cost: 320, odds: [0, 0.6, 0.28, 0.09, 0.025, 0.005] },
-    { id: 'box3', icon: '👑', name: '전설 무기 상자', cost: 1100, odds: [0, 0, 0.62, 0.28, 0.08, 0.02] }
+    { id: 'box1', icon: '🎁', name: '무기 상자', cost: 90, g: 0, odds: [0.65, 0.3, 0.05, 0, 0] },
+    { id: 'box2', icon: '💎', name: '고급 무기 상자', cost: 320, g: 1, odds: [0, 0.75, 0.25, 0, 0] }
   ];
   RS.SELL_BACK = 0.3; // a box weapon no better than the one owned turns into this share of the box price
   // 강화 with coins (훈련장): cost[grade] × the current step; odds[p − 1] = the chance to go from +p to +p+1 (a failure
-  // only costs the coins). The 강화 card of a level-up always succeeds.
-  RS.ENHANCE = { cost: [12, 24, 45, 85, 160, 300], odds: [1, 1, 0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4] };
+  // only costs the coins). The 강화 card of a level-up always succeeds. 강화 never changes the grade.
+  RS.ENHANCE = { cost: [12, 24, 45, 85, 160], odds: [1, 1, 0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4] };
   // Teammates arrive already trained (m.lv = their 강화 +1 … +10): 사비 +1 is common, 사비 +10 is rare.
   RS.MATE_PLUS_W = [30, 22, 15, 11, 8, 6, 4, 2.4, 1.1, 0.5];
-  RS.MATE_GRADE = { prospect: 1, starter: 2, world: 3, legend: 4 }; // card colour by OVR tier, one grade more from +8
+  RS.MATE_GRADE = { prospect: 1, starter: 2, world: 3, legend: 4 }; // card colour by OVR tier (강화 never changes it)
   RS.MATE_ENHANCE = 35; // 훈련장: coins × the current 강화 × (1 + the colour grade) to train one teammate +1
   RS.ROLE_PLUS = 0.06; // a teammate's team effect × (1 + this × (강화 − 1))
-  RS.TIER_GRADE = { rare: 2, hidden: 3, ultra: 4, super: 5 }; // graded items share the colour scale
   RS.ARMOR_CAP = 0.5; // armor never takes away more than this share of a hit
   RS.GUARD_MAX = 0.5; // seconds of cover the 신의 손 palm gives (one slam), whatever the grade
   // When the season boss, the 클라시코 rival or 토레쓰 comes on, the ordinary crowd but the `keep` nearest walks off
@@ -70,7 +74,7 @@
   // the duel the crowd used to refill to 30 and decided the final for the close-range weapons.
   RS.BOSS_CROWD = { keep: 10, max: 30, rivalKeep: 16, rivalRate: 0.5, duelKeep: 4, duelMax: 10 };
   // Each weapon must carry a match alone: × its damage numbers (World.weaponStats), from a bench of every move at
-  // 에픽 +5 against a season-7 crowd (kills before the boss, normalised to the median move). 1 when unlisted.
+  // round 11's 에픽 +5 (the Lv.4 row) against a season-7 crowd (kills before the boss, normalised to the median move). 1 when unlisted.
   RS.WEAPON_SOLO = {
     trail: 0.8, rabona: 0.9, kick: 0.95, siuu: 1.8, scissors: 1.8, bicycle: 1.9, stepover: 2,
     dropball: 0.85, orbit: 0.9, tiki: 0.9, chip: 0.9, curler: 1.6, elastico: 2.6, bobo: 2, solo: 2
@@ -79,7 +83,7 @@
   // often enough to hold the crowd off
   RS.WEAPON_CD = { stepover: 0.5, solo: 0.5, siuu: 0.7 };
   RS.NUM_GAP = 0.25; // seconds between two damage numbers on one boss / 준보스 / elite (the hits between are summed)
-  RS.GIFT_GRADE = 2; // a move taught by a story event or a press answer comes as a 레어 +1 weapon
+  RS.GIFT_GRADE = 2; // a move taught by a story event or a press answer comes as a 희귀 +1 weapon
   // Teammate grade from the player's OVR (a FIFA-style overall), shown on every teammate card. A higher OVR hits
   // harder and lends a stronger team buff (RS.mateMul), so a swap can be judged at a glance.
   RS.MATE_TIERS = [
@@ -671,31 +675,40 @@
   };
 
   // ---------------------------------------------------------------- Passives
-  // mods are applied once per level. Keys: see RS.computeStats in game.js.
+  // mods: the base of one card (희귀); a card of grade g adds mods × RS.GRADES[g].pmul, as its text says
+  // (RS.passiveMods, RS.modsText). Keys: see RS.computeStats in game.js.
   RS.PASSIVES = {
-    boots: { name: '황금 축구화', icon: '👟', desc: '공격력 +10%', mods: { dmg: 0.10 } },
-    freekick: { name: '프리킥 연습', icon: '🥅', desc: '투사체 속도 +10%, 지속 +5%', mods: { projSpeed: 0.10, dur: 0.05 } },
-    jump: { name: '점프력', icon: '🦵', desc: '공격 범위 +10%', mods: { area: 0.10 } },
-    flex: { name: '유연성', icon: '🧘', desc: '쿨타임 -7%', mods: { cd: -0.07 } },
-    speed: { name: '스피드 훈련', icon: '🏃', desc: '이동속도 +8%', mods: { moveSpeed: 0.08 } },
-    finisher: { name: '골 결정력', icon: '🎯', desc: '치명타 확률 +6%', mods: { crit: 0.06 } },
-    charisma: { name: '카리스마', icon: '😎', desc: '기절·지속시간 +12%', mods: { dur: 0.12 } },
-    fitness: { name: '체력 단련', icon: '💪', desc: '최대 체력 +20', mods: { hp: 20 } },
-    trap: { name: '볼 트래핑', icon: '🧲', desc: '아이템 흡수 범위 +30%', mods: { magnet: 0.30 } },
-    recovery: { name: '회복 루틴', icon: '💤', desc: '초당 체력 +0.25', mods: { regen: 0.25 } },
-    icebath: { name: '얼음 목욕', icon: '🧊', desc: '받는 피해 -1', mods: { armor: 1 } },
-    ballon: { name: '발롱도르 수집', icon: '🏆', desc: '공격력 +6%, 범위 +6%', mods: { dmg: 0.06, area: 0.06 }, hero: 'messi' },
+    boots: { name: '황금 축구화', icon: '👟', mods: { dmg: 0.10 } },
+    freekick: { name: '프리킥 연습', icon: '🥅', mods: { projSpeed: 0.10, dur: 0.05 } },
+    jump: { name: '점프력', icon: '🦵', mods: { area: 0.10 } },
+    flex: { name: '유연성', icon: '🧘', mods: { cd: -0.07 } },
+    speed: { name: '스피드 훈련', icon: '🏃', mods: { moveSpeed: 0.08 } },
+    finisher: { name: '골 결정력', icon: '🎯', mods: { crit: 0.06 } },
+    charisma: { name: '카리스마', icon: '😎', mods: { dur: 0.12 } },
+    fitness: { name: '체력 단련', icon: '💪', mods: { hp: 20 } },
+    trap: { name: '볼 트래핑', icon: '🧲', mods: { magnet: 0.30 } },
+    recovery: { name: '회복 루틴', icon: '💤', mods: { regen: 0.25 } },
+    icebath: { name: '얼음 목욕', icon: '🧊', mods: { armor: 1 } },
+    ballon: { name: '발롱도르 수집', icon: '🏆', mods: { dmg: 0.06, area: 0.06 }, hero: 'messi' },
     // 메시's own training. A passive paired only with the other hero's moves is never offered (RS.passiveFor).
-    leftfoot: { name: '왼발 장인', icon: '🦶', desc: '공격력 +10%', mods: { dmg: 0.10 } },
-    curve: { name: '감아차기 감각', icon: '🌙', desc: '치명타 확률 +6%', mods: { crit: 0.06 } },
-    lowcenter: { name: '낮은 무게중심', icon: '⬇️', desc: '이동속도 +8%', mods: { moveSpeed: 0.08 } },
-    grit: { name: '승부욕', icon: '💢', desc: '최대 체력 +20', mods: { hp: 20 } },
-    vision: { name: '넓은 시야', icon: '👁️', desc: '투사체 속도 +10%, 지속 +5%', mods: { projSpeed: 0.10, dur: 0.05 } },
-    calm: { name: '침착함', icon: '😌', desc: '공격 범위 +10%', mods: { area: 0.10 } },
-    samba: { name: '삼바 리듬', icon: '💃', desc: '쿨타임 -7%', mods: { cd: -0.07 } },
-    keepup: { name: '볼 키핑', icon: '🪀', desc: '이동속도 +5%, 공격 범위 +5%', mods: { moveSpeed: 0.05, area: 0.05 } },
-    juggle: { name: '리프팅 묘기', icon: '🤹', desc: '공격 범위 +8%, 지속 +6%', mods: { area: 0.08, dur: 0.06 } },
-    trickster: { name: '능청 연기', icon: '🎭', desc: '기절·지속시간 +12%, 치명타 +3%', mods: { dur: 0.12, crit: 0.03 } }
+    leftfoot: { name: '왼발 장인', icon: '🦶', mods: { dmg: 0.10 } },
+    curve: { name: '감아차기 감각', icon: '🌙', mods: { crit: 0.06 } },
+    lowcenter: { name: '낮은 무게중심', icon: '⬇️', mods: { moveSpeed: 0.08 } },
+    grit: { name: '승부욕', icon: '💢', mods: { hp: 20 } },
+    vision: { name: '넓은 시야', icon: '👁️', mods: { projSpeed: 0.10, dur: 0.05 } },
+    calm: { name: '침착함', icon: '😌', mods: { area: 0.10 } },
+    samba: { name: '삼바 리듬', icon: '💃', mods: { cd: -0.07 } },
+    keepup: { name: '볼 키핑', icon: '🪀', mods: { moveSpeed: 0.05, area: 0.05 } },
+    juggle: { name: '리프팅 묘기', icon: '🤹', mods: { area: 0.08, dur: 0.06 } },
+    trickster: { name: '능청 연기', icon: '🎭', mods: { dur: 0.12, crit: 0.03 } }
+  };
+  // A passive level saved before round 13 has no grade: it counts as 희귀, the old card's full value.
+  RS.PASSIVE_OLD_G = 2;
+  // Card text of a mods table (RS.modsText): label, unit ('%': the value is a fraction) and sign (-1: shown negative).
+  RS.MOD_TEXT = {
+    dmg: ['공격력', '%'], cd: ['쿨타임', '%'], area: ['공격 범위', '%'], projSpeed: ['투사체 속도', '%'],
+    dur: ['기절·지속시간', '%'], moveSpeed: ['이동속도', '%'], crit: ['치명타 확률', '%'], hp: ['최대 체력', ''],
+    magnet: ['아이템 흡수 범위', '%'], regen: ['초당 체력', ''], armor: ['받는 피해', '', -1]
   };
   RS.PASSIVE_MAX = 5;
 
@@ -709,89 +722,76 @@
     focus: { name: '집중력 특훈', icon: '🎯', desc: '치명타 확률 +2%', mods: { crit: 0.02 } }
   };
 
-  // ---------------------------------------------------------------- 특수 카드: graded items ("개사기" grades)
-  // A level-up sometimes deals a 4th card of a grade: 레어 < 히든 < 초히든 < 슈퍼히든, or a gamble card.
-  // Each item is owned once and kept for the career. mods use the RS.computeStats keys; fx names a runtime
-  // effect in game.js (World.updateRelics, damageEnemy, killEnemy, the dice reroll).
-  // Colours follow the weapon grades (RS.TIER_GRADE): 레어 blue, 히든 purple, 초히든 gold, 슈퍼히든 rainbow.
-  RS.TIERS = {
-    rare: { name: '레어', color: '#3d8bff' },
-    hidden: { name: '히든', color: '#b05cff' },
-    ultra: { name: '초히든', color: '#ffc83a' },
-    super: { name: '슈퍼히든', color: '#ff5ad0' }
-  };
-  RS.TIER_ORDER = ['rare', 'hidden', 'ultra', 'super'];
-  RS.TIER_POWER = { rare: 12, hidden: 25, ultra: 45, super: 80 }; // 전투력 points per item
-  // chance per level-up that the 4th card is of that grade (relic odds × (1 + luck)), else maybe a gamble card.
-  // Rare on purpose (round 9 cut them to about a third): a career of ~700 level-ups sees about 6 히든, 2 초히든 and
-  // 슈퍼히든 about once in two careers from level-ups alone; coin draws and chests add a little (RS.COIN_DRAWS,
-  // RS.CHEST_RELIC). 하드 halves all of it (RS.DIFFS.special).
-  RS.SPECIAL_ODDS = { super: 0.0008, ultra: 0.0025, hidden: 0.009, rare: 0.05, gamble: 0.08 };
+  // ---------------------------------------------------------------- 특수 아이템 (graded items)
+  // A level-up sometimes deals a 4th card: a special item of grade g (희귀 · 영웅 · 전설 on RS.GRADES), or a gamble
+  // card. Each item is owned once and kept for the career. mods use the RS.computeStats keys; fx names a runtime
+  // effect in game.js (World.updateRelics, damageEnemy, killEnemy, the dice reroll). Round 13: the old 레어 · 히든 ·
+  // 초히든 · 슈퍼히든 became 희귀 · 영웅 · 전설 · 전설 (약물 꽂기 영웅), and no coin buys an item any more.
+  // The item card: `chance` per level-up (× (1 + luck), × the difficulty's `special`), its grade from `odds` by pro
+  // season like the cards above, so no 전설 before season 5. Chests (RS.CHEST_RELIC) use the same odds; gamble cards
+  // give 영웅 at most. 하드 halves the chance (RS.DIFFS.special).
+  RS.ITEM_STAGES = [
+    { from: 0, chance: 0.05, odds: [0, 0, 0.9, 0.1, 0] },
+    { from: 5, chance: 0.055, odds: [0, 0, 0.78, 0.2, 0.02] },
+    { from: 10, chance: 0.06, odds: [0, 0, 0.66, 0.28, 0.06] },
+    { from: 16, chance: 0.065, odds: [0, 0, 0.56, 0.34, 0.1] }
+  ];
+  RS.GAMBLE_ODDS = 0.08; // after the item card's chance: the 4th card is a gamble card
   RS.RELICS = {
-    dice: { tier: 'rare', icon: '🎲', name: '행운의 주사위', desc: '선택지가 나올 때마다 1번 무료로 다시 굴린다', fx: 'dice' },
-    ion: { tier: 'rare', icon: '🥤', name: '이온 음료', desc: '이동속도 +10%, 초당 체력 +0.4', mods: { moveSpeed: 0.10, regen: 0.4 } },
-    armband: { tier: 'rare', icon: '🎗️', name: '주장 완장', desc: '동료 공격력 +35%, 동료 쿨타임 -15%', mods: { teamDmg: 0.35, teamCd: -0.15 } },
-    contract: { tier: 'rare', icon: '📈', name: '연봉 협상', desc: '코인 획득 +40%', mods: { gold: 0.4 } },
-    clover: { tier: 'rare', icon: '🍀', name: '네잎클로버', desc: '특수 카드 등장 확률 +50%', mods: { luck: 0.5 } },
-    spikes: { tier: 'rare', icon: '👟', name: '스파이크 축구화', desc: '공격력 +12%, 치명타 +5%', mods: { dmg: 0.12, crit: 0.05 } },
-    lunchbox: { tier: 'rare', icon: '🍱', name: '에그타르트 도시락', desc: '최대 체력 +25, 먹는 즉시 체력 완전 회복', mods: { hp: 25 }, fx: 'fullheal', hero: 'ronaldo' },
-    mate: { tier: 'rare', icon: '🧉', name: '마테차 보온병', desc: '최대 체력 +25, 마시는 즉시 체력 완전 회복', mods: { hp: 25 }, fx: 'fullheal', hero: 'messi' },
-    jamon: { tier: 'rare', icon: '🥪', name: '하몽 보까디요', desc: '최대 체력 +25, 먹는 즉시 체력 완전 회복', mods: { hp: 25 }, fx: 'fullheal', hero: 'torres' },
-    shinpad: { tier: 'rare', icon: '🦵', name: '정강이 보호대', desc: '받는 피해 -1, 최대 체력 +10', mods: { armor: 1, hp: 10 } },
-    adrenaline: { tier: 'hidden', icon: '⚡', name: '아드레날린', desc: '체력이 절반 이하면 공격력 +60%', fx: 'adrenaline' },
-    goldboot: { tier: 'hidden', icon: '🥇', name: '골든 부트', desc: '공격력 +25%', mods: { dmg: 0.25 } },
-    heart: { tier: 'hidden', icon: '🫀', name: '강철 심장', desc: '쿨타임 -12%, 이동속도 +6%', mods: { cd: -0.12, moveSpeed: 0.06 } },
-    blackhole: { tier: 'hidden', icon: '🌀', name: '블랙홀 트래핑', desc: '흡수 범위 +120%, 경험치 +15%', mods: { magnet: 1.2, xp: 0.15 } },
+    dice: { g: 2, icon: '🎲', name: '행운의 주사위', desc: '선택지가 나올 때마다 1번 무료로 다시 굴린다', fx: 'dice' },
+    ion: { g: 2, icon: '🥤', name: '이온 음료', desc: '이동속도 +10%, 초당 체력 +0.4', mods: { moveSpeed: 0.10, regen: 0.4 } },
+    armband: { g: 2, icon: '🎗️', name: '주장 완장', desc: '동료 공격력 +35%, 동료 쿨타임 -15%', mods: { teamDmg: 0.35, teamCd: -0.15 } },
+    contract: { g: 2, icon: '📈', name: '연봉 협상', desc: '코인 획득 +40%', mods: { gold: 0.4 } },
+    clover: { g: 2, icon: '🍀', name: '네잎클로버', desc: '특수 카드 등장 확률 +50%', mods: { luck: 0.5 } },
+    spikes: { g: 2, icon: '👟', name: '스파이크 축구화', desc: '공격력 +12%, 치명타 +5%', mods: { dmg: 0.12, crit: 0.05 } },
+    lunchbox: { g: 2, icon: '🍱', name: '에그타르트 도시락', desc: '최대 체력 +25, 먹는 즉시 체력 완전 회복', mods: { hp: 25 }, fx: 'fullheal', hero: 'ronaldo' },
+    mate: { g: 2, icon: '🧉', name: '마테차 보온병', desc: '최대 체력 +25, 마시는 즉시 체력 완전 회복', mods: { hp: 25 }, fx: 'fullheal', hero: 'messi' },
+    jamon: { g: 2, icon: '🥪', name: '하몽 보까디요', desc: '최대 체력 +25, 먹는 즉시 체력 완전 회복', mods: { hp: 25 }, fx: 'fullheal', hero: 'torres' },
+    shinpad: { g: 2, icon: '🦵', name: '정강이 보호대', desc: '받는 피해 -1, 최대 체력 +10', mods: { armor: 1, hp: 10 } },
+    adrenaline: { g: 3, icon: '⚡', name: '아드레날린', desc: '체력이 절반 이하면 공격력 +60%', fx: 'adrenaline' },
+    goldboot: { g: 3, icon: '🥇', name: '골든 부트', desc: '공격력 +25%', mods: { dmg: 0.25 } },
+    heart: { g: 3, icon: '🫀', name: '강철 심장', desc: '쿨타임 -12%, 이동속도 +6%', mods: { cd: -0.12, moveSpeed: 0.06 } },
+    blackhole: { g: 3, icon: '🌀', name: '블랙홀 트래핑', desc: '흡수 범위 +120%, 경험치 +15%', mods: { magnet: 1.2, xp: 0.15 } },
     // 날두's power shots blow up; 메시 slips the ball through the fallen man's legs instead (his own style)
-    bomb: { tier: 'hidden', icon: '💥', name: '폭발 슈팅', desc: '쓰러진 적이 폭발해 주변 적까지 쓸어버린다', fx: 'bomb', hero: ['ronaldo', 'torres'] },
-    nutmeg: { tier: 'hidden', icon: '🔗', name: '알까기 연쇄', desc: '적이 쓰러지면 공이 가랑이 사이로 빠져나가 주변 적 3명을 연달아 제치고 넘어뜨린다(피해 + 기절)', fx: 'nutmeg', hero: 'messi' },
-    sniper: { tier: 'hidden', icon: '🎯', name: '저격수의 눈', desc: '치명타 +15%, 보스에게 주는 피해 +15%', mods: { crit: 0.15, bossDmg: 0.15 } },
-    whistle: { tier: 'ultra', icon: '⏱️', name: '추가시간 휘슬', desc: '12초마다 휘슬! 보스를 뺀 모든 적이 2초간 멈춘다', fx: 'whistle' },
-    legend: { tier: 'ultra', icon: '🧬', name: '레전드 DNA', desc: '공격력 +40%, 치명타 +10%, 범위 +15%', mods: { dmg: 0.4, crit: 0.1, area: 0.15 } },
-    crowd: { tier: 'ultra', icon: '🏟️', name: '홈 관중의 함성', desc: '최대 체력 +40, 초당 체력 +1.5, 받는 피해 -2', mods: { hp: 40, regen: 1.5, armor: 2 } },
-    overdrive: { tier: 'ultra', icon: '⏩', name: '오버드라이브', desc: '쿨타임 -25%, 투사체 속도 +25%', mods: { cd: -0.25, projSpeed: 0.25 } },
+    bomb: { g: 3, icon: '💥', name: '폭발 슈팅', desc: '쓰러진 적이 폭발해 주변 적까지 쓸어버린다', fx: 'bomb', hero: ['ronaldo', 'torres'] },
+    nutmeg: { g: 3, icon: '🔗', name: '알까기 연쇄', desc: '적이 쓰러지면 공이 가랑이 사이로 빠져나가 주변 적 3명을 연달아 제치고 넘어뜨린다(피해 + 기절)', fx: 'nutmeg', hero: 'messi' },
+    sniper: { g: 3, icon: '🎯', name: '저격수의 눈', desc: '치명타 +15%, 보스에게 주는 피해 +15%', mods: { crit: 0.15, bossDmg: 0.15 } },
+    whistle: { g: 4, icon: '⏱️', name: '추가시간 휘슬', desc: '12초마다 휘슬! 보스를 뺀 모든 적이 2초간 멈춘다', fx: 'whistle' },
+    legend: { g: 4, icon: '🧬', name: '레전드 DNA', desc: '공격력 +40%, 치명타 +10%, 범위 +15%', mods: { dmg: 0.4, crit: 0.1, area: 0.15 } },
+    crowd: { g: 4, icon: '🏟️', name: '홈 관중의 함성', desc: '최대 체력 +40, 초당 체력 +1.5, 받는 피해 -2', mods: { hp: 40, regen: 1.5, armor: 2 } },
+    overdrive: { g: 4, icon: '⏩', name: '오버드라이브', desc: '쿨타임 -25%, 투사체 속도 +25%', mods: { cd: -0.25, projSpeed: 0.25 } },
     // 메시 only (his growth-hormone story), and only after he took the treatment (need: 'hgh'). A stimpack: up to
     // RS.STIM.max doses (b.relics.doping = doses); every extra dose adds RS.STIM.step of the first one's mods.
     // Stats only: a small body stays small.
-    doping: { tier: 'ultra', icon: '💉', name: '약물 꽂기', desc: '성장호르몬 한 방 더! 스팀팩처럼 최대 5번 투여. 첫 투여: 공격 +20%, 체력 +30, 이동 +8%, 쿨타임 -10%, 범위·흡수 +15%, 치명타 +5%, 받는 피해 -1 · 추가 투여마다 그 25%씩 더',
+    doping: { g: 3, icon: '💉', name: '약물 꽂기', desc: '성장호르몬 한 방 더! 스팀팩처럼 최대 5번 투여. 첫 투여: 공격 +20%, 체력 +30, 이동 +8%, 쿨타임 -10%, 범위·흡수 +15%, 치명타 +5%, 받는 피해 -1 · 추가 투여마다 그 25%씩 더',
       mods: { dmg: 0.2, hp: 30, moveSpeed: 0.08, cd: -0.1, area: 0.15, magnet: 0.15, crit: 0.05, armor: 1 }, hero: 'messi', need: 'hgh', stack: true },
-    honaldo: { tier: 'super', icon: '🥋', name: '호날도', desc: '전설의 무술. 3초마다 정권 → 회오리 발차기 → 내려찍기 3연타 (호! 날! 도!)', fx: 'honaldo', hero: 'ronaldo' },
-    messia: { tier: 'super', icon: '✨', name: '메시아', desc: '구세주의 기적. 3초마다 드리블 돌파 → 감아차기 연사 → 기적의 일격 3연타 (메! 시! 아!)', fx: 'messia', hero: 'messi' },
-    meteor: { tier: 'super', icon: '🌠', name: '별똥별 슛', desc: '4초마다 하늘에서 황금 공 8개가 적에게 쏟아진다', fx: 'meteor', hero: ['ronaldo', 'torres'] },
+    honaldo: { g: 4, icon: '🥋', name: '호날도', desc: '전설의 무술. 3초마다 정권 → 회오리 발차기 → 내려찍기 3연타 (호! 날! 도!)', fx: 'honaldo', hero: 'ronaldo' },
+    messia: { g: 4, icon: '✨', name: '메시아', desc: '구세주의 기적. 3초마다 드리블 돌파 → 감아차기 연사 → 기적의 일격 3연타 (메! 시! 아!)', fx: 'messia', hero: 'messi' },
+    meteor: { g: 4, icon: '🌠', name: '별똥별 슛', desc: '4초마다 하늘에서 황금 공 8개가 적에게 쏟아진다', fx: 'meteor', hero: ['ronaldo', 'torres'] },
     // 메시's own: "외계인" — a phantom dribble zigzags through eight defenders
-    alien: { tier: 'super', icon: '👽', name: '외계인 모드', desc: '4초마다 메시의 잔상이 주변 적 8명 사이를 번개처럼 지그재그로 제치며 큰 피해 + 기절. 그동안 무적', fx: 'alien', hero: 'messi' },
-    goat: { tier: 'super', icon: '🐐', name: 'GOAT', desc: '공격력 +50%, 쿨타임 -15%, 최대 체력 +60, 이동속도 +12%, 받는 피해 -2', mods: { dmg: 0.5, cd: -0.15, hp: 60, moveSpeed: 0.12, armor: 2 } }
+    alien: { g: 4, icon: '👽', name: '외계인 모드', desc: '4초마다 메시의 잔상이 주변 적 8명 사이를 번개처럼 지그재그로 제치며 큰 피해 + 기절. 그동안 무적', fx: 'alien', hero: 'messi' },
+    goat: { g: 4, icon: '🐐', name: 'GOAT', desc: '공격력 +50%, 쿨타임 -15%, 최대 체력 +60, 이동속도 +12%, 받는 피해 -2', mods: { dmg: 0.5, cd: -0.15, hp: 60, moveSpeed: 0.12, armor: 2 } }
   };
   // 도박 카드: rolled when picked; the odds are printed on the card. Outcome keys: levels (extra level-ups),
-  // relic (grade odds), hpHalf, coinMul (this match's coins), text (result line). needCoins: shown only with coins.
+  // relic (the grade of the item won, 영웅 at most), hpHalf, coinMul (this match's coins), text (result line).
+  // needCoins: shown only with coins.
   RS.GAMBLES = {
     coin: { icon: '🪙', name: '동전 던지기', desc: '앞면(50%): 레벨 +2 · 뒷면(50%): 꽝',
       outcomes: [{ p: 0.5, win: true, levels: 2, text: '앞면! 레벨 +2' }, { p: 0.5, text: '뒷면… 꽝!' }] },
-    roll: { icon: '🎲', name: '주사위 한 판', desc: '5~6(33%): 히든 아이템 · 1~4(67%): 체력 절반',
-      outcomes: [{ p: 0.33, win: true, relic: { hidden: 1 }, text: '주사위 6! 히든 아이템' }, { p: 0.67, hpHalf: true, text: '주사위 1… 체력 절반' }] },
-    slot: { icon: '🎰', name: '슬롯머신', desc: '2% 슈퍼히든 · 6% 초히든 · 22% 레어 · 70% 꽝',
-      outcomes: [{ p: 0.02, win: true, relic: { super: 1 }, text: '777 잭팟!! 슈퍼히든' }, { p: 0.06, win: true, relic: { ultra: 1 }, text: '초히든 당첨!' },
-        { p: 0.22, win: true, relic: { rare: 1 }, text: '레어 당첨' }, { p: 0.7, text: '꽝! 다음 기회에' }] },
+    roll: { icon: '🎲', name: '주사위 한 판', desc: '4~6(50%): 희귀 아이템 · 1~3(50%): 체력 절반',
+      outcomes: [{ p: 0.5, win: true, relic: 2, text: '주사위 5! 희귀 아이템' }, { p: 0.5, hpHalf: true, text: '주사위 2… 체력 절반' }] },
+    slot: { icon: '🎰', name: '슬롯머신', desc: '8% 영웅 · 22% 희귀 · 70% 꽝',
+      outcomes: [{ p: 0.08, win: true, relic: 3, text: '777 잭팟!! 영웅 아이템' }, { p: 0.22, win: true, relic: 2, text: '희귀 당첨' },
+        { p: 0.7, text: '꽝! 다음 기회에' }] },
     allin: { icon: '💰', name: '올인 베팅', desc: '이번 경기 코인 전부: 45% 3배 · 55% 전부 잃음', needCoins: 10,
       outcomes: [{ p: 0.45, win: true, coinMul: 3, text: '대박! 코인 3배' }, { p: 0.55, coinMul: 0, text: '쪽박… 코인 전부 잃음' }] },
-    devil: { icon: '😈', name: '악마의 계약', desc: '30%: 초히든 아이템 · 70%: 체력 절반',
-      outcomes: [{ p: 0.3, win: true, relic: { ultra: 1 }, text: '계약 성립! 초히든 아이템' }, { p: 0.7, hpHalf: true, text: '악마가 웃는다… 체력 절반' }] }
+    devil: { icon: '😈', name: '악마의 계약', desc: '30%: 영웅 아이템 · 70%: 체력 절반',
+      outcomes: [{ p: 0.3, win: true, relic: 3, text: '계약 성립! 영웅 아이템' }, { p: 0.7, hpHalf: true, text: '악마가 웃는다… 체력 절반' }] }
   };
-  // Coin shop on every level-up screen: paid rerolls any number of times, one grade draw per level-up.
-  // Coins come from this match first, then the wallet (훈련장 money). A draw costs more with every item owned
-  // (RS.drawCost: cost × (1 + DRAW_COST_STEP × items)), so a rich wallet cannot buy the whole collection at once.
-  // 약물 꽂기 as a stimpack: the first dose is a 초히든 item (or this extra chance per level-up once 메시 took the
+  // 약물 꽂기 as a stimpack: the first dose is a 영웅 item (or this extra chance per level-up once 메시 took the
   // treatment); every dose after that comes as its own card (odds per level-up × (1 + luck)) up to `max`.
   RS.STIM = { max: 5, step: 0.25, first: 0.012, odds: 0.025 };
-  RS.COIN_REROLL = 8;
-  RS.DRAW_COST_STEP = 0.75;
-  // Draws were the main source of 히든 items (70 coins bought one at 78 %): dearer now, and weighted to their floor.
-  RS.COIN_DRAWS = [
-    { id: 'rare', icon: '💎', name: '레어 이상', cost: 45, odds: { rare: 0.88, hidden: 0.1, ultra: 0.018, super: 0.002 } },
-    { id: 'hidden', icon: '🔮', name: '히든 이상', cost: 160, odds: { hidden: 0.9, ultra: 0.09, super: 0.01 } },
-    { id: 'ultra', icon: '👑', name: '초히든 이상', cost: 420, odds: { ultra: 0.94, super: 0.06 } }
-  ];
-  RS.CHEST_RELIC = { chance: 0.03, odds: { rare: 0.88, hidden: 0.11, ultra: 0.01 } }; // a graded item in a chest
+  RS.CHEST_RELIC = { chance: 0.03 }; // a special item in a chest, its grade from RS.ITEM_STAGES
 
   // ---------------------------------------------------------------- Eras (clubs) — parody names, no logos
   // kit.pattern: hoops | stripes | trim | sash
@@ -1422,7 +1422,12 @@
     normal: { name: '노멀', icon: '⚽', hp: 1.6, dmg: 1.5, spawn: 1.25, boss: 1.5, grow: 0.02, heal: 0.9, special: 0.85, poise: 0.85, bossCool: 0.95, ramp: 3, desc: '기본 난이도. 중반부터는 벽이 느껴진다 · 훈련장 강화가 필요하다' },
     // grow 0.08 (round 10, was 0.05): with each match replayable from its seed, 완전 오토 with the whole 훈련장 still
     // cleared 하드 on 2 seeds of 8; now it stalls on every one between 2011 and 2017
-    hard: { name: '하드', icon: '🔥', hp: 2.4, dmg: 2.1, spawn: 1.5, boss: 2.2, grow: 0.045, heal: 0.45, special: 0.5, poise: 0.6, bossCool: 0.8, ramp: 1, desc: '적이 단단하고 아프며 잘 밀리지 않는다. 회복과 히든도 드물다. 오토로는 못 깬다' }
+    // top (round 13): × the 영웅 and 전설 share of the weapon and passive cards (RS.gradeOddsAt; the rest goes to
+    // 희귀). Luck used to cut the top grades off in late seasons (RS.luckOdds), and 하드 was tuned with that: once
+    // fixed, 완전 오토 with the whole 훈련장 cleared 하드 on seed 7 of 7 · 3 · 5 · 9 (×0.5: on 7 and 3). At ×0.25 its
+    // season-10 hand is 영웅 8 % · 전설 2 %, near round 12's 에픽 7 % · no 황금, and it stalls on all six seeds tried
+    // (7 · 3 · 5 · 9 · 11 · 13), between 2011 and 2022.
+    hard: { name: '하드', icon: '🔥', hp: 2.4, dmg: 2.1, spawn: 1.5, boss: 2.2, grow: 0.045, heal: 0.45, special: 0.5, top: 0.25, poise: 0.6, bossCool: 0.8, ramp: 1, desc: '적이 단단하고 아프며 잘 밀리지 않는다. 회복과 특수 아이템, 영웅·전설 카드도 드물다. 오토로는 못 깬다' }
   };
   RS.DIFF_ORDER = ['easy', 'normal', 'hard'];
   RS.DIFF = 'normal';
@@ -1777,11 +1782,11 @@
     growth: { name: '전술 이해', icon: '📘', desc: '경험치 +6%', max: 10, cost: [40, 70, 110, 160, 220, 290, 370, 460, 560, 680], mods: { xp: 0.06 } },
     greed: { name: '스폰서 계약', icon: '💰', desc: '코인 획득 +10%', max: 10, cost: [30, 55, 90, 130, 180, 240, 310, 390, 480, 580], mods: { gold: 0.10 } },
     cooldown: { name: '회복 훈련', icon: '⏳', desc: '쿨타임 -3%', max: 6, cost: [70, 140, 230, 340, 470, 620], mods: { cd: -0.03 } },
-    luck: { name: '행운 부적', icon: '🍀', desc: '특수 카드 확률 +10%', max: 5, cost: [60, 120, 200, 300, 420], mods: { luck: 0.1 } },
+    luck: { name: '행운 부적', icon: '🍀', desc: '특수 카드·희귀 이상 확률 +10% (시즌이 안 된 등급은 안 열림)', max: 5, cost: [60, 120, 200, 300, 420], mods: { luck: 0.1 } },
     revive: { name: '불사조 정신', icon: '🔥', desc: '연도마다 1회 부활', max: 1, ballon: [2], mods: { revive: 1 } },
     // round 10: 골결정력 for penalties only (RS.pkFinishing), no match stat
     pkdrill: { name: 'PK 훈련', icon: '🎯', desc: '페널티킥 골결정력 +3', max: 5, cost: [60, 120, 200, 300, 420], mods: {} },
     reroll: { name: '전술 보드', icon: '🔁', desc: '레벨업 리롤 +1', max: 3, ballon: [1, 1, 1], mods: { reroll: 1 } }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).data = 'R12';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).data = 'R13';

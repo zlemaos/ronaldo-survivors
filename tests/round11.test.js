@@ -147,12 +147,12 @@ test('recruits sign with varied pre-trained enhancement from +1 through +10', ()
 });
 
 test('weapon drops and boxes make each supported higher grade rarer', () => {
-  for (const odds of [RS.GRADE_ODDS, ...RS.WEAPON_BOXES.map(b => b.odds)]) {
-    const rng = RS.makeRng(25), counts = [0,0,0,0,0,0];
+  for (const odds of [...RS.GRADE_STAGES.map(s => s.odds), ...RS.WEAPON_BOXES.map(b => b.odds)]) {
+    const rng = RS.makeRng(25), counts = [0,0,0,0,0];
     for (let i = 0; i < 100000; i++) counts[RS.rollGrade(rng, odds)]++;
-    const supported = counts.filter((n, g) => odds[g] > 0);
-    for (let g = 1; g < supported.length; g++) assert.ok(supported[g - 1] > supported[g]);
-    assert.ok(counts[5] > 0, 'rainbow is obtainable');
+    // from the season's most common grade up (later seasons drop the lowest grades), each one is rarer
+    const peak = counts.indexOf(Math.max(...counts));
+    for (let g = peak + 1; g < counts.length; g++) if (odds[g] > 0) assert.ok(counts[g - 1] > counts[g], odds.join('/'));
   }
 });
 
@@ -238,7 +238,7 @@ test('weapon swaps keep the old move in the armory and fight with one move', () 
 });
 
 test('each next grade at +1 beats the preceding grade at +10', () => {
-  for (let g = 0; g < 5; g++) {
+  for (let g = 0; g < RS.GRADES.length - 1; g++) {
     assert.ok(RS.weaponMul({ g, p: 10 }) < RS.weaponMul({ g: g + 1, p: 1 }));
   }
 });
@@ -260,9 +260,9 @@ test('weapon boxes reject insufficient funds and provide weapons for coins', () 
   s.meta.coins = 89;
   assert.equal(RS.buyBox(s, 'box1', RS.makeRng(7)), null);
   assert.equal(s.meta.coins, 89);
-  s.meta.coins = 1100;
-  const result = RS.buyBox(s, 'box3', RS.makeRng(7));
-  assert.ok(result.w.g >= 2);
+  s.meta.coins = 320;
+  const result = RS.buyBox(s, 'box2', RS.makeRng(7));
+  assert.ok(result.w.g >= 1);
   assert.ok(result.kept);
   assert.equal(s.meta.coins, 0);
 });

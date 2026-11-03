@@ -141,7 +141,7 @@
 
   // Story events (메시: the growth-hormone choice = difficulty, 딩요's tutoring): once, before that season's coach.
   RS.needsEvent = (save, idx) => !RS.isReplay(save, idx) && !!RS.YEARS[idx].event && save.career.eventDone < idx;
-  // A move taught by the story (event card skill, press answer fx.skill) comes as a 레어 +1 weapon (RS.GIFT_GRADE),
+  // A move taught by the story (event card skill, press answer fx.skill) comes as a 희귀 +1 weapon (RS.GIFT_GRADE),
   // into the hand when it beats the one held, else into the 무기고. Owned already: that weapon gets 강화 +1.
   // Returns 'learned' | 'up' | 'full' (owned and maxed).
   RS.giftWeapon = function (b, id) {
@@ -303,7 +303,7 @@
 
   RS.startYear = function (save, idx, opt) {
     opt = opt || {};
-    return new RS.World({ yearIdx: idx, build: RS.buildForYear(save, idx), meta: save.meta, wallet: save.meta.coins, seed: opt.seed, view: opt.view });
+    return new RS.World({ yearIdx: idx, build: RS.buildForYear(save, idx), meta: save.meta, seed: opt.seed, view: opt.view });
   };
 
   // Called when a year ends (clear, victory or death). Returns summary for the UI.
@@ -311,9 +311,8 @@
     const idx = world.yearIdx;
     const res = world.result();
     const replay = RS.isReplay(save, idx);
-    const out = { idx, replay, cleared: res.cleared, coins: res.coins, kills: res.kills, ballon: 0, finished: false, level: res.level, spent: world.coinsSpent || 0 };
-    // level-up coin shop: wallet money spent during the match leaves the wallet, win or lose
-    save.meta.coins = Math.max(0, save.meta.coins - (world.walletSpent || 0)) + res.coins;
+    const out = { idx, replay, cleared: res.cleared, coins: res.coins, kills: res.kills, ballon: 0, finished: false, level: res.level };
+    save.meta.coins += res.coins;
     save.meta.totalKills += res.kills;
     out.pkDue = RS.pkCountGame(save.meta); // every fifth match, cleared or not, ends with a PK 챌린지
     if (res.cleared) {
@@ -409,10 +408,11 @@
   // 토레쓰 reward (round 11): one pick after beating him. g: the card colour (RS.GRADES).
   RS.TORRES_REWARDS = [
     { id: 'mate', icon: '⚽', name: '토레쓰 영입', g: 4, desc: '토레쓰(OVR 90 공격수)가 강화 +5로 합류 · 자리가 없으면 가장 약한 벤치 동료와 교체' },
-    { id: 'weapon', icon: '🏆', name: '빈의 결승골', g: 5, desc: '황금 이상 무기 1개 (무지개 확률 15%) · 지금 무기보다 세면 바로 장착' },
-    { id: 'coins', icon: '💰', name: '5천만 파운드 이적료', g: 3, desc: '코인 +500' }
+    { id: 'weapon', icon: '🏆', name: '빈의 결승골', g: 3, desc: '영웅 이상 무기 1개 (전설 확률 15%) · 지금 무기보다 세면 바로 장착' },
+    { id: 'coins', icon: '💰', name: '5천만 파운드 이적료', g: 2, desc: '코인 +500' }
   ];
-  RS.TORRES_WEAPON_ODDS = [0, 0, 0, 0, 0.85, 0.15];
+  // 토레쓰 only runs on from 2007 (날두, pro season 5) or 2012 (메시), where the level-up cards already deal 전설.
+  RS.TORRES_WEAPON_ODDS = [0, 0, 0, 0.85, 0.15];
   RS.needsTorresReward = (save) => save.career.torresReward != null;
   // Rewards still to pick, in the result screen's order. A reload between a clear and its picks keeps them in the
   // save (토레쓰's in career.torresReward, the season boss's until the next season is cleared), so the next match
@@ -475,8 +475,9 @@
   };
 
   // ---------------------------------------------------------------- 훈련장 weapons and squad (round 11)
-  // Coin sinks that never run out: 무기 상자, 무기 강화 (odds fall with every step; a failure only costs the coins)
-  // and teammate training. They change the career build (replays keep their own snapshots).
+  // Coin sinks that never run out: 무기 상자 (일반 to 희귀 only, round 13), 무기 강화 (odds fall with every step; a
+  // failure only costs the coins) and teammate training. They change the career build (replays keep their own
+  // snapshots).
   RS.buyBox = function (save, boxId, rng) {
     const d = RS.WEAPON_BOXES.find((x) => x.id === boxId);
     if (!d || save.meta.coins < d.cost) return null;
@@ -495,7 +496,7 @@
     if (ok) RS.enhanceWeapon(b, 1);
     return { ok, p: b.weapon.p, cost };
   };
-  RS.mateTrainCost = (m) => (m.lv >= RS.MATE_MAX_LV ? null : RS.MATE_ENHANCE * m.lv * (1 + RS.mateGrade(m.id, m.lv)));
+  RS.mateTrainCost = (m) => (m.lv >= RS.MATE_MAX_LV ? null : RS.MATE_ENHANCE * m.lv * (1 + RS.mateGrade(m.id)));
   RS.buyMateTrain = function (save, id) {
     const m = RS.allMates(save.career.build).find((x) => x.id === id), cost = m && RS.mateTrainCost(m);
     if (cost == null || save.meta.coins < cost) return false;
@@ -504,4 +505,4 @@
     return true;
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).career = 'R12';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).career = 'R13';

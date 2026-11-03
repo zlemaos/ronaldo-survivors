@@ -741,7 +741,7 @@
             L.fillRect(Math.round(sx + (f.vx || 0) * k * 0.6 + 2), Math.round(sy + (f.vy || 0) * k * 0.4), 1, 1);
             break;
           case 'levelburst': { // rising sparks and an expanding ring around 날두 (graded items: in their colour)
-            if (f.tier) { L.strokeStyle = RS.TIERS[f.tier].color; L.globalAlpha = 1 - k; L.lineWidth = 3; L.beginPath(); L.arc(sx, sy, 10 + 40 * k, 0, TAU); L.stroke(); L.globalAlpha = 1; }
+            if (f.g != null) { L.strokeStyle = RS.GRADES[f.g].color; L.globalAlpha = 1 - k; L.lineWidth = 3; L.beginPath(); L.arc(sx, sy, 10 + 40 * k, 0, TAU); L.stroke(); L.globalAlpha = 1; }
             L.strokeStyle = 'rgba(255,230,120,' + (1 - k) + ')'; L.lineWidth = 2;
             L.beginPath(); L.arc(sx, sy, 6 + 26 * k, 0, TAU); L.stroke();
             for (let i = 0; i < 8; i++) {
@@ -957,4 +957,4 @@
   }
   RS.Renderer = Renderer;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).render = 'R12';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).render = 'R13';
