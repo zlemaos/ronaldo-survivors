@@ -9,7 +9,7 @@
     hero = RS.HEROES[hero] ? hero : 'ronaldo';
     const start = RS.HEROES[hero].startSkill;
     return {
-      level: 1, xp: 0,
+      level: 1, xp: 0, rivalry: { w: 0, l: 0 },
       skills: { [start]: 1 }, skillOrder: [start],
       passives: {}, passiveOrder: [],
       evolved: {}, // id -> true, or the evolution variant name for skills with several (orbit: 'count' | 'size')
@@ -73,6 +73,7 @@
     for (const id of Object.keys(b.stars)) if (!b.evolved[id] || !b.skills[id]) delete b.stars[id];
     for (const id of Object.keys(b.drills)) if (!RS.DRILLS[id]) delete b.drills[id];
     b.fans = RS.clampFans(typeof b.fans === 'number' ? b.fans : RS.FANS.start);
+    if (!b.rivalry || typeof b.rivalry !== 'object') b.rivalry = { w: 0, l: 0 }; // 엘 클라시코 record
     if (b.relics.doping) b.relics.doping = Math.max(1, Math.min(RS.STIM.max, b.relics.doping | 0));
     return b;
   };
@@ -216,10 +217,18 @@
 
   // stars: 각성 of an evolved move (RS.STAR_STEP per star); the starred stat sets are cached (read every step).
   const STARRED = {};
+  // A fused move (합체) hits for RS.FUSE_SCALE of its table: the gain of fusing is the freed slot and the new behaviour,
+  // not twice the parents' output (the strong bot cleared 하드 outright with unscaled tables).
+  const fuseScale = (id, base) => {
+    if (!RS.SKILLS[id].fused) return base;
+    const key = 'F|' + id + '|' + JSON.stringify(base);
+    return STARRED[key] || (STARRED[key] = Object.assign({}, base, { dmg: base.dmg * RS.FUSE_SCALE },
+      base.boomDmg ? { boomDmg: base.boomDmg * RS.FUSE_SCALE } : {}, base.zdmg ? { zdmg: base.zdmg * RS.FUSE_SCALE } : {}));
+  };
   RS.skillStats = function (id, lv, evolved, stars) {
     const s = RS.SKILLS[id];
-    if (!evolved) return s.lv[Math.max(0, Math.min(s.lv.length, lv) - 1)];
-    const base = (s.evos && s.evos[evolved] && s.evos[evolved].stats) || s.evo;
+    if (!evolved) return fuseScale(id, s.lv[Math.max(0, Math.min(s.lv.length, lv) - 1)]);
+    const base = fuseScale(id, (s.evos && s.evos[evolved] && s.evos[evolved].stats) || s.evo);
     if (!stars) return base;
     const key = id + '|' + evolved + '|' + stars;
     return STARRED[key] || (STARRED[key] = Object.assign({}, base,
@@ -245,6 +254,30 @@
       if (!build.evolved[id] && build.skills[id] >= RS.SKILL_MAX && (build.passives[s.passive] || 0) >= 1) out.push(id);
     }
     return out;
+  };
+
+  // 합체 (RS.SKILLS[*].fusion): both parts owned and evolved → the fused move can be taken.
+  RS.availableFusions = function (build) {
+    const out = [];
+    for (const id in RS.SKILLS) {
+      const f = RS.SKILLS[id].fusion;
+      if (!f || build.skills[id] || !RS.skillFor(id, build.hero || 'ronaldo')) continue;
+      if (f.every((p) => build.skills[p] && build.evolved[p])) out.push(id);
+    }
+    return out;
+  };
+  RS.fuseDepth = (id) => { const f = RS.SKILLS[id] && RS.SKILLS[id].fusion; return f ? 1 + Math.max(...f.map(RS.fuseDepth)) : 0; };
+  // Fuse: the parts leave (levels, evolution, stars), the fused move takes the first part's slot at Lv.1.
+  RS.fuse = function (build, id) {
+    const f = RS.SKILLS[id] && RS.SKILLS[id].fusion;
+    if (!f || build.skills[id] || !f.every((p) => build.skills[p] && build.evolved[p])) return false;
+    const at = build.skillOrder.indexOf(f[0]);
+    for (const p of f) { delete build.skills[p]; delete build.evolved[p]; if (build.stars) delete build.stars[p]; }
+    build.skillOrder = build.skillOrder.filter((s) => !f.includes(s));
+    build.skillOrder.splice(Math.max(0, at), 0, id);
+    build.skills[id] = 1;
+    build.fusions = (build.fusions || 0) + 1;
+    return true;
   };
 
   // ================================================================ Teammates
@@ -356,6 +389,9 @@
         return Object.assign(c, { name: s.name, icon: s.icon, desc: s.ups[nl - 1], tag: 'Lv.' + nl + (nl === RS.SKILL_MAX ? ' MAX' : ''), hint: RS.evoHint(build, c.id) }); }
       case 'evolve': { const s = RS.SKILLS[c.id]; const v = c.variant && s.evos && s.evos[c.variant];
         return Object.assign(c, { name: v ? v.name : s.evoName, icon: v ? v.icon : s.evoIcon, desc: v ? v.desc : s.evoDesc, tag: '진화!', hint: s.name + ' + ' + RS.PASSIVES[s.passive].name }); }
+      case 'fuse': { const s = RS.SKILLS[c.id], pa = RS.SKILLS[s.fusion[0]], pb = RS.SKILLS[s.fusion[1]];
+        return Object.assign(c, { name: s.name, icon: s.icon, desc: s.desc, tag: '합체!', tier: 'super',
+          hint: pa.evoName + ' + ' + pb.evoName + ' → 두 기술이 하나가 되고 스킬 칸 1개가 비워진다 (Lv.1부터 다시 키운다)' }); }
       case 'passive': { const p = RS.PASSIVES[c.id]; return Object.assign(c, { name: p.name, icon: p.icon, desc: p.desc, tag: '새 패시브', hint: RS.passiveHint(build, c.id) }); }
       case 'passiveUp': { const p = RS.PASSIVES[c.id]; const nl = build.passives[c.id] + 1;
         return Object.assign(c, { name: p.name, icon: p.icon, desc: p.desc, tag: 'Lv.' + nl + (nl === RS.PASSIVE_MAX ? ' MAX' : ''), hint: RS.passiveHint(build, c.id) }); }
@@ -395,9 +431,10 @@
       if (evos) for (const v in evos) out.push({ kind: 'evolve', id, variant: v }); // the player picks the path
       else out.push({ kind: 'evolve', id });
     }
+    for (const id of RS.availableFusions(build)) if (out.length < 2) out.push({ kind: 'fuse', id }); // 합체: always on the table
     for (const id of build.skillOrder) if (build.skills[id] < RS.SKILL_MAX) pool.push({ kind: 'skillUp', id, w: 3 * (RS.SKILLS[id].upW || 1) });
     if (build.skillOrder.length < RS.MAX_SKILLS) {
-      for (const id in RS.SKILLS) if (!build.skills[id] && RS.skillFor(id, hero) && !RS.SKILLS[id].gift) pool.push({ kind: 'skill', id, w: 1.7 });
+      for (const id in RS.SKILLS) if (!build.skills[id] && RS.skillFor(id, hero) && !RS.SKILLS[id].gift && !RS.SKILLS[id].fusion) pool.push({ kind: 'skill', id, w: 1.7 });
     }
     for (const id of build.passiveOrder) if (build.passives[id] < RS.PASSIVE_MAX) pool.push({ kind: 'passiveUp', id, w: 2 });
     for (const id in RS.PASSIVES) if (RS.canTakePassive(build, id) && RS.passiveFor(id, hero)) {
@@ -459,7 +496,7 @@
   // The 4th card of a level-up: a 약물 꽂기 dose (RS.STIM: its own chance once 메시 took the treatment), a graded
   // item (odds × (1 + luck)), a gamble card, or null (a normal card).
   RS.rollSpecial = function (build, rng, luck, coins) {
-    const L = 1 + (luck || 0);
+    const L = (1 + (luck || 0)) * ((RS.DIFFS[RS.DIFF] || RS.DIFFS.normal).special || 1);
     if (RS.stimReady(build) && rng() < (RS.stimDoses(build) ? RS.STIM.odds : RS.STIM.first) * L) return describe({ kind: 'stim', id: 'doping' }, build);
     const r = rng();
     let acc = 0;
@@ -481,6 +518,7 @@
   // Applies a choice to the build. Returns false if it could not apply.
   RS.applyChoice = function (build, c) {
     switch (c.kind) {
+      case 'fuse': return RS.fuse(build, c.id);
       case 'skill':
         if (build.skills[c.id] || build.skillOrder.length >= RS.MAX_SKILLS) return false;
         build.skills[c.id] = 1; build.skillOrder.push(c.id); return true;
@@ -577,6 +615,8 @@
       this._q = []; this._q2 = [];
       this.kills = 0; this.coinsPicked = 0; this.dmgDealt = 0;
       this.boss = null; this.bossSpawned = false;
+      this.rival = null; this.rivalResult = null; // 엘 클라시코: 'win' | 'loss' once decided
+      this.pfxQ = []; // pixelfx effects queued for the renderer (World.pfx)
       this.levelQueue = 0; this.choices = null; this.chestResult = null;
       this.spawnAcc = 0;
       this.rescue = null; this.recruitedThisRun = [];
@@ -614,9 +654,18 @@
         const s0 = RS.computeStats(Object.assign({}, this.build, { relics: {}, relicOrder: [] }), this.metaUp);
         this.finalScale = Math.max(1, (this.stats.maxHp + 60 * this.stats.regen) / (s0.maxHp + 60 * s0.regen));
       }
+      // 합체 moves make the hero far stronger than the duel was tuned for: the rival answers in kind (RS.FINAL_FUSE
+      // per fusion depth: a tier-2 fusion counts twice)
+      if (this.yearDef.final) for (const id of this.build.skillOrder) this.finalScale *= 1 + RS.FINAL_FUSE * RS.fuseDepth(id);
     }
     emit(type, data) { this.events.push(Object.assign({ type }, data || {})); }
     later(t, fn) { this.timers.push({ t, fn }); }
+    // Queue a pixelfx effect (Renderer.drawPfx) at a world point, or on an entity (follow). Headless runs just
+    // collect them; the queue is capped so a quiet renderer never grows it.
+    pfx(fx, x, y, o) {
+      if (this.pfxQ.length >= RS.PFX_MAX) this.pfxQ.shift();
+      this.pfxQ.push(Object.assign({ fx, x, y, seed: Math.floor(this.rng() * 1e6) }, o || {}));
+    }
     addFx(kind, x, y, o) {
       if (this.fx.length > 140) this.fx.shift();
       const f = Object.assign({ kind, x, y, t: 0, dur: 0.3 }, o || {});
@@ -640,6 +689,7 @@
       s.push({ t: T / 3, kind: 'wave2' });
       s.push({ t: T * 0.4, kind: 'elite' });
       s.push({ t: T * 0.5, kind: 'circle' });
+      if (this.yearDef.rival) s.push({ t: T * 0.42, kind: 'rival' }); // 엘 클라시코: the rival plays the middle of the stage
       s.push({ t: T * 2 / 3, kind: 'wave3' });
       s.push({ t: T * 0.75, kind: 'elite' });
       if (idx >= 4) s.push({ t: T * 0.82, kind: 'press' });
@@ -784,7 +834,37 @@
       } else if (kind === 'extra') this.emit('banner', { text: '⏱ 연장전! ' + this.yearDef.twist.extra + '초 더 버텨라' });
       else if (kind === 'wave2') { this.emit('wave', { n: 2 }); this.emit('banner', { text: '⚡ 2차 공세 — 상대가 거세진다' }); }
       else if (kind === 'wave3') { this.emit('wave', { n: 3 }); this.emit('banner', { text: '🔥 총공세 — 버텨라!' }); }
+      else if (kind === 'rival') this.spawnRival();
       else if (kind === 'boss') this.spawnBoss();
+    }
+
+    // 엘 클라시코 (RS.RIVAL): the rival hero as a boss in the middle of the stage, for RS.RIVAL_WINDOW seconds.
+    // His HP is set once from the player's recent output (a fight of secs[0] + secs[1] × rivalLv windows worth)
+    // and never recalibrated, so a stronger build really does catch him and a weak one really does not.
+    spawnRival() {
+      if (this.rival) return;
+      const yd = this.yearDef, kind = yd.rival, R = RS.RIVAL[kind], bt = RS.BOSS_TYPES[kind], lv = yd.rivalLv || 0;
+      const a = this.rng() * TAU, D = this.spawnRadius() * 0.8;
+      const e = this.spawnEnemy('grunt', this.player.x + Math.cos(a) * D, this.player.y + Math.sin(a) * D);
+      e.type = 'rival'; e.sprite = bt.sprite; e.boss = true; e.rival = true; e.elite = false;
+      e.r = bt.r; e.speed = bt.speed * this.tune.speedMul * (1 + 0.03 * lv);
+      // a single running target takes about an eighth of a crowd build's output (RS.RIVAL_HIT_SHARE); the first two
+      // checkpoints (World.calibrateBoss) then set the fight to secs[0] + secs[1] × lv windows from the damage that
+      // really lands, and after that his HP is fixed: late burst, focus and a stronger build decide the window
+      e.maxHp = e.hp = Math.round(Math.max(RS.bossHp(bt, this.tune) * (1 + R.hp * lv), this.recentDps() * RS.RIVAL_HIT_SHARE * this.bossTarget({ rival: true, rivalLv: lv })));
+      e.bossDmgIn = 0; e.calibrated = 0; e.baseHp = Math.round(RS.bossHp(bt, this.tune) * (1 + R.hp * lv));
+      e.dmg = Math.round(bt.dmg * this.tune.bossDmgMul * (1 + R.dmg * lv));
+      e.xp = 40; e.name = R.name; e.leaveAt = this.t + RS.RIVAL_WINDOW; e.rivalLv = lv;
+      e.ai = { kind, cool: 1.5, act: null, last: null, phase: 1, keep: 70, strafe: 1, history: [], rival: true, lv };
+      this.rival = e;
+      this.emit('rival', { name: e.name, lv, secs: RS.RIVAL_WINDOW });
+      return e;
+    }
+    rivalLeave(e) {
+      e.alive = false; e.tele = null;
+      this.rival = null; this.rivalResult = 'loss';
+      this.addFx('poof', e.x, e.y, { dur: 0.4, big: true, seed: 0 });
+      this.emit('rivalEnd', { win: false, name: e.name });
     }
 
     updateSpawns(dt) {
@@ -820,6 +900,7 @@
       e.invuln = false; e.tele = null; e.lineVx = 0; e.lineVy = 0; e.life = 0; e.dHit = -9; e.face = 1; e.charging = false; e.orbT = 0;
       e.anim = this.rng() * 10; e.minion = !!opt.minion;
       e.mini = !!def.mini; e.name = def.name;
+      e.rival = false; e.leaveAt = 0; e.rivalLv = 0; // pooled objects: a past 클라시코 rival must not linger
       if (e.elite) { e.maxHp = e.hp = e.hp * 9; e.r = Math.round(e.r * 1.5); e.dmg = Math.round(e.dmg * 1.4); e.xp *= 12; e.speed *= RS.ELITE_SPEED; e.pace = 'slow'; }
       if (e.mini) { // 준보스: scales with the year (not with the wall), acts like a small boss (telegraphed charge / slam)
         e.maxHp = e.hp = Math.round(e.hp / tu.wallHp * (1 + 0.25 * this.lvl));
@@ -1083,6 +1164,11 @@
         if (use === 'trail') { this.updateTrail(ws, s, dt); continue; }
         if (use === 'dribball') { this.updateDribball(ws, s, dt); continue; }
         if (use === 'dropball') { this.updateDropball(ws, s, dt); continue; }
+        if (use === 'swarm') { // 위성 군단: the orbit and the hunting balls at once
+          this.updateOrbit(ws, s, dt);
+          this.updateDribball(ws, ws.drib || (ws.drib = {}), dt, s);
+          continue;
+        }
         ws.timer -= dt;
         if (ws.timer > 0) continue;
         const fired = this.fire(use, s, evo, id);
@@ -1165,6 +1251,90 @@
         if (pz) { pz.kickT = 0.25; if (f) pz.face = f; } else if (!po) { p.kickT = 0.2; if (f) p.face = f; }
       };
       switch (use) {
+        case 'missile': { // 유도 대포알: cannon balls that turn after the toughest men nearby and explode at the first hit
+          const tg = this.nearestEnemies(6, 260, this._tg || (this._tg = []));
+          if (!tg.length) return false;
+          const sorted = tg.slice().sort((a, b) => b.hp - a.hp);
+          for (let i = 0; i < s.count; i++) {
+            const e = sorted[i % sorted.length];
+            const a = Math.atan2(e.y - oy, e.x - ox) + (i % 2 ? 0.5 : -0.5) * Math.min(1, i);
+            this.spawnProj(evo ? 'golden' : 'cannon', ox, oy, a, s.speed * st.projSpeed,
+              { dmg, pierce: s.pierce, r: s.r, life: 2.2, home: 4.5, target: e, knock: 60, boom: s.boom, boomDmg: s.boomDmg, gold: !!s.gold });
+            if (i === 0) kicked(a);
+          }
+          this.emit('sfx', { name: 'shoot' });
+          return true;
+        }
+        case 'airraid': { // 공중 지배: the header jump, then tornado rings rolling outward from the landing
+          if (!this.nearestEnemies(1, 140, this._tg || (this._tg = [])).length) return false;
+          p.jump = 0.35;
+          const R = s.radius * st.area;
+          this.later(0.35, () => {
+            this.shock(p.x, p.y, R, s.dmg, { knock: 90, color: '#ffe08a' });
+            this.emit('sfx', { name: 'thud' });
+            this.pfx('boomSmall', p.x, p.y + 6, { palette: RS.PFX_WHITE, o: { r: Math.round(R * 1.1), n: 16 } });
+            const x = p.x, y = p.y;
+            for (let i = 1; i <= s.rings; i++) this.later(0.15 * i, () => {
+              const r = R * (0.8 + 0.35 * i);
+              this.shock(x, y, r, s.dmg * 0.6, { knock: 60, stun: s.stun * st.dur, silentFx: true });
+              this.addFx('swing', x, y, { r, dur: 0.3, gold: evo });
+              if (i === 1) this.emit('sfx', { name: 'swish' });
+            });
+          });
+          return true;
+        }
+        case 'blitz': { // 환상 난무 / 마라도나 모드: a zigzag through `count` enemies, untouchable meanwhile
+          const tg = this.nearestEnemies(s.count, s.range * st.area, this._al || (this._al = [])).slice();
+          if (tg.length < 2) return false;
+          const ZIG = 0.07;
+          p.iframe = Math.max(p.iframe, tg.length * ZIG); // untouchable only while the afterimage runs
+          let x0 = p.x, y0 = p.y;
+          tg.forEach((e, i) => {
+            const fx = x0, fy = y0;
+            x0 = e.x; y0 = e.y;
+            this.later(i * ZIG, () => {
+              const x = e.alive ? e.x : x0, y = e.alive ? e.y : y0;
+              this.addFx('zip', x, y, { dur: 0.32, x0: fx, y0: fy, alien: evo });
+              this.addFx('ghost', x, y, { dur: 0.35, face: x >= fx ? 1 : -1 });
+              if (e.alive) this.damageEnemy(e, s.dmg, { knock: 50, kx: x >= fx ? 1 : -1, ky: 0, stun: s.stun * st.dur });
+              if (i % 2 === 0) this.emit('sfx', { name: 'zip' });
+            });
+          });
+          this.addFx('martial', p.x, p.y, { dur: 0.8, ch: id === 'maradona' ? '🇦🇷' : '7', n: 1, follow: true });
+          return true;
+        }
+        case 'inferno': { // 지옥의 함성: the SIUU ring, then a ring of fire where the crowd was thrown
+          if (!this.nearestEnemies(1, s.radius * st.area, this._tg || (this._tg = [])).length) return false;
+          const R = s.radius * st.area;
+          this.rings.push({ x: p.x, y: p.y, r: 0, maxR: R, t: 0, dur: 0.45, dmg: s.dmg, stun: s.stun * st.dur, knock: s.knock, hits: new Set(), evo, shout: true });
+          if (s.heal) p.hp = Math.min(st.maxHp, p.hp + s.heal);
+          const x = p.x, y = p.y, n = s.zones;
+          this.later(0.4, () => {
+            for (let i = 0; i < n; i++) {
+              const a = i / n * TAU;
+              if (this.zones.length >= 90) this.zones.shift();
+              this.zones.push({ x: x + Math.cos(a) * R * 0.7, y: y + Math.sin(a) * R * 0.7, r: s.zr * st.area, t: 0, life: s.life * st.dur, tick: s.tick, tickT: 0, dmg: s.zdmg, evo, seed: this.rng() * 6.28 });
+            }
+          });
+          this.emit('sfx', { name: 'siu' }); this.emit('shout');
+          this.pfx('goldBurst', p.x, p.y, { follow: p, dy: 8, palette: RS.PFX_FIRE });
+          return true;
+        }
+        case 'meteor': { // CR7 궁극기 / GOAT 모드: golden meteors on up to `count` enemies, one after another
+          const tg = this.nearestEnemies(s.count, s.range * st.area, this._mt || (this._mt = [])).slice();
+          if (!tg.length) return false;
+          const R = s.radius * st.area;
+          tg.forEach((e, i) => {
+            const x = e.x, y = e.y, delay = 0.35 + i * 0.07;
+            this.addFx('meteor', x, y, { dur: delay });
+            this.later(delay, () => {
+              this.shock(x, y, R, s.dmg, { knock: 80, stun: s.stun * st.dur, color: '#ffd84a' });
+              if (i % 3 === 0) { this.emit('sfx', { name: 'thud' }); this.pfx('boomSmall', x, y + 3, { palette: RS.PFX_GOLD }); }
+            });
+          });
+          this.emit('sfx', { name: 'curl' });
+          return true;
+        }
         case 'rabona': { // curling boomerangs: out to `range`, then home to 날두 (piercing both ways)
           const tg = this.nearestEnemies(s.count, 220, this._tg || (this._tg = []));
           if (!tg.length) return false;
@@ -1246,7 +1416,7 @@
           if (id === 'bobo') { // 메시: a glare and one line, not a SIUU
             this.addFx('martial', p.x, p.y, { dur: 0.8, ch: evo ? '저리 가!' : '뭘 봐?', n: 1, follow: true });
             this.emit('sfx', { name: 'bobo' });
-          } else { this.emit('sfx', { name: 'siu' }); this.emit('shout'); }
+          } else { this.emit('sfx', { name: 'siu' }); this.emit('shout'); if (evo) this.pfx('goldBurst', p.x, p.y, { follow: p, dy: 8 }); }
           return true;
         }
         case 'curler': { // 감아차기: leaves wide of the target and bends back in on it (homing)
@@ -1285,6 +1455,7 @@
               this.addFx('hand', x, y, { dur: HAND_T + 0.4, hit: HAND_T, r: R, evo });
               this.later(HAND_T, () => {
                 this.shock(x, y, R, s.dmg, { knock: 120, stun: s.stun * st.dur, silentFx: true });
+                this.pfx('boomSmall', x, y + 4, { palette: RS.PFX_WHITE, o: { r: Math.round(R * 1.2), n: 18 } });
                 // the referee never saw it: cards and shots under the palm are swatted away too
                 for (const ep of this.eprojs) if (ep.alive && (ep.x - x) ** 2 + (ep.y - y) ** 2 < R * R * 1.7) ep.alive = false;
                 this.emit('shake', { k: 0.22 });
@@ -1319,7 +1490,9 @@
     // 드리볼: `count` balls leave 메시's feet and chase the enemies around him (within `leash` × area), one touch
     // per ball every `touch` s — the ball pops back off the shin and goes for the next man; with nobody in reach
     // they juggle at his feet. this.dribs holds them for the renderer.
-    updateDribball(ws, s, dt) {
+    updateDribball(ws, s, dt, swarm) {
+      // 위성 군단 drives this with its own numbers: dcount hunting balls at dspeed
+      if (swarm) Object.assign(s, { count: swarm.dcount, leash: swarm.leash, speed: swarm.dspeed, r: swarm.r, dmg: swarm.dmg, touch: swarm.touch, trip: swarm.trip });
       const p = this.player, st = this.stats, D = this.dribs;
       const leash = s.leash * st.area, spd = s.speed * st.projSpeed, br = s.r;
       while (D.length < s.count) D.push({ x: p.x, y: p.y, px: p.x, py: p.y, vx: 0, vy: 0, tg: null, cd: 0.2 * D.length, i: D.length, spin: 0, r: br });
@@ -1396,6 +1569,7 @@
             const Rb = s.radius * st.area, evo = !!s.scatter;
             this.shock(b.x, b.y, Rb, s.dmg, { knock: 90, silentFx: true });
             this.addFx('impact', b.x, b.y, { r: Rb, dur: 0.55, gold: evo });
+            this.pfx('boomSmall', b.x, b.y + 3, evo ? { palette: RS.PFX_GOLD } : null);
             this.addFx('crater', b.x, b.y, { r: Rb * 0.75, dur: 1.6 });
             for (let i = 0; i < 6; i++) this.addFx('dust', b.x, b.y, { dur: 0.45, vx: Math.cos(i * 1.05) * Rb * 0.8, vy: Math.sin(i * 1.05) * Rb * 0.5 - 6 });
             if (s.scatter) for (let i = 0; i < s.scatter; i++) {
@@ -1461,6 +1635,7 @@
       pr.life = o.life || 1.5; pr.t = 0; pr.curve = o.curve || 0; pr.wobble = o.wobble || 0; pr.knock = o.knock || 25;
       pr.critBonus = o.critBonus || 0; pr.team = !!o.team; pr.alive = true; pr.target = o.target || null;
       pr.boomer = o.boomer || 0; pr.back = false; pr.trav = 0; pr.home = o.home || 0;
+      pr.boom = o.boom || 0; pr.boomDmg = o.boomDmg || 0; pr.gold = !!o.gold; // 유도 대포알: explodes at its first hit
       pr.hits.clear();
       this.projs.push(pr);
       return pr;
@@ -1515,6 +1690,14 @@
           const n = Math.hypot(pr.vx, pr.vy) || 1;
           this.damageEnemy(e, pr.dmg, { knock: pr.knock, kx: pr.vx / n, ky: pr.vy / n, critBonus: pr.critBonus, team: pr.team });
           if (pr.kind === 'cannon') this.addFx('spark', e.x, e.y, { dur: 0.2 });
+          if (pr.boom) { // one explosion per ball, at the first man it hits
+            const R = pr.boom * this.stats.area;
+            this.shock(e.x, e.y, R, pr.boomDmg, { knock: 70, color: pr.gold ? '#ffd84a' : '#ff8a3a' });
+            this.addFx('impact', e.x, e.y, { r: R, dur: 0.5, gold: pr.gold });
+            this.pfx('boomSmall', e.x, e.y + 3, pr.gold ? { palette: RS.PFX_GOLD } : null);
+            this.emit('sfx', { name: 'thud' });
+            pr.boom = 0;
+          }
           if (pr.pierce > 0) { pr.pierce--; continue; }
           if (pr.bounce > 0) {
             pr.bounce--;
@@ -1564,12 +1747,20 @@
         const k = (e.boss ? o.knock * 0.15 : e.mini ? o.knock * 0.3 : e.elite ? o.knock * 0.4 : o.knock) * this.tune.poise;
         e.kx += (o.kx || 0) * k; e.ky += (o.ky || 0) * k;
       }
-      if (o.stun && !e.boss) e.stun = Math.max(e.stun, o.stun * (e.elite || e.mini ? 0.5 : 1) * this.tune.poise); // bosses are stun-immune
+      if (o.stun && !e.boss) { // bosses are stun-immune
+        const was = e.stun;
+        e.stun = Math.max(e.stun, o.stun * (e.elite || e.mini ? 0.5 : 1) * this.tune.poise);
+        if ((e.mini || e.elite) && was <= 0 && e.stun >= 0.6) this.pfx('stunStars', e.x, e.y, { follow: e, life: e.stun, dy: -e.r });
+      }
       // damage numbers only where they matter (crits, bosses, 준보스, elites) — plain hits show the spark only
       if (res.crit || e.boss || e.mini || e.elite) this.addText(e.x, e.y - e.r, res.dmg, res.crit);
       // impact spark: a few shards flying away from the hit direction (crits bigger and golden); burns stay quiet
       if (!o.dot && this.fx.length < 120) this.addFx('hit', e.x, e.y - 2, { dur: res.crit ? 0.3 : 0.2, kx: o.kx || 0, ky: o.ky || 0, crit: res.crit, seed: this.rng() * 6.28 });
-      if (res.crit && !o.dot) { this.emit('sfx', { name: 'crit' }); if (e.boss) this.emit('shake', { k: 0.08 }); }
+      if (res.crit && !o.dot) {
+        this.emit('sfx', { name: 'crit' });
+        if (e.boss) { this.emit('shake', { k: 0.08 }); this.emit('hitstop', { t: RS.HIT_STOP.crit }); }
+        if (e.boss || e.mini || e.elite) this.pfx('hitSpark', e.x, e.y - 2, { angle: Math.atan2(o.ky || 0, o.kx || 1) });
+      }
       if (e.hp <= 0) this.killEnemy(e);
       return res.dmg;
     }
@@ -1578,8 +1769,21 @@
       e.alive = false;
       this.kills++;
       const xpv = Math.max(1, Math.round(e.xp * this.tune.xpMul));
+      if (e.rival) { // 클라시코 win: the season goes on; a chest and coins where he fell
+        this.rival = null; this.rivalResult = 'win';
+        this.addFx('boom', e.x, e.y, { r: 50, dur: 0.7 });
+        this.pfx('smallExplosion', e.x, e.y + 4, { palette: RS.PFX_GOLD });
+        this.emit('hitstop', { t: RS.HIT_STOP.rival });
+        for (let i = 0; i < 8; i++) this.dropPickup('coin', e.x + (this.rng() - 0.5) * 40, e.y + (this.rng() - 0.5) * 40, 3);
+        this.dropPickup('chest', e.x, e.y + 6, 1);
+        this.emit('rivalEnd', { win: true, name: e.name });
+        this.emit('siuu');
+        return;
+      }
       if (e.boss) {
         this.addFx('boom', e.x, e.y, { r: 60, dur: 0.8 });
+        this.pfx('bigExplosion', e.x, e.y + 6);
+        this.emit('hitstop', { t: RS.HIT_STOP.boss });
         // the season ends here, so the loot is banked directly instead of dropped (coins scale with the year)
         this.bossCoins = 30 + 6 * this.lvl;
         this.coinsPicked += this.bossCoins;
@@ -1607,8 +1811,9 @@
         for (let i = 0; i < 4; i++) this.dropPickup('coin', e.x + (this.rng() - 0.5) * 24, e.y + (this.rng() - 0.5) * 24, 2);
         this.dropPickup(this.rng() < 0.3 ? 'chest' : 'heal', e.x, e.y + 6, 1);
         this.addFx('boom', e.x, e.y, { r: 30, dur: 0.5 });
+        this.pfx('boomSmall', e.x, e.y + 4);
         this.emit('miniKill', { name: e.name });
-      }
+      } else if (e.elite || e.type === 'tank') this.pfx('sparkPop', e.x, e.y + 2);
       const r = this.rng(), hc = this.tune.healMul / 130; // heal drops: rarer on 하드, more on 이지 (RS.DIFFS)
       if (r < 0.035) this.dropPickup('coin', e.x + 4, e.y, 1);
       else if (r < 0.035 + hc) this.dropPickup('heal', e.x, e.y, 1);
@@ -1797,6 +2002,7 @@
         const dx = p.x - e.x, dy = p.y - e.y;
         const d2 = dx * dx + dy * dy;
         const d = Math.sqrt(d2) || 1;
+        if (e.rival && e === this.rival && this.t >= e.leaveAt) { this.rivalLeave(e); continue; }
         if (e.stun > 0) e.stun -= dt;
         else if (e.boss) this.bossAI(e, dt, dx, dy, d);
         else if (e.mini) this.miniAI(e, dt, dx, dy, d);
@@ -1914,17 +2120,25 @@
       e.maxHp = Math.round(e.maxHp * k);
       e.hp = Math.max(1, Math.round(e.hp * k));
     }
-    bossTarget(e) { return RS.BOSS_FIGHT_SECONDS * RS.BOSS_TYPES[this.yearDef.boss.type].fight * this.tune.bossFight; }
+    bossTarget(e) {
+      if (e.rival) { const R = RS.RIVAL[this.yearDef.rival]; return RS.RIVAL_WINDOW * (R.secs[0] + R.secs[1] * (e.rivalLv || 0)); }
+      return RS.BOSS_FIGHT_SECONDS * RS.BOSS_TYPES[this.yearDef.boss.type].fight * this.tune.bossFight;
+    }
 
     bossActions(e) {
       const ai = e.ai, fin = RS.FINAL[ai.kind];
+      if (ai.rival) { // 엘 클라시코: the move lists unlocked by his level; the rage list in phase 2
+        const R = RS.RIVAL[ai.kind];
+        if (ai.phase === 2) return fin.phase2;
+        return [].concat(...R.tiers.slice(0, ai.lv + 1));
+      }
       if (!fin) return RS.BOSS_TYPES[ai.kind].actions;
       return ai.phase === 1 ? fin.phase1 : fin.phase2;
     }
 
     bossAI(e, dt, dx, dy, d) {
       const ai = e.ai, fin = RS.FINAL[ai.kind];
-      if (fin && ai.phase === 1 && e.hp <= e.maxHp * 0.5) {
+      if (fin && ai.phase === 1 && e.hp <= e.maxHp * 0.5 && (!ai.rival || ai.lv >= RS.RIVAL[ai.kind].rageAt)) {
         ai.phase = 2;
         ai.act = { kind: 'roar', t: 0, stage: 0, n: 0 };
         e.invuln = true;
@@ -1932,7 +2146,8 @@
         this.emit('rage');
         this.emit('banner', { text: fin.rageText });
       }
-      if (e.bossDmgIn && e.calibrated < RS.BOSS_CALIBRATE_AT.length && this.t - e.firstHitT >= RS.BOSS_CALIBRATE_AT[e.calibrated]) { e.calibrated++; this.calibrateBoss(e); }
+      const cals = e.rival ? RS.RIVAL_CALIBRATIONS : RS.BOSS_CALIBRATE_AT.length;
+      if (e.bossDmgIn && e.calibrated < cals && this.t - e.firstHitT >= RS.BOSS_CALIBRATE_AT[e.calibrated]) { e.calibrated++; this.calibrateBoss(e); }
       if (ai.act) { this.runBossAct(e, ai.act, dt, dx, dy, d); return; }
       // movement between attacks
       const sp = e.speed * this.finalPace;
@@ -2259,7 +2474,7 @@
       switch (g.kind) {
         case 'gem': this.gainXp(g.value); this.emit('sfx', { name: 'gem' }); break;
         case 'coin': this.coinsPicked += g.value; this.emit('sfx', { name: 'coin' }); break;
-        case 'heal': p.hp = Math.min(this.stats.maxHp, p.hp + 30); this.addFx('heal', p.x, p.y, { dur: 0.5 }); this.emit('sfx', { name: 'heal' }); break;
+        case 'heal': p.hp = Math.min(this.stats.maxHp, p.hp + 30); this.addFx('heal', p.x, p.y, { dur: 0.5 }); this.pfx('heal', p.x, p.y, { follow: p, dy: 8 }); this.emit('sfx', { name: 'heal' }); break;
         case 'magnet': for (const o of this.pickups) if (o.alive && o.kind === 'gem') o.vac = true; this.emit('sfx', { name: 'magnet' }); break;
         case 'chest': this.openChest(); break;
       }
@@ -2372,7 +2587,7 @@
         if (r.fx === 'fullheal') this.player.hp = this.stats.maxHp;
         this.addFx('levelburst', this.player.x, this.player.y, { dur: 0.9, follow: true, tier: r.tier });
         this.emit('relic', { id: c.id, tier: r.tier });
-        if (r.tier === 'ultra' || r.tier === 'super') this.emit('siuu');
+        if (r.tier === 'ultra' || r.tier === 'super') { this.emit('siuu'); this.pfx('goldBurst', this.player.x, this.player.y, { follow: this.player, dy: 8 }); }
         return true;
       }
       if (c.kind === 'stim') { // one more 약물 꽂기 dose: a red surge around 메시
@@ -2387,6 +2602,8 @@
       if (c.kind === 'heal') this.player.hp = Math.min(this.stats.maxHp, this.player.hp + this.stats.maxHp * 0.4);
       if (c.kind === 'mate' && this.build.teammates.some((m) => m.id === c.id)) this.spawnMateRuntime(this.build.teammates.find((m) => m.id === c.id));
       if (c.kind === 'evolve') { this.emit('evolve', { id: c.id }); this.emit('siuu'); this.emit('banner', { text: '진화! ' + RS.SKILLS[c.id].evoName }); }
+      if (c.kind === 'fuse') { this.emit('evolve', { id: c.id }); this.emit('siuu'); this.emit('banner', { text: '⚡ 합체! ' + RS.SKILLS[c.id].name }); }
+      if (c.kind === 'evolve' || c.kind === 'fuse') this.pfx('goldBurst', this.player.x, this.player.y, { follow: this.player, dy: 8 });
       this.recalc();
       return true;
     }
@@ -2602,7 +2819,8 @@
     result() {
       const cleared = this.phase === 'clear' || this.phase === 'victory';
       const base = this.coinsPicked + this.kills / 8 + (cleared ? 40 + 8 * this.lvl : 0);
-      return { cleared, kills: this.kills, time: this.t, level: this.build.level, coins: Math.round(base * this.stats.gold), recruited: this.recruitedThisRun.slice() };
+      return { cleared, kills: this.kills, time: this.t, level: this.build.level, coins: Math.round(base * this.stats.gold), recruited: this.recruitedThisRun.slice(),
+        rival: this.rivalResult, rivalName: this.yearDef.rival ? RS.RIVAL[this.yearDef.rival].name : null };
     }
   }
   RS.World = World;
@@ -2665,7 +2883,7 @@
   // 초히든) > evolution > whatever links with the build now (a passive that unlocks an evolution path, a move whose
   // passive is already owned, a teammate completing a named partnership) > skill upgrade > ... The bot never gambles.
   RS.botChoose = function (choices, build) {
-    const pr = { evolve: 0, skillUp: 2, star: 2.5, mate: 3, skill: 4, passive: 5, passiveUp: 6, mateUp: 7, drill: 7.5, heal: 8, gold: 9, gamble: 10, stim: -2 };
+    const pr = { fuse: -0.5, evolve: 0, skillUp: 2, star: 2.5, mate: 3, skill: 4, passive: 5, passiveUp: 6, mateUp: 7, drill: 7.5, heal: 8, gold: 9, gamble: 10, stim: -2 };
     const tierScore = { super: -3, ultra: -2, hidden: -1, rare: 1.5 };
     const links = (c) => {
       if (!build) return false;

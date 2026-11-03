@@ -67,9 +67,20 @@ test('a maxed build still gets a real choice: ★ awakening of evolved moves, th
   b.teammates = all.slice(0, RS.MAX_MATES);
   b.bench = all.slice(RS.MAX_MATES, RS.MAX_MATES + RS.MAX_BENCH);
   const c = RS.makeChoices(b, RS.makeRng(1), 5, 4);
-  assert.ok(c.length === 4 && c.every((x) => x.kind === 'star'), c.map((x) => x.kind).join());
-  assert.ok(RS.applyChoice(b, c[0]));
-  assert.equal(b.stars[c[0].id], 1);
+  // six evolved 날두 moves always hold at least one 합체 pair (round 9): those cards lead, the rest are ★
+  assert.ok(c.length === 4 && c.every((x) => x.kind === 'star' || x.kind === 'fuse') && c.some((x) => x.kind === 'fuse'), c.map((x) => x.kind).join());
+  const star = c.find((x) => x.kind === 'star');
+  assert.ok(RS.applyChoice(b, star));
+  assert.equal(b.stars[star.id], 1);
+  // fuse everything that can fuse (maxed and evolved at once), refill the slots with the moves left, until the
+  // build is as finished as it can be
+  const maxed = (id) => { b.skills[id] = RS.SKILL_MAX; b.evolved[id] = true; b.passives[RS.SKILLS[id].passive] = RS.PASSIVE_MAX; };
+  for (let guard = 0; guard < 20; guard++) {
+    for (const id of RS.availableFusions(b)) { assert.ok(RS.fuse(b, id)); maxed(id); }
+    const spare = Object.keys(RS.SKILLS).find((id) => !b.skills[id] && !RS.SKILLS[id].fusion && RS.skillFor(id, 'ronaldo'));
+    if (b.skillOrder.length < RS.MAX_SKILLS && spare) { b.skillOrder.push(spare); maxed(spare); continue; }
+    if (!RS.availableFusions(b).length) break;
+  }
   for (const id of b.skillOrder) b.stars[id] = RS.STAR_MAX;
   const d = RS.makeChoices(b, RS.makeRng(1), 5, 4);
   assert.deepEqual(d.map((x) => x.kind), ['drill', 'drill', 'drill', 'heal']);

@@ -461,7 +461,8 @@
       };
       drawSquad();
       $('intro-boss').textContent = (yd.final ? '최종 보스: ' : '시즌 보스: ') + yd.boss.name + ' (' + RS.BOSS_TYPES[yd.boss.type].sig + ') · ' +
-        (yd.twist && yd.twist.extra ? '연장까지 ' + Math.round(RS.yearTuning(idx).duration) + '초' : '1분') + ' 버티면 등장';
+        (yd.twist && yd.twist.extra ? '연장까지 ' + Math.round(RS.yearTuning(idx).duration) + '초' : '1분') + ' 버티면 등장' +
+        (yd.rival ? ' · ⚔️ 경기 중반 엘 클라시코: ' + RS.RIVAL[yd.rival].name + ' (' + (yd.rivalLv + 1) + '년차) ' + RS.RIVAL_WINDOW + '초 안에 잡으면 승리' : '');
       $('btn-kickoff').onclick = () => { RS.Audio.sfx('click'); this.play(idx); };
       this.armAuto(() => this.play(idx), 2200, '킥오프', 'semi');
     },
@@ -478,6 +479,7 @@
       for (const id in b.drills || {}) h += '<span class="chip">' + RS.DRILLS[id].icon + ' ' + esc(RS.DRILLS[id].name) + ' ×' + b.drills[id] + '</span>';
       for (const id of b.relicOrder || []) { const r = RS.RELICS[id]; h += '<span class="chip t-' + r.tier + '">' + r.icon + ' ' + esc(r.name) + (r.stack ? ' ' + b.relics[id] + '/' + RS.STIM.max : '') + '</span>'; }
       if (b.coachCards.length) h += '<span class="chip">👔 감독 카드 ' + b.coachCards.length + '</span>';
+      if (b.rivalry && (b.rivalry.w || b.rivalry.l)) h += '<span class="chip">⚔️ 클라시코 ' + b.rivalry.w + '승 ' + b.rivalry.l + '패</span>';
       const ft = RS.fanTier(b);
       h += '<span class="chip">' + ft.icon + ' 민심 ' + esc(ft.name) + ' ' + (b.fans != null ? b.fans : RS.FANS.start) + (ft.key !== 'calm' ? ' · ' + esc(ft.text) : '') + '</span>';
       return h + this.squadLines(b);
@@ -524,6 +526,8 @@
       this.playIdx = idx;
       this.state = 'play';
       this.paused = false;
+      this.hitStop = 0;
+      this.renderer.pfx.length = 0;
       this.endT = 0;
       this.ended = false;
       this.input.enabled = true;
@@ -702,6 +706,8 @@
       add('Lv.' + out.level, '레벨');
       add('+' + out.coins, '코인');
       if (out.ballon) add('+' + out.ballon, '발롱도르 🏆');
+      if (out.rival) add(out.rival === 'win' ? '승 ⚔️' : '패 😤', '클라시코 vs ' + out.rivalName + (out.rival === 'win' ? ' · 민심 +' : ' · 민심 -') + RS.RIVAL_FANS);
+      if (out.ballonStolen) add('🏆→' + out.rivalName, '발롱도르를 뺏겼다 · 다시 해서 되찾자');
       if (w.recruitedThisRun.length) add(w.recruitedThisRun.length + '명', '새 동료');
       const next = $('btn-res-next'), retry = $('btn-res-retry');
       $('res-reward').classList.add('hidden');
@@ -819,7 +825,9 @@
     tick(dt) {
       const w = this.world;
       if (!this.paused) {
-        if (w.phase === 'play') {
+        if (this.hitStop > 0) { // a big hit freezes the match for a few frames (RS.HIT_STOP); the picture still draws
+          this.hitStop -= dt;
+        } else if (w.phase === 'play') {
           this.acc = (this.acc || 0) + dt * (this.speed || 1); // 2x: more fixed steps per frame, same physics
           let n = 0;
           let v = this.input.vector();
@@ -864,6 +872,7 @@
           case 'siuu': this.celebrate(w.hero); break;
           case 'levelup': RS.Audio.sfx('levelup'); this.renderer.shake = Math.max(this.renderer.shake, 0.1); $('hud-power').parentElement.classList.remove('bump'); void $('hud-power').offsetWidth; $('hud-power').parentElement.classList.add('bump'); break;
           case 'shake': this.renderer.shake = Math.max(this.renderer.shake, e.k || 0.1); break;
+          case 'hitstop': this.hitStop = Math.max(this.hitStop || 0, e.t || 0); break;
           case 'wave': RS.Audio.sfx('wave'); this.renderer.shake = Math.max(this.renderer.shake, 0.12); break;
           case 'mini': RS.Audio.sfx('warn'); break;
           case 'miniKill': RS.Audio.sfx('chest'); this.toast(e.name + ' 격파!'); break;
@@ -898,6 +907,17 @@
             this.banner((e.final ? '최종 보스 등장: ' : '시즌 보스 등장: ') + e.name);
             $('bossbar').classList.remove('hidden');
             $('boss-name').textContent = e.name;
+            break;
+          case 'rival':
+            RS.Audio.sfx('boss');
+            this.banner('⚔️ 엘 클라시코! ' + e.name + ' 등장 (' + (e.lv + 1) + '년차) · ' + e.secs + '초 안에 잡아라');
+            $('bossbar').classList.remove('hidden');
+            this.renderer.shake = Math.max(this.renderer.shake, 0.3);
+            break;
+          case 'rivalEnd':
+            $('bossbar').classList.add('hidden');
+            if (e.win) { RS.Audio.sfx('cheer'); this.banner('🏆 클라시코 승리! ' + e.name + ' 격파'); this.renderer.shake = 0.5; }
+            else { RS.Audio.sfx('lose'); this.banner('😤 ' + e.name + '가 경기를 끝냈다 — 클라시코 패배'); }
             break;
           case 'recruit': RS.Audio.sfx('recruit'); this.banner(RS.TEAMMATES[e.id].name + (e.bench ? ' 벤치 합류!' : ' 합류!') + (e.swap ? ' (' + RS.TEAMMATES[e.swap].name + ' 이적)' : '')); break;
           case 'rescueSpawn': this.banner((e.swap ? '이적 제안! ' : '동료 발견! ') + RS.TEAMMATES[e.id].name + ' 에게 가자'); break;
@@ -943,9 +963,12 @@
       if (!w.bossSpawned) { const r = Math.max(0, Math.ceil(w.stageTime - w.t)); tstr = Math.floor(r / 60) + ':' + String(r % 60).padStart(2, '0'); }
       else tstr = 'BOSS';
       this.setText('t', $('hud-time'), tstr);
-      if (w.boss) {
-        const r = Math.max(0, Math.round(w.boss.hp / w.boss.maxHp * 1000) / 10);
+      const bb = w.boss || w.rival;
+      if (bb) {
+        const r = Math.max(0, Math.round(bb.hp / bb.maxHp * 1000) / 10);
         if (this.hud.bh !== r) { this.hud.bh = r; $('boss-fill').style.width = r + '%'; }
+        // the rival's bar counts down the 클라시코 window
+        this.setText('bn', $('boss-name'), bb.rival ? '⚔️ ' + bb.name + ' · ' + Math.max(0, Math.ceil(bb.leaveAt - w.t)) + '초' : bb.name);
       }
     },
 

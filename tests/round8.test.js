@@ -48,11 +48,13 @@ test('difficulty: 노멀 is the default; 이지 < 노멀 < 하드 in enemy tough
   assert.ok(ratio('hard', 14) > ratio('hard', 2));
 });
 
-test('노멀 is beatable with the 훈련장: a strong bot holding half of the upgrades clears every year before the final', () => {
+test('노멀 needs the 훈련장 but rewards it: a strong bot with half of the upgrades gets past 맨체스터 into the 마드리드 years', () => {
+  // round 9 made 노멀 much tougher (the bot with the full 훈련장 is meant to stall around 2021); the first seven seasons
+  // must still fall to a half-built 훈련장, or the default setting would wall a newcomer before the story opens up
   const simCareer = require('./career-sim.js');
   const save = RS.newSave();
   for (const k of Object.keys(RS.META)) save.meta.upgrades[k] = Math.floor(RS.META[k].max / 2);
-  const c = simCareer({ seed: 7, save, to: RS.YEARS.length - 2 });
+  const c = simCareer({ seed: 7, save, to: 8 });
   assert.equal(c.stoppedAt, null, 'stopped at ' + (c.stoppedAt != null && RS.YEARS[c.stoppedAt].year));
 });
 

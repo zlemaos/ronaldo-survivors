@@ -383,6 +383,187 @@
     }
   };
   RS.SKILL_MAX = 6;
+
+  // ---------------------------------------------------------------- 합체 기술 (fusions, round 9)
+  // Two evolved moves fuse into one new move (RS.availableFusions → a 합체 card → RS.applyChoice 'fuse'): both
+  // leave the build, the fused move starts at Lv.1 in one of their slots and the other slot is free again. A fused
+  // move levels, evolves (Lv.6 + the listed passive, which the parents already brought) and awakens like any other,
+  // and two fused moves can fuse again (tier 2). `fusion` names the parts; `use` the runtime behaviour.
+  const FUSE = (id, def) => { RS.SKILLS[id] = Object.assign({ fused: true }, def); };
+  RS.PFX_MAX = 24; // live pixelfx effects at once (the oldest gives way)
+  RS.PFX_GOLD = ['#4a2a06', '#a86a12', '#e8a820', '#ffd84a', '#fff0a0', '#ffffff']; // 발롱도르 palette for pixelfx effects
+  RS.PFX_FIRE = ['#4a1712', '#c9281f', '#f2561d', '#ff8a2a', '#ffe26b', '#fff3a6', '#ffffff'];
+  RS.PFX_WHITE = ['#2a3a4a', '#6a8aa8', '#a8c8e0', '#d8ecf8', '#f4faff', '#ffffff', '#ffffff']; // a shock of white light
+  RS.HIT_STOP = { boss: 0.12, rival: 0.12, crit: 0.035 }; // seconds the match freezes on a big hit (App.tick)
+  RS.FINAL_FUSE = 0.03; // the final rival's damage × (1 + this × fusion depth) per fused move in the build
+  RS.FUSE_SCALE = 0.42; // × the damage numbers below (RS.skillStats): a fusion is worth about one evolved move and a free slot
+  // 날두
+  FUSE('missile', {
+    name: '유도 대포알', icon: '🚀', fusion: ['kick', 'knuckle'], passive: 'freekick', hero: 'ronaldo', use: 'missile', evoName: '발롱도르 미사일', evoIcon: '🛰️',
+    desc: '황금 발롱볼 + 무회전 대포알. 적을 쫓아가는 대포알이 첫 적중에서 폭발한다.',
+    evoDesc: '황금 미사일 4발이 폭발하며 적 사이를 꿰뚫는다.',
+    ups: ['', '폭발 범위 증가', '대포알 +1', '피해 증가, 관통 +1', '폭발 피해 증가', '피해 크게 증가, 쿨타임 감소'],
+    lv: [
+      { dmg: 60, cd: 1.4, count: 2, pierce: 2, speed: 330, r: 6, boom: 30, boomDmg: 40 },
+      { dmg: 66, cd: 1.35, count: 2, pierce: 2, speed: 335, r: 6, boom: 38, boomDmg: 44 },
+      { dmg: 72, cd: 1.3, count: 3, pierce: 2, speed: 340, r: 6, boom: 38, boomDmg: 48 },
+      { dmg: 84, cd: 1.2, count: 3, pierce: 3, speed: 345, r: 6, boom: 42, boomDmg: 54 },
+      { dmg: 96, cd: 1.1, count: 3, pierce: 3, speed: 350, r: 6, boom: 45, boomDmg: 70 },
+      { dmg: 120, cd: 0.95, count: 3, pierce: 4, speed: 360, r: 7, boom: 48, boomDmg: 84 }
+    ],
+    evo: { dmg: 170, cd: 0.85, count: 4, pierce: 6, speed: 380, r: 8, boom: 60, boomDmg: 120, gold: true }
+  });
+  FUSE('airraid', {
+    name: '공중 지배', icon: '🛸', fusion: ['header', 'bicycle'], passive: 'jump', hero: 'ronaldo', use: 'airraid', evoName: '오버헤드 폭격', evoIcon: '🌪️',
+    desc: '슈퍼 헤더 + 오버헤드 토네이도. 솟구쳐 내려찍고, 착지점에서 회오리가 바깥으로 번진다.',
+    evoDesc: '다섯 겹의 회오리가 화면을 쓸어 적을 기절시킨다.',
+    ups: ['', '회오리 +1', '피해 증가', '범위 증가', '쿨타임 감소', '피해·범위 크게 증가'],
+    lv: [
+      { dmg: 70, cd: 2.4, radius: 60, rings: 2, stun: 0.3 },
+      { dmg: 76, cd: 2.3, radius: 62, rings: 3, stun: 0.3 },
+      { dmg: 90, cd: 2.2, radius: 64, rings: 3, stun: 0.35 },
+      { dmg: 96, cd: 2.1, radius: 72, rings: 3, stun: 0.35 },
+      { dmg: 108, cd: 1.8, radius: 74, rings: 4, stun: 0.4 },
+      { dmg: 130, cd: 1.7, radius: 80, rings: 4, stun: 0.45 }
+    ],
+    evo: { dmg: 190, cd: 1.4, radius: 100, rings: 5, stun: 0.6 }
+  });
+  FUSE('blitz', {
+    name: '환상 난무', icon: '👻', fusion: ['stepover', 'scissors'], passive: 'speed', hero: 'ronaldo', use: 'blitz', evoName: '유령 질주', evoIcon: '💀',
+    desc: '환상 스텝오버 + 더블 시저스. 잔상이 적 사이를 번개처럼 누비며 한 명마다 가위차기를 꽂는다. 그동안 무적.',
+    evoDesc: '열두 명을 연달아 제치는 유령의 질주.',
+    ups: ['', '제치는 수 +1', '피해 증가', '쿨타임 감소', '제치는 수 +2', '피해 크게 증가'],
+    lv: [
+      { dmg: 70, cd: 4.5, count: 6, range: 170, stun: 0.5 },
+      { dmg: 76, cd: 4.3, count: 7, range: 175, stun: 0.5 },
+      { dmg: 90, cd: 4.1, count: 7, range: 180, stun: 0.55 },
+      { dmg: 96, cd: 3.8, count: 7, range: 185, stun: 0.55 },
+      { dmg: 108, cd: 3.5, count: 9, range: 190, stun: 0.6 },
+      { dmg: 140, cd: 3.2, count: 10, range: 200, stun: 0.6 }
+    ],
+    evo: { dmg: 200, cd: 3.0, count: 13, range: 220, stun: 0.8 }
+  });
+  FUSE('inferno', {
+    name: '지옥의 함성', icon: '🔥', fusion: ['siuu', 'trail'], passive: 'charisma', hero: 'ronaldo', use: 'inferno', evoName: '월드 인페르노', evoIcon: '🌋',
+    desc: '월드 SIUU + 지옥의 레드카펫. 함성이 적을 날리고 기절시킨 자리에 불의 고리가 남아 타오른다.',
+    evoDesc: '함성 한 번에 경기장이 불바다가 된다.',
+    ups: ['', '불 고리 +2', '불 피해 증가', '범위 증가', '쿨타임 감소', '함성·불 피해 크게 증가'],
+    lv: [
+      { dmg: 30, cd: 5.0, radius: 90, stun: 1.0, knock: 90, zones: 8, zdmg: 8, life: 3.0, tick: 0.3, zr: 16 },
+      { dmg: 34, cd: 4.8, radius: 92, stun: 1.0, knock: 90, zones: 10, zdmg: 9, life: 3.2, tick: 0.3, zr: 16 },
+      { dmg: 38, cd: 4.6, radius: 95, stun: 1.1, knock: 95, zones: 10, zdmg: 12, life: 3.4, tick: 0.3, zr: 17 },
+      { dmg: 42, cd: 4.4, radius: 105, stun: 1.1, knock: 100, zones: 10, zdmg: 13, life: 3.6, tick: 0.28, zr: 18 },
+      { dmg: 46, cd: 3.9, radius: 110, stun: 1.2, knock: 100, zones: 12, zdmg: 15, life: 3.8, tick: 0.28, zr: 18 },
+      { dmg: 60, cd: 3.5, radius: 120, stun: 1.3, knock: 110, zones: 12, zdmg: 20, life: 4.0, tick: 0.25, zr: 19 }
+    ],
+    evo: { dmg: 90, cd: 3.0, radius: 150, stun: 1.6, knock: 130, zones: 16, zdmg: 30, life: 5.0, tick: 0.22, zr: 22, heal: 10 }
+  });
+  FUSE('cr7', {
+    name: 'CR7 궁극기', icon: '7️⃣', fusion: ['missile', 'airraid'], passive: 'boots', hero: 'ronaldo', use: 'meteor', evoName: '발롱도르 유성 폭격', evoIcon: '🌠',
+    desc: '발롱도르 미사일 + 오버헤드 폭격. 하늘에서 황금 유성이 적들 머리 위로 쏟아진다.',
+    evoDesc: '열여덟 개의 황금 유성, 경기장 전체가 폭격당한다.',
+    ups: ['', '유성 +2', '피해 증가', '범위 증가', '쿨타임 감소', '피해 크게 증가'],
+    lv: [
+      { dmg: 60, cd: 3.5, count: 8, radius: 24, range: 240, stun: 0.3 },
+      { dmg: 66, cd: 3.4, count: 10, radius: 24, range: 245, stun: 0.3 },
+      { dmg: 80, cd: 3.2, count: 10, radius: 25, range: 250, stun: 0.3 },
+      { dmg: 88, cd: 3.0, count: 10, radius: 30, range: 255, stun: 0.35 },
+      { dmg: 100, cd: 2.5, count: 12, radius: 30, range: 260, stun: 0.35 },
+      { dmg: 130, cd: 2.2, count: 14, radius: 32, range: 270, stun: 0.4 }
+    ],
+    evo: { dmg: 200, cd: 1.8, count: 18, radius: 38, range: 300, stun: 0.5 }
+  });
+  // 메시
+  FUSE('swarm', {
+    name: '위성 군단', icon: '🪐', fusion: ['orbit', 'dribball'], passive: 'ballon', hero: 'messi', use: 'swarm', evoName: '발롱도르 위성계', evoIcon: '🌌', goldLv: 1,
+    desc: '8발롱도르 + 마라도나의 재림. 황금 공들이 메시를 돌면서, 몇 개는 떨어져 나가 적을 쫓아가 찬다.',
+    evoDesc: '발롱도르 열 개가 돌고 다섯 개가 사냥한다.',
+    ups: ['', '회전 공 +1', '사냥 공 +1', '피해 증가', '범위 증가', '피해 크게 증가, 회전 공 +2'],
+    lv: [
+      { dmg: 20, cd: 0.35, count: 4, radius: 40, speed: 3.2, size: 1.3, knock: 25, dcount: 2, leash: 110, dspeed: 220, r: 4, touch: 0.5, trip: 0.2 },
+      { dmg: 22, cd: 0.35, count: 5, radius: 41, speed: 3.2, size: 1.3, knock: 25, dcount: 2, leash: 112, dspeed: 225, r: 4, touch: 0.5, trip: 0.2 },
+      { dmg: 24, cd: 0.34, count: 5, radius: 42, speed: 3.3, size: 1.3, knock: 25, dcount: 3, leash: 115, dspeed: 230, r: 4, touch: 0.48, trip: 0.2 },
+      { dmg: 30, cd: 0.33, count: 5, radius: 44, speed: 3.3, size: 1.4, knock: 28, dcount: 3, leash: 118, dspeed: 235, r: 4, touch: 0.46, trip: 0.25 },
+      { dmg: 34, cd: 0.32, count: 5, radius: 50, speed: 3.4, size: 1.4, knock: 28, dcount: 3, leash: 125, dspeed: 240, r: 5, touch: 0.44, trip: 0.25 },
+      { dmg: 45, cd: 0.3, count: 7, radius: 52, speed: 3.5, size: 1.5, knock: 30, dcount: 4, leash: 130, dspeed: 250, r: 5, touch: 0.42, trip: 0.3 }
+    ],
+    evo: { dmg: 70, cd: 0.28, count: 10, radius: 60, speed: 3.8, size: 1.6, knock: 35, dcount: 5, leash: 150, dspeed: 270, r: 5, touch: 0.38, trip: 0.35 }
+  });
+  FUSE('rain', {
+    name: '유성우 폭격', icon: '☄️', fusion: ['dropball', 'chip'], passive: 'juggle', hero: 'messi', use: 'chip', evoName: '발롱도르 유성우', evoIcon: '🌠',
+    desc: '발롱도르 유성우 + 로빙 폭격. 황금 공이 가장 단단한 적들 머리 위로 쉴 새 없이 떨어진다.',
+    evoDesc: '열 개의 황금 유성이 보스부터 때린다.',
+    ups: ['', '유성 +1', '피해 증가', '범위 증가', '쿨타임 감소', '피해 크게 증가, 유성 +2'],
+    lv: [
+      { dmg: 55, cd: 2.2, count: 5, radius: 34 },
+      { dmg: 60, cd: 2.1, count: 6, radius: 34 },
+      { dmg: 72, cd: 2.0, count: 6, radius: 36 },
+      { dmg: 78, cd: 1.9, count: 6, radius: 42 },
+      { dmg: 90, cd: 1.6, count: 6, radius: 44 },
+      { dmg: 120, cd: 1.5, count: 8, radius: 46 }
+    ],
+    evo: { dmg: 180, cd: 1.3, count: 10, radius: 52 }
+  });
+  FUSE('maradona', {
+    name: '마라도나 모드', icon: '🇦🇷', fusion: ['solo', 'elastico'], passive: 'lowcenter', hero: 'messi', use: 'blitz', evoName: '세기의 드리블', evoIcon: '👑',
+    desc: '여섯 명 제치기 + 호나우딩요의 마법. 하프라인부터 적을 하나하나 제치며 번개처럼 달린다. 그동안 무적.',
+    evoDesc: '열두 명을 제치는 세기의 드리블.',
+    ups: ['', '제치는 수 +1', '피해 증가', '쿨타임 감소', '제치는 수 +2', '피해 크게 증가'],
+    lv: [
+      { dmg: 70, cd: 4.5, count: 6, range: 170, stun: 0.5 },
+      { dmg: 76, cd: 4.3, count: 7, range: 175, stun: 0.5 },
+      { dmg: 90, cd: 4.1, count: 7, range: 180, stun: 0.55 },
+      { dmg: 96, cd: 3.8, count: 7, range: 185, stun: 0.55 },
+      { dmg: 108, cd: 3.5, count: 9, range: 190, stun: 0.6 },
+      { dmg: 140, cd: 3.2, count: 10, range: 200, stun: 0.6 }
+    ],
+    evo: { dmg: 200, cd: 3.0, count: 13, range: 220, stun: 0.8 }
+  });
+  FUSE('symphony', {
+    name: '패스 교향곡', icon: '🎻', fusion: ['tiki', 'killpass'], passive: 'leftfoot', hero: 'messi', use: 'kick', passer: 'xavino', proj: ['tiki', 'golden'], evoName: '발롱도르 교향곡', evoIcon: '🎼',
+    desc: '티키타카 오케스트라 + 라인 브레이커. 챠비와 니에미스타의 패스가 적 사이를 튕기고 꿰뚫으며 멈추지 않는다.',
+    evoDesc: '황금 패스 여덟 줄기가 경기장을 가른다.',
+    ups: ['', '패스 +1', '관통 +1', '튕김 +1', '피해 증가', '피해 크게 증가, 패스 +1'],
+    lv: [
+      { dmg: 40, cd: 0.6, count: 4, pierce: 3, bounce: 3, speed: 260, r: 4 },
+      { dmg: 44, cd: 0.58, count: 5, pierce: 3, bounce: 3, speed: 265, r: 4 },
+      { dmg: 48, cd: 0.56, count: 5, pierce: 4, bounce: 3, speed: 270, r: 4 },
+      { dmg: 52, cd: 0.54, count: 5, pierce: 4, bounce: 4, speed: 275, r: 4 },
+      { dmg: 64, cd: 0.5, count: 5, pierce: 5, bounce: 4, speed: 280, r: 4 },
+      { dmg: 85, cd: 0.42, count: 6, pierce: 6, bounce: 5, speed: 290, r: 5 }
+    ],
+    evo: { dmg: 130, cd: 0.38, count: 8, pierce: 8, bounce: 6, speed: 300, r: 5 }
+  });
+  FUSE('wrath', {
+    name: '신의 분노', icon: '🖐️', fusion: ['hand', 'bobo'], passive: 'trickster', hero: 'messi', use: 'hand', evoName: '심판의 손', evoIcon: '⚡',
+    desc: '세기의 골 + 저리 가!. 거대한 손이 연달아 내리치고, 그 사이 메시는 노려보기만 해도 적이 얼어붙는다.',
+    evoDesc: '다섯 번 내리치는 심판의 손.',
+    ups: ['', '내리치기 +1', '기절 시간 증가', '범위 증가', '쿨타임 감소', '피해 크게 증가, 내리치기 +1'],
+    lv: [
+      { dmg: 90, cd: 4.5, count: 2, radius: 60, stun: 1.2, guard: 0.8 },
+      { dmg: 96, cd: 4.4, count: 3, radius: 62, stun: 1.2, guard: 0.9 },
+      { dmg: 104, cd: 4.2, count: 3, radius: 64, stun: 1.5, guard: 0.9 },
+      { dmg: 112, cd: 4.0, count: 3, radius: 72, stun: 1.6, guard: 1.0 },
+      { dmg: 130, cd: 3.4, count: 3, radius: 74, stun: 1.7, guard: 1.0 },
+      { dmg: 180, cd: 3.0, count: 4, radius: 80, stun: 2.0, guard: 1.1 }
+    ],
+    evo: { dmg: 260, cd: 2.6, count: 5, radius: 95, stun: 2.4, guard: 1.3 }
+  });
+  FUSE('goat', {
+    name: 'GOAT 모드', icon: '🐐', fusion: ['swarm', 'rain'], passive: 'ballon', hero: 'messi', use: 'meteor', evoName: '8발롱도르 유성우', evoIcon: '🏆',
+    desc: '발롱도르 위성계 + 발롱도르 유성우. 하늘에서 발롱도르가 쏟아져 적들을 짓누른다.',
+    evoDesc: '발롱도르 여덟 개가 한꺼번에 떨어지는 밤.',
+    ups: ['', '유성 +2', '피해 증가', '범위 증가', '쿨타임 감소', '피해 크게 증가'],
+    lv: [
+      { dmg: 60, cd: 3.5, count: 8, radius: 24, range: 240, stun: 0.3, gold: true },
+      { dmg: 66, cd: 3.4, count: 10, radius: 24, range: 245, stun: 0.3, gold: true },
+      { dmg: 80, cd: 3.2, count: 10, radius: 25, range: 250, stun: 0.3, gold: true },
+      { dmg: 88, cd: 3.0, count: 10, radius: 30, range: 255, stun: 0.35, gold: true },
+      { dmg: 100, cd: 2.5, count: 12, radius: 30, range: 260, stun: 0.35, gold: true },
+      { dmg: 130, cd: 2.2, count: 14, radius: 32, range: 270, stun: 0.4, gold: true }
+    ],
+    evo: { dmg: 200, cd: 1.8, count: 18, radius: 38, range: 300, stun: 0.5, gold: true }
+  });
   // 각성 (★): an evolved move keeps growing — every star: that move's damage +12 %, cooldown −4 %.
   RS.STAR_MAX = 5;
   RS.STAR_STEP = { dmg: 0.12, cd: -0.04 };
@@ -447,8 +628,10 @@
   RS.TIER_ORDER = ['rare', 'hidden', 'ultra', 'super'];
   RS.TIER_POWER = { rare: 12, hidden: 25, ultra: 45, super: 80 }; // 전투력 points per item
   // chance per level-up that the 4th card is of that grade (relic odds × (1 + luck)), else maybe a gamble card.
-  // Rare on purpose: about one graded card in ten level-ups, so the items last a whole career (슈퍼히든 ≈ once).
-  RS.SPECIAL_ODDS = { super: 0.0025, ultra: 0.007, hidden: 0.025, rare: 0.07, gamble: 0.1 };
+  // Rare on purpose (round 9 cut them to about a third): a career of ~700 level-ups sees about 6 히든, 2 초히든 and
+  // 슈퍼히든 about once in two careers from level-ups alone; coin draws and chests add a little (RS.COIN_DRAWS,
+  // RS.CHEST_RELIC). 하드 halves all of it (RS.DIFFS.special).
+  RS.SPECIAL_ODDS = { super: 0.0008, ultra: 0.0025, hidden: 0.009, rare: 0.05, gamble: 0.08 };
   RS.RELICS = {
     dice: { tier: 'rare', icon: '🎲', name: '행운의 주사위', desc: '선택지가 나올 때마다 1번 무료로 다시 굴린다', fx: 'dice' },
     ion: { tier: 'rare', icon: '🥤', name: '이온 음료', desc: '이동속도 +10%, 초당 체력 +0.4', mods: { moveSpeed: 0.10, regen: 0.4 } },
@@ -505,13 +688,14 @@
   // treatment); every dose after that comes as its own card (odds per level-up × (1 + luck)) up to `max`.
   RS.STIM = { max: 5, step: 0.25, first: 0.012, odds: 0.025 };
   RS.COIN_REROLL = 8;
-  RS.DRAW_COST_STEP = 0.5;
+  RS.DRAW_COST_STEP = 0.75;
+  // Draws were the main source of 히든 items (70 coins bought one at 78 %): dearer now, and weighted to their floor.
   RS.COIN_DRAWS = [
-    { id: 'rare', icon: '💎', name: '레어 이상', cost: 25, odds: { rare: 0.8, hidden: 0.16, ultra: 0.035, super: 0.005 } },
-    { id: 'hidden', icon: '🔮', name: '히든 이상', cost: 70, odds: { hidden: 0.78, ultra: 0.19, super: 0.03 } },
-    { id: 'ultra', icon: '👑', name: '초히든 이상', cost: 160, odds: { ultra: 0.9, super: 0.1 } }
+    { id: 'rare', icon: '💎', name: '레어 이상', cost: 45, odds: { rare: 0.88, hidden: 0.1, ultra: 0.018, super: 0.002 } },
+    { id: 'hidden', icon: '🔮', name: '히든 이상', cost: 160, odds: { hidden: 0.9, ultra: 0.09, super: 0.01 } },
+    { id: 'ultra', icon: '👑', name: '초히든 이상', cost: 420, odds: { ultra: 0.94, super: 0.06 } }
   ];
-  RS.CHEST_RELIC = { chance: 0.05, odds: { rare: 0.85, hidden: 0.13, ultra: 0.02 } }; // a graded item in a chest
+  RS.CHEST_RELIC = { chance: 0.03, odds: { rare: 0.88, hidden: 0.11, ultra: 0.01 } }; // a graded item in a chest
 
   // ---------------------------------------------------------------- Eras (clubs) — parody names, no logos
   // kit.pattern: hoops | stripes | trim | sash
@@ -943,7 +1127,7 @@
     Y(2006, 'barcelona', 'rijkaard', '유럽 정상, 부상으로 결승 결장', 'giant', '파리 결승의 런던 거인', '유럽 정상에 섰지만 부상으로 결승을 벤치에서 봤다. 그날 런던 팀의 거인 센터백과 싸운다.'),
     Y(2007, 'barcelona', 'rijkaard', '마라도나 재현 골', 'maestro', '헤타페 중원 지휘자', '하프라인부터 여섯 명을 제친 마라도나 재현 골. 그 경기 상대 지휘자가 복수를 노린다.', { press: 'handgoal' }),
     Y(2008, 'barcelona', 'pep', '베이징 올림픽 금메달', 'striker', '나이지리아 폭격기', '베이징 올림픽 결승. 나이지리아의 폭격기를 꺾고 금메달.', { event: 'pep' }),
-    Y(2009, 'barcelona', 'pep', '6관왕, 첫 발롱도르', 'keeper', '로마 결승 수문장 판데르싸르', '한 해 6관왕. 로마 결승에서 헤딩골을 내준 판데르싸르가 설욕을 노린다. 첫 발롱도르.', { ballon: true }),
+    Y(2009, 'barcelona', 'pep', '6관왕, 로마 결승의 첫 맞대결', 'ronaldo', '호날두', '한 해 6관왕. 로마의 유럽 결승, 상대는 맨체스터의 호날두. 20년 라이벌의 첫 맞대결이다. 무회전 슛과 헤딩 강타, SIUU를 넘어야 첫 발롱도르가 온다.', { ballon: true, rivalBoss: true }),
     Y(2010, 'barcelona', 'pep', '월드컵 8강 탈락, 두 번째 발롱도르', 'giant', '독일 전차 센터백', '남아공 월드컵 8강에서 독일 전차에 0-4. 그 센터백을 넘어야 한다.',
       { ballon: true, trial: 1, twist: { mix: [{ type: 'tank', w: 2 }] } }),
     Y(2011, 'barcelona', 'pep', '웸블리 결승, 세 번째 발롱도르', 'referee', '엘 클라시코 주심', '웸블리 결승골로 유럽 정상. 클라시코마다 카드를 꺼내던 주심이 상대다.', { ballon: true }),
@@ -965,6 +1149,25 @@
     Y(2025, 'miami', 'mascherano', '서포터스 실드', 'keeper', 'MLS 결승 수문장', 'MLS 정규리그 1위 서포터스 실드. 결승 무대의 수문장과 승부.'),
     Y(2026, 'argentina', 'scaloni', '마지막 월드컵 — 최종 결전', 'ronaldo', '호날두', '마지막 월드컵. 20년을 함께 달려온 영원한 라이벌, 호날두와의 최종 결전.', { final: true })
   ];
+  // ---------------------------------------------------------------- 엘 클라시코 (the rival as a mid-season boss)
+  // 날두 in 마드리드 (2009–2018) meets 메시's 바르샤 every season: 날두's seasons 2009–2017 and 메시's 2010–2018 get
+  // the rival at the middle of the stage (World.spawnRival) for RS.RIVAL_WINDOW seconds. Kill him = 클라시코 win;
+  // he leaves when the window closes = loss (the season goes on either way; dying is still dying). rivalLv = how
+  // many 클라시코 seasons came before: each adds the next move list (tiers) and more HP / damage; from rageAt on
+  // he gets a 2nd phase at half HP (RS.FINAL rage). The record (build.rivalry) moves 민심 and can cost the
+  // 발롱도르 of a lost season (RS.finishYear).
+  RS.RIVAL_WINDOW = 30;
+  RS.RIVAL_FANS = 8; // 민심 per 클라시코 won (+) or lost (−)
+  RS.RIVAL_HIT_SHARE = 0.12; // share of the player's recent total output assumed to land on the rival
+  RS.RIVAL = {
+    messi: { name: '메시', tiers: [['dribble', 'curl'], ['volley'], ['encircle'], ['snipe'], ['summon'], ['dribble3']], rageAt: 3, hp: 0.3, dmg: 0.08, secs: [0.47, 0.1] },
+    ronaldo: { name: '호날두', tiers: [['dash', 'snipe'], ['burst'], ['pslam'], ['wall'], ['ring'], ['summon']], rageAt: 3, hp: 0.3, dmg: 0.08, secs: [0.47, 0.1] }
+  };
+  RS.RIVAL_CALIBRATIONS = 2; // the rival's HP follows the damage that lands only at the first two checkpoints
+  for (const y of RS.YEARS) if (y.era === 'madrid') y.rival = 'messi';
+  for (const y of RS.YEARS_MESSI) if (y.year >= 2010 && y.year <= 2018) y.rival = 'ronaldo';
+  for (const years of [RS.YEARS, RS.YEARS_MESSI]) { let n = 0; for (const y of years) if (y.rival) y.rivalLv = n++; }
+
   // Playable heroes. selectHero() points RS.YEARS / DEBUT / BIRTH at the chosen career (one career at a time).
   RS.HEROES = {
     ronaldo: { name: '호날두', short: '날두', moveMul: 1, startSkill: 'kick', years: RS.YEARS, debut: 2002, birth: 1985, desc: '투사체 공격 · 슬라이딩 5초', rival: '메시' },
@@ -976,10 +1179,13 @@
   // On top of the season curve: enemy HP, damage, spawn density and boss damage × these, and from the debut on
   // × (1 + grow × pro season) more, so the gap widens as the career goes on. heal: × the heal drop chance.
   // 노멀 is the default; it sits well above the round-7 curve, which is now about 이지.
+  // Round 9: both pro settings got much tougher after 완전 오토 cleared 하드. special: × the graded-card odds;
+  // poise: × knockback and stun taken by the crowd; bossCool: × the rest between boss attacks; ramp: seasons over
+  // which the extra toughness grows in (the debut on 노멀 still plays as it always did; 하드 bites from the start).
   RS.DIFFS = {
-    easy: { name: '이지', icon: '🙂', hp: 0.72, dmg: 0.65, spawn: 0.85, boss: 0.8, grow: 0, heal: 1.4, desc: '적이 약하고 회복이 자주 나온다. 처음이라면 여기서' },
-    normal: { name: '노멀', icon: '⚽', hp: 1.3, dmg: 1.25, spawn: 1.1, boss: 1.25, grow: 0.015, heal: 1, desc: '기본 난이도. 중반부터는 벽이 느껴진다' },
-    hard: { name: '하드', icon: '🔥', hp: 1.75, dmg: 1.6, spawn: 1.22, boss: 1.6, grow: 0.03, heal: 0.6, desc: '적이 단단하고 아프며 회복도 드물다. 훈련장 강화 필수' }
+    easy: { name: '이지', icon: '🙂', hp: 0.72, dmg: 0.65, spawn: 0.85, boss: 0.8, grow: 0, heal: 1.4, special: 1, poise: 1, bossCool: 1, ramp: 0, desc: '적이 약하고 회복이 자주 나온다. 처음이라면 여기서' },
+    normal: { name: '노멀', icon: '⚽', hp: 1.6, dmg: 1.5, spawn: 1.25, boss: 1.5, grow: 0.035, heal: 0.9, special: 0.85, poise: 0.85, bossCool: 0.95, ramp: 3, desc: '기본 난이도. 중반부터는 벽이 느껴진다 · 훈련장 강화가 필요하다' },
+    hard: { name: '하드', icon: '🔥', hp: 2.4, dmg: 2.1, spawn: 1.5, boss: 2.2, grow: 0.05, heal: 0.45, special: 0.5, poise: 0.6, bossCool: 0.8, ramp: 1, desc: '적이 단단하고 아프며 잘 밀리지 않는다. 회복과 히든도 드물다. 오토로는 못 깬다' }
   };
   RS.DIFF_ORDER = ['easy', 'normal', 'hard'];
   RS.DIFF = 'normal';
@@ -1279,7 +1485,7 @@
     const wallHp = 1 + (W.hp * w + W.hp2 * w * w) * hw;
     // difficulty (RS.DIFFS): 이지's discounts apply from the start; 노멀/하드's extra toughness grows in over the first
     // three pro seasons (the debut plays as it always did, so a newcomer can learn the controls)
-    const D = RS.DIFFS[RS.DIFF] || RS.DIFFS.normal, g = 1 + D.grow * idx, ramp = RS.DIFF === 'easy' ? 1 : Math.min(1, idx / 3);
+    const D = RS.DIFFS[RS.DIFF] || RS.DIFFS.normal, g = 1 + D.grow * idx, ramp = D.ramp ? Math.min(1, idx / D.ramp) : 1;
     const dv = (v) => 1 + (v - 1) * ramp;
     const t = {
       hpMul: (1 + 0.55 * idx + 0.03 * idx * idx) * wallHp * (1 + T.hp * L) * dv(D.hp) * g,
@@ -1287,7 +1493,7 @@
       dmgMul: (1 + 0.08 * idx) * gentle * (1 + W.dmg * w) * (1 + T.dmg * L) * dv(D.dmg) * g,
       wallDmg: 1 + W.dmg * w, // 준보스 leave this out too
       speedMul: 1 + 0.008 * idx + W.speed * w,
-      poise: 1 / (1 + W.poise * w + T.poise * L), // × knockback and stun taken by ordinary enemies
+      poise: dv(D.poise) / (1 + W.poise * w + T.poise * L), // × knockback and stun taken by ordinary enemies
       spawnRate: (2.3 + 0.18 * idx) * (idx === 0 ? 0.5 : 1) * (1 + W.spawn * w) * (1 + T.spawn * L) * dv(D.spawn),
       healMul: dv(D.heal), // × the heal drop chance
       maxAlive: Math.min(420, 150 + 12 * idx),
@@ -1298,8 +1504,8 @@
       bossHpMul: 1 + 0.55 * idx + 0.03 * idx * idx,
       // the final duel keeps its own bite (tuned with World.finalScale / finalPace), outside the wall
       bossDmgMul: (y.final ? 1 + RS.FINAL_DMG * idx : (1 + 0.1 * idx) * gentle * (1 + W.boss * w) * (1 + T.boss * L) * g) * dv(D.boss),
-      bossCool: idx === 0 ? 1.2 : 1,
-      bossDensity: Math.min(0.85, 0.7 + 0.04 * idx), // fewer bullets on screen: readable fights
+      bossCool: (idx === 0 ? 1.2 : 1) * dv(D.bossCool),
+      bossDensity: Math.min(0.85, 0.7 + 0.04 * idx) * (RS.DIFF === 'hard' ? 1.1 : 1), // fewer bullets on screen: readable fights
       minis: 1 + Math.floor(idx / 10), // mini-bosses per wave (4 waves a stage; 2 in the debut year)
       bossFight: (idx === 0 ? 0.7 : idx === 1 ? 0.85 : 1) * (1 + T.fight * L), // shorter boss fights for newcomers
       mix: [{ type: 'grunt', w: 10 }]

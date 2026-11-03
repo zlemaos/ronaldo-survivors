@@ -285,7 +285,18 @@
     save.meta.totalKills += res.kills;
     if (res.cleared) {
       const yd = RS.YEARS[idx];
-      if (yd.ballon && !save.meta.ballonYears.includes(yd.year)) {
+      // 엘 클라시코: the record and 민심 move once the season is really played (not a replay); a lost 클라시코 in a
+      // 발롱도르 year hands the trophy to the rival (play the year again and beat him to take it back)
+      if (res.rival && !replay) {
+        const b = world.build;
+        b.rivalry = b.rivalry || { w: 0, l: 0 };
+        if (res.rival === 'win') b.rivalry.w++; else b.rivalry.l++;
+        b.fans = RS.clampFans((b.fans == null ? RS.FANS.start : b.fans) + (res.rival === 'win' ? RS.RIVAL_FANS : -RS.RIVAL_FANS));
+        out.rival = res.rival; out.rivalName = res.rivalName;
+      }
+      const stolen = yd.ballon && yd.rival && res.rival === 'loss';
+      if (stolen) { out.ballonStolen = true; out.rivalName = res.rivalName; }
+      if (yd.ballon && !stolen && !save.meta.ballonYears.includes(yd.year)) {
         save.meta.ballonYears.push(yd.year);
         save.meta.ballons += 1;
         out.ballon = 1;

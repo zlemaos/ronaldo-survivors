@@ -144,9 +144,12 @@ test('early season bosses can land hits on a perfect kiter', () => {
   assert.ok(hitters >= 2, hitters + ' of the first 6 season bosses dealt damage');
 });
 
-test('every owned skill ends the career evolved', () => {
+test('every owned skill ends the career evolved, or is a fused move still growing from Lv.1', () => {
   const b = getCareer().save.career.build;
-  for (const id of b.skillOrder) assert.equal(b.evolved[id], true, id + ' not evolved');
+  // fusions free slots late in the career, so one late pick may still be short of its passive at the end
+  const late = b.skillOrder.filter((id) => !b.evolved[id] && !RS.SKILLS[id].fusion);
+  assert.ok(late.length <= 1, 'not evolved: ' + late.join(','));
+  assert.ok(b.skillOrder.some((id) => RS.SKILLS[id].fusion), 'the bot fused nothing in a whole career');
 });
 
 test('메시 takes the strong bot below half HP at least once', () => {

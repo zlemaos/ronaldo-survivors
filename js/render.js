@@ -17,6 +17,7 @@
       this.scale = 2;
       this.view = { w: 260, h: 460 };
       this.shake = 0;
+      this.pfx = []; // live pixelfx instances (drawPfx)
       this.resize();
     }
 
@@ -217,6 +218,7 @@
 
       // fx
       this.drawFx(L, w, camX, camY);
+      this.drawPfx(L, w, camX, camY);
 
       // soft vignette: the pitch falls off toward the screen edges, so the eye stays on the action
       L.drawImage(this.vignette(), 0, 0, V.w, V.h);
@@ -485,6 +487,76 @@
           L.beginPath(); L.arc(Math.round(c.x - camX), Math.round(c.y - camY), t.r * t.p, 0, TAU); L.stroke();
         }
       }
+    }
+
+    // ---------------------------------------------------------------- pixelfx layer (js/pixelfx.js, window.PFX)
+    // World queues effects as plain data (World.pfx → w.pfxQ: { fx, x, y, follow, flip, angle, palette, seed }); this
+    // layer owns the live instances, steps them with the frame's real time and draws them into one pixel frame
+    // (color + additive light) the size of the low-res canvas, composited over the scene with a transparent
+    // background. Positions are in HD canvas pixels, so the library's 24×38-px-character scale matches our people.
+    drawPfx(L, w, camX, camY) {
+      const P = window.PFX;
+      if (!P || (!w.pfxQ.length && !this.pfx.length)) return;
+      const W = this.low.width, Hh = this.low.height;
+      if (!this.pfxFrame || this.pfxFrame.w !== W || this.pfxFrame.h !== Hh) {
+        this.pfxFrame = P.createFrame(W, Hh);
+        this.pfxImg = new ImageData(W, Hh);
+        this.pfxCanvas = document.createElement('canvas'); this.pfxCanvas.width = W; this.pfxCanvas.height = Hh;
+        this.pfxCtx = this.pfxCanvas.getContext('2d');
+      }
+      const now = performance.now();
+      const dt = Math.min(0.05, this.pfxT ? (now - this.pfxT) / 1000 : 1 / 60);
+      this.pfxT = now;
+      for (const q of w.pfxQ) {
+        const mod = P.fx[q.fx];
+        if (!mod) continue;
+        if (this.pfx.length >= RS.PFX_MAX) this.pfx.shift();
+        const o = { x: 0, y: 0, flip: !!q.flip, angle: q.angle || 0, seed: q.seed || 1, light: q.light || 1 };
+        if (q.palette) o.palette = q.palette; // an undefined key would hide the effect's own palette
+        if (q.o) Object.assign(o, q.o); // the effect's own options (r, n…)
+        const inst = P.createFx(mod, o);
+        this.pfx.push({ inst, x: q.x, y: q.y, follow: q.follow || null, dy: q.dy || 0, stopAt: q.life ? now + q.life * 1000 : 0 });
+      }
+      w.pfxQ.length = 0;
+      const F = this.pfxFrame;
+      P.clearFrame(F);
+      let live = 0, minX = W, minY = Hh, maxX = 0, maxY = 0;
+      for (const e of this.pfx) {
+        if (e.stopAt && now >= e.stopAt) e.inst.stop();
+        e.inst.update(dt);
+        if (e.inst.done()) continue;
+        const src = e.follow && e.follow.alive !== false ? e.follow : null;
+        const wx = src ? this.lx(src) : e.x, wy = src ? this.ly(src) : e.y;
+        const cx = (wx - camX) * HD, cy = (wy - camY + e.dy) * HD;
+        if (cx < -200 || cy < -200 || cx > W + 200 || cy > Hh + 200) { this.pfx[live++] = e; continue; } // off screen: keep stepping, skip drawing
+        e.inst.options.x = cx; e.inst.options.y = cy;
+        e.inst.draw(F);
+        const sz = e.inst.meta.size || [160, 120], og = e.inst.meta.origin || [sz[0] / 2, sz[1] / 2];
+        minX = Math.min(minX, cx - og[0]); minY = Math.min(minY, cy - og[1]); maxX = Math.max(maxX, cx + sz[0] - og[0]); maxY = Math.max(maxY, cy + sz[1] - og[1]);
+        this.pfx[live++] = e;
+      }
+      this.pfx.length = live;
+      if (!live || maxX <= minX) return;
+      // composite only the rows the effects touched
+      const y0 = Math.max(0, Math.floor(minY)), y1 = Math.min(Hh, Math.ceil(maxY));
+      if (y1 <= y0) return;
+      const data = this.pfxImg.data, C = F.color, Lt = F.light;
+      for (let y = y0; y < y1; y++) for (let x = 0; x < W; x++) {
+        const i = y * W + x, c = C[i], l = Lt[i] & 0xffffff, j = i * 4;
+        if (!c && !l) { data[j + 3] = 0; continue; }
+        let r = c & 255, g = (c >>> 8) & 255, b = (c >>> 16) & 255, a = c >>> 24;
+        if (l) { // light over nothing becomes colour with alpha (reads as additive on the turf)
+          const lr = l & 255, lg = (l >>> 8) & 255, lb = (l >>> 16) & 255;
+          const pa = a / 255, pr = r * pa + lr, pg = g * pa + lg, pb = b * pa + lb;
+          const na = Math.min(1, Math.max(pa, Math.max(lr, lg, lb) / 255));
+          if (na > 0) { r = Math.min(255, pr / na); g = Math.min(255, pg / na); b = Math.min(255, pb / na); a = na * 255; }
+        }
+        data[j] = r; data[j + 1] = g; data[j + 2] = b; data[j + 3] = a;
+      }
+      this.pfxCtx.putImageData(this.pfxImg, 0, 0, 0, y0, W, y1 - y0);
+      L.setTransform(1, 0, 0, 1, 0, 0);
+      L.drawImage(this.pfxCanvas, 0, y0, W, y1 - y0, 0, y0, W, y1 - y0);
+      L.setTransform(HD, 0, 0, HD, 0, 0);
     }
 
     drawFx(L, w, camX, camY) {

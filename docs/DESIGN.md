@@ -287,6 +287,51 @@ invisible. This removes the power creep of the carried-over build: late bosses n
   refresh rate; HD grass, a soft vignette, hit squash and enemies falling over on a kill; each new move has its own
   effect (hand, impact ring + crater, nutmeg zip, afterimages).
 
+### Round 9: a real 하드, the 엘 클라시코 rival, 합체 moves, rarer graded cards, pixelfx effects
+- **Difficulty, again.** 완전 오토 cleared 하드, so both pro settings got much tougher and 하드 bites from the first pro
+  season. `RS.DIFFS` also scales graded-card odds (`special`), knockback/stun taken (`poise`), the rest between boss
+  attacks (`bossCool`) and the ramp-in (`ramp` seasons; 0 = at once).
+
+  | | enemy HP | enemy dmg | crowd | boss hits | grow / season | heal drops | graded cards | poise |
+  |---|---|---|---|---|---|---|---|---|
+  | 이지 | ×0.72 | ×0.65 | ×0.85 | ×0.8 | 0 | ×1.4 | ×1 | ×1 |
+  | 노멀 (round 8 → 9) | ×1.3 → ×1.6 | ×1.25 → ×1.5 | ×1.1 → ×1.25 | ×1.25 → ×1.5 | 0.015 → 0.035 | ×1 → ×0.9 | ×0.85 | ×0.85 |
+  | 하드 (round 8 → 9) | ×1.75 → ×2.4 | ×1.6 → ×2.1 | ×1.22 → ×1.5 | ×1.6 → ×2.2 | 0.03 → 0.05 | ×0.6 → ×0.45 | ×0.5 | ×0.6 |
+
+  Strong bot (= 완전 오토) with the whole 훈련장, seed 7: 노멀 clears with a near-death in 2022 (14/403 HP); 하드
+  stalls in 2020 (`tests/round9.test.js` guards the 하드 stall; `round8` only asks 노멀 to reach the 마드리드 years
+  with half a 훈련장).
+- **Graded cards** (`RS.SPECIAL_ODDS`): per level-up 히든 0.9 %, 초히든 0.25 %, 슈퍼히든 0.08 % (a third of round 8);
+  draws 45 / 160 / 420 coins and `RS.DRAW_COST_STEP` 0.75 per owned item, weighted to their floor grade; chests 3 %.
+- **엘 클라시코** (`RS.RIVAL`, `World.spawnRival`): 날두's 마드리드 seasons 2009–2017 and 메시's 2010–2018 bring the
+  other hero at 42 % of the stage for `RS.RIVAL_WINDOW` = 30 s with a countdown on the boss bar. `rivalLv` (0–8)
+  unlocks his move lists (`tiers`), adds 30 % HP and 8 % damage per level and from `rageAt` = 3 a second phase at
+  half HP. His HP is seeded from the player's recent output (`RS.RIVAL_HIT_SHARE`) and calibrated at the first two
+  checkpoints to `secs` = 0.47 + 0.1 × lv windows, then fixed: the first 클라시코 falls in 11–17 s, the fifth is
+  decided in the last seconds, the ninth is not caught by the bot. Kill = 클라시코 win (chest, coins); the window
+  closing = loss (he leaves); the season goes on either way. `build.rivalry` keeps the record (shown as a chip),
+  each result moves 민심 by `RS.RIVAL_FANS` = 8, and a lost 클라시코 in a 발롱도르 year hands the trophy to the rival
+  (`out.ballonStolen`; a replay that wins it takes it back). 메시 2009 is the Rome final: 호날두 as the season boss
+  with the final's move lists and rage.
+- **합체** (`RS.SKILLS[*].fusion`, `RS.availableFusions`, `RS.fuse`): two evolved moves fuse into a new move that
+  takes one of their slots at Lv.1 and frees the other; it levels, evolves and awakens like any move, and tier-2
+  fusions fuse two fused moves. The card leads the hand (after an evolution) and 완전 오토 takes it first. 날두:
+  유도 대포알 (강슛+무회전: homing cannon balls that explode), 공중 지배 (헤딩+바이시클: landing + rolling tornado
+  rings), 환상 난무 (스텝오버+시저스: a zigzag through the crowd, untouchable only while it runs), 지옥의 함성
+  (SIUU+불꽃 질주: the roar leaves a ring of fire), CR7 궁극기 (유도 대포알+공중 지배: golden meteors). 메시: 위성 군단
+  (회전 공+드리볼), 유성우 폭격 (드롭볼+로빙), 마라도나 모드 (원더골+엘라스티코), 패스 교향곡 (티키타카+킬 패스),
+  신의 분노 (신의 손+바보야), GOAT 모드 (위성 군단+유성우 폭격). Fused tables are × `RS.FUSE_SCALE` = 0.42 (the gain
+  is the free slot and the new behaviour; unscaled, the bot cleared 하드 outright) and the final rival hits ×
+  (1 + `RS.FINAL_FUSE` × depth) per fused move.
+- **pixelfx effects** (`js/pixelfx.js` = `tools/build-fx.mjs` over `tools/fx-entry.js` + `vendor/pixelfx`, MIT; see
+  `docs/FX_RESEARCH_KO.md`): the world queues effects as data (`World.pfx` → `w.pfxQ`), `Renderer.drawPfx` runs the
+  live instances in a colour + additive-light frame the size of the low-res canvas and composites the touched rows
+  over the scene. Library effects: hit spark (crits on bosses, 준보스, elites), small explosion (클라시코 win, gold),
+  big explosion (season boss), heal. Our own, to the same contract: spark pop (tank / elite kills), gold burst
+  (evolution, 합체, evolved SIUU, 초히든+ items), boom small (유도 대포알 hits, 드롭볼 and meteor impacts, 신의 손 and
+  공중 지배 as a white shock), stun stars. Cap `RS.PFX_MAX` = 24; measured 2.6 ms a frame with 12 live. Hit stop
+  (`RS.HIT_STOP`): the match freezes 0.12 s on a boss or rival kill and 0.035 s on a boss crit.
+
 ### Hero readability (round 3)
 - The hero sprite alone has a gold double outline (`paint` `opt.glow`), a pulsing gold ring + soft light pool under
   the feet, a bobbing gold chevron above the head and a gold-framed HP bar.
@@ -375,6 +420,9 @@ corrupt saves, replays, 발롱도르, shop, new lap) · `messi` (phase-1 moves, 
 `balance` (targets above) · `round2` (evolution hints and reachability, role lines, transfer window, in-run swap,
 boss stun immunity and HP calibration, 강슛) · `round8` (difficulty order, 노멀 cleared with the 훈련장, 메시-only items,
 stimpack doses, two-mate pitch and the trio, 드리볼 / 드롭볼 / 신의 손, press conferences and endings, auto pickers,
-old saves).
+old saves) · `round9` (하드 not cleared by the bot, difficulty shape, graded-card rates, 클라시코 seasons and the Rome
+final, the rival fight and its record, 합체 up to tier 2, old saves).
+
+`npm run build:fx` rebuilds `js/pixelfx.js` after a change under `tools/fx-entry.js` or `vendor/pixelfx` (esbuild, dev only).
 
 `tools/sim.js [from] [to] [seed] [weak]` prints per year: boss fight time, min HP, hits, boss damage, level, DPS.
