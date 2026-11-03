@@ -23,6 +23,7 @@
       hgh: null, // 메시 growth hormone: null = not decided yet (small body), true = treated, false = small for good
       fans: RS.FANS.start, // 민심 0–100, moved by press conferences (RS.fanTier)
       flags: {}, // story marks left by press answers (e.g. fatherJail)
+      ballons: [], // years of the 발롱도르 won in this career (RS.ballonCount): trophy balls need them
       hero
     };
   };
@@ -42,10 +43,31 @@
   RS.stimDoses = (b) => (b.relics && b.relics.doping) || 0;
   RS.stackMul = (n) => (n > 0 ? 1 + RS.STIM.step * (n - 1) : 0);
   RS.skillUse = (id) => RS.SKILLS[id].use || id; // runtime behaviour of a move
-  // Look of 메시's ball moves (회전 공, 드리볼, 드롭볼; Renderer): a plain white ball, golden from the skill's goldLv,
-  // the 발롱도르 trophy ball once evolved.
-  RS.ballLook = (b, id) => (b.evolved[id] ? 'ballon' : (b.skills[id] || 0) >= (RS.SKILLS[id].goldLv || 3) ? 'gold' : 'white');
+  // 발롱도르 the hero has won in this career (build.ballons): only these may show as trophy balls (RS.BALLON_MAX).
+  RS.ballonCount = (b) => Math.min(RS.BALLON_MAX, ((b && b.ballons) || []).length);
+  // Look of 메시's ball moves (회전 공, 드리볼, 드롭볼, 위성 군단; Renderer): a plain white ball, golden from the skill's
+  // goldLv; evolved, the first ballonCount balls of a move are 발롱도르 trophies and the rest stay golden.
+  RS.ballLook = (b, id) => (b.evolved[id] ? (RS.ballonCount(b) ? 'ballon' : 'gold') : (b.skills[id] || 0) >= (RS.SKILLS[id].goldLv || 3) ? 'gold' : 'white');
+  RS.ballLookAt = (b, id, i) => (b.evolved[id] ? (i < RS.ballonCount(b) ? 'ballon' : 'gold') : RS.ballLook(b, id));
   RS.orbitLook = (b) => RS.ballLook(b, 'orbit');
+  // Name of an evolved move for this build: a 발롱도르 in the name needs a real one. Before the first the move is
+  // golden ('황금 …') and the 회전 공 cannot evolve yet; after it a leading 8 is the number won so far.
+  RS.evoTitle = function (b, id, variant) {
+    const s = RS.SKILLS[id], v = variant && s.evos && s.evos[variant], name = v ? v.name : s.evoName;
+    if (name.indexOf('발롱') < 0) return name;
+    const n = RS.ballonCount(b);
+    if (n) return name.replace(/^8/, String(n));
+    if (s.needBallon) return '발롱도르 (첫 수상 뒤)';
+    return name.replace('발롱볼', '볼').replace(/\d*발롱도르/, '황금');
+  };
+  // The evolution card's text: the 회전 공 says what the 발롱도르 won so far make of it (World.updateOrbit).
+  RS.evoDescFor = function (b, id, variant) {
+    const s = RS.SKILLS[id], v = variant && s.evos && s.evos[variant];
+    if (!s.needBallon) return v ? v.desc : s.evoDesc;
+    const n = RS.ballonCount(b), fill = Math.max(0, RS.ORBIT_RING - n), size = variant === 'size';
+    return (size ? '받은 발롱도르 ' + n + '개가 하나로 합쳐진 공 (크기 ×' + Math.max(2, n) + ').' : '받은 발롱도르 ' + n + '개가 돈다.') +
+      (fill ? ' 황금 공 ' + fill + '개가 함께 돈다.' : '') + ' 발롱도르를 받을 때마다 ' + (size ? '더 커진다 (최대 ×8).' : '1개씩 늘어난다 (최대 8개).');
+  };
   // 메시 plays in a small body until the growth-hormone treatment (for the whole career without it).
   RS.smallBody = (b) => !!b && b.hero === 'messi' && b.hgh !== true;
   RS.hardMode = (b) => !!b && b.hero === 'messi' && b.hgh === false; // refused the treatment: small for good
@@ -74,6 +96,7 @@
     for (const id of Object.keys(b.drills)) if (!RS.DRILLS[id]) delete b.drills[id];
     b.fans = RS.clampFans(typeof b.fans === 'number' ? b.fans : RS.FANS.start);
     if (!b.rivalry || typeof b.rivalry !== 'object') b.rivalry = { w: 0, l: 0 }; // 엘 클라시코 record
+    b.ballons = Array.isArray(b.ballons) ? b.ballons.filter((y) => typeof y === 'number') : [];
     if (b.relics.doping) b.relics.doping = Math.max(1, Math.min(RS.STIM.max, b.relics.doping | 0));
     return b;
   };
@@ -251,7 +274,8 @@
     const out = [];
     for (const id of build.skillOrder) {
       const s = RS.SKILLS[id];
-      if (!build.evolved[id] && build.skills[id] >= RS.SKILL_MAX && (build.passives[s.passive] || 0) >= 1) out.push(id);
+      // needBallon (회전 공): the evolution is the 발롱도르 he has won, so it waits for the first one
+      if (!build.evolved[id] && build.skills[id] >= RS.SKILL_MAX && (build.passives[s.passive] || 0) >= 1 && (!s.needBallon || RS.ballonCount(build))) out.push(id);
     }
     return out;
   };
@@ -357,13 +381,14 @@
     const s = RS.SKILLS[sid];
     if (build.evolved[sid]) return '진화 완료';
     const p = RS.PASSIVES[s.passive];
-    return build.passives[s.passive] ? '진화: Lv.6 + ' + p.name + ' ✓' : '진화: Lv.6 + ' + p.name + ' 패시브 필요';
+    const wait = s.needBallon && !RS.ballonCount(build) ? ' · 첫 발롱도르를 받아야 진화' : '';
+    return (build.passives[s.passive] ? '진화: Lv.6 + ' + p.name + ' ✓' : '진화: Lv.6 + ' + p.name + ' 패시브 필요') + wait;
   };
   RS.passiveHint = function (build, pid) {
     const sid = Object.keys(RS.SKILLS).find((k) => RS.SKILLS[k].passive === pid);
     if (!sid) return '';
     const s = RS.SKILLS[sid];
-    return build.skills[sid] ? '진화 짝: ' + s.name + ' → ' + s.evoName : '진화 짝: ' + s.name + ' (스킬 필요)';
+    return build.skills[sid] ? '진화 짝: ' + s.name + ' → ' + RS.evoTitle(build, sid) : '진화 짝: ' + s.name + ' (스킬 필요)';
   };
   RS.mateLine = function (id) {
     const m = RS.TEAMMATES[id], r = RS.ROLES[m.role];
@@ -388,10 +413,10 @@
       case 'skillUp': { const s = RS.SKILLS[c.id]; const nl = build.skills[c.id] + 1;
         return Object.assign(c, { name: s.name, icon: s.icon, desc: s.ups[nl - 1], tag: 'Lv.' + nl + (nl === RS.SKILL_MAX ? ' MAX' : ''), hint: RS.evoHint(build, c.id) }); }
       case 'evolve': { const s = RS.SKILLS[c.id]; const v = c.variant && s.evos && s.evos[c.variant];
-        return Object.assign(c, { name: v ? v.name : s.evoName, icon: v ? v.icon : s.evoIcon, desc: v ? v.desc : s.evoDesc, tag: '진화!', hint: s.name + ' + ' + RS.PASSIVES[s.passive].name }); }
-      case 'fuse': { const s = RS.SKILLS[c.id], pa = RS.SKILLS[s.fusion[0]], pb = RS.SKILLS[s.fusion[1]];
+        return Object.assign(c, { name: RS.evoTitle(build, c.id, c.variant), icon: v ? v.icon : s.evoIcon, desc: RS.evoDescFor(build, c.id, c.variant), tag: '진화!', hint: s.name + ' + ' + RS.PASSIVES[s.passive].name }); }
+      case 'fuse': { const s = RS.SKILLS[c.id], fa = s.fusion[0], fb = s.fusion[1];
         return Object.assign(c, { name: s.name, icon: s.icon, desc: s.desc, tag: '합체!', tier: 'super',
-          hint: pa.evoName + ' + ' + pb.evoName + ' → 두 기술이 하나가 되고 스킬 칸 1개가 비워진다 (Lv.1부터 다시 키운다)' }); }
+          hint: RS.evoTitle(build, fa, build.evolved[fa]) + ' + ' + RS.evoTitle(build, fb, build.evolved[fb]) + ' → 두 기술이 하나가 되고 스킬 칸 1개가 비워진다 (Lv.1부터 다시 키운다)' }); }
       case 'passive': { const p = RS.PASSIVES[c.id]; return Object.assign(c, { name: p.name, icon: p.icon, desc: p.desc, tag: '새 패시브', hint: RS.passiveHint(build, c.id) }); }
       case 'passiveUp': { const p = RS.PASSIVES[c.id]; const nl = build.passives[c.id] + 1;
         return Object.assign(c, { name: p.name, icon: p.icon, desc: p.desc, tag: 'Lv.' + nl + (nl === RS.PASSIVE_MAX ? ' MAX' : ''), hint: RS.passiveHint(build, c.id) }); }
@@ -402,7 +427,7 @@
         return Object.assign(c, { name: m.name + ' Lv.' + (cur + 1), icon: '📈', desc: RS.mateLine(c.id), tag: RS.mateBadge(c.id), mtier: RS.mateTier(c.id).key, hint: '동료 레벨 업 · 피해 증가' }); }
       case 'star': { const s = RS.SKILLS[c.id]; const n = ((build.stars && build.stars[c.id]) || 0) + 1;
         const v = s.evos && s.evos[build.evolved[c.id]];
-        return Object.assign(c, { name: (v ? v.name : s.evoName) + ' ★' + n, icon: v ? v.icon : s.evoIcon,
+        return Object.assign(c, { name: RS.evoTitle(build, c.id, build.evolved[c.id]) + ' ★' + n, icon: v ? v.icon : s.evoIcon,
           desc: '각성: 이 기술의 피해 +' + Math.round(RS.STAR_STEP.dmg * 100) + '%, 쿨타임 ' + Math.round(RS.STAR_STEP.cd * 100) + '%',
           tag: '각성' + (n === RS.STAR_MAX ? ' MAX' : ''), hint: '진화한 기술을 ★' + RS.STAR_MAX + '까지 더 키운다' }); }
       case 'drill': { const d = RS.DRILLS[c.id]; const n = ((build.drills && build.drills[c.id]) || 0) + 1;
@@ -569,7 +594,6 @@
   };
 
   // ================================================================ World
-  let UID = 1;
   // 신의 손: the hand lands HAND_T s after it appears; repeated slams come HAND_GAP s apart.
   const HAND_T = 0.42, HAND_GAP = 0.4;
   // 드롭볼: rise (s), fall (s) and the height it falls from (world px, drawn above the landing spot).
@@ -601,7 +625,8 @@
         dash: null, jump: 0, animT: 0, revived: false, hurtT: 0, kickT: 0, dustT: 0, slideCd: 0 };
       this.hero = opt.hero || (opt.build && opt.build.hero) || 'ronaldo';
       this.small = RS.smallBody(this.build); // drawn with the short kid body
-      this.enemies = []; this.enemyPool = [];
+      // per world, not per page: the separation pass reads uid parity, so a seed replays the same match
+      this.enemies = []; this.enemyPool = []; this.nextUid = 1;
       this.projs = []; this.projPool = [];
       this.eprojs = [];
       this.pickups = [];
@@ -889,7 +914,7 @@
       const e = this.enemyPool.pop() || {};
       const tu = this.tune;
       const k = this.ramp(); // later in the stage: tougher, faster, and drawn with a darker tint
-      e.uid = UID++; e.type = type; e.sprite = def.sprite; e.x = e.px = x; e.y = e.py = y; e.alive = true;
+      e.uid = this.nextUid++; e.type = type; e.sprite = def.sprite; e.x = e.px = x; e.y = e.py = y; e.alive = true;
       e.pace = def.pace || 'normal'; // fast and slow enemies keep their pace all stage; normal ones speed up
       e.r = def.r; e.speed = def.speed * tu.speedMul * (1 + (e.pace === 'normal' ? tu.rampSpeed * k : 0)) * (0.9 + this.rng() * 0.2);
       e.maxHp = e.hp = Math.round(def.hp * tu.hpMul * (1 + tu.rampHp * k));
@@ -1160,12 +1185,12 @@
           continue;
         }
         if (use === 'stepover') { this.updateStepover(ws, s, evo, dt); continue; }
-        if (use === 'orbit') { this.updateOrbit(ws, s, dt); continue; }
+        if (use === 'orbit') { this.updateOrbit(ws, s, dt, id); continue; }
         if (use === 'trail') { this.updateTrail(ws, s, dt); continue; }
         if (use === 'dribball') { this.updateDribball(ws, s, dt); continue; }
         if (use === 'dropball') { this.updateDropball(ws, s, dt); continue; }
         if (use === 'swarm') { // 위성 군단: the orbit and the hunting balls at once
-          this.updateOrbit(ws, s, dt);
+          this.updateOrbit(ws, s, dt, id);
           this.updateDribball(ws, ws.drib || (ws.drib = {}), dt, s);
           continue;
         }
@@ -1176,20 +1201,35 @@
       }
     }
 
-    // 메시's golden balls: `count` balls circle the player at `radius`; each enemy they touch takes damage once per
-    // `cd` seconds (bigger balls cover more ground). Positions are kept in this.orbs for the renderer.
-    updateOrbit(ws, s, dt) {
-      const p = this.player, st = this.stats;
-      ws.angle = (ws.angle || 0) + dt * s.speed;
-      const R = s.radius * st.area, ballR = 4 * s.size, n = s.count;
+    // 메시's balls circle the player at `radius`; each enemy they touch takes damage once per `cd` seconds (bigger
+    // balls cover more ground). The evolved 회전 공 is the 발롱도르 he has won (RS.ballonCount): count = one trophy
+    // each, size = all of them in one ball (×N, at least ×2); golden balls fill the ring up to the Lv.6 four.
+    // Each ball keeps its size, damage and look in this.orbs (the renderer reads them).
+    updateOrbit(ws, s, dt, id) {
+      const p = this.player, st = this.stats, b = this.build, evolved = id === 'orbit' && b.evolved.orbit;
+      let n = s.count, nTro = 0, troR = 4 * s.size, troDmg = s.dmg, speed = s.speed, knock = s.knock || 20, fillR = troR, fillDmg = s.dmg;
+      if (evolved) {
+        const nb = RS.ballonCount(b), big = evolved === 'size', k = nb / RS.BALLON_MAX, O = RS.SKILLS.orbit;
+        nTro = big ? Math.min(1, nb) : nb;
+        n = nTro + Math.max(0, RS.ORBIT_RING - nb);
+        fillR = 4 * O.evos.count.stats.size;
+        fillDmg = O.lv[RS.SKILL_MAX - 1].dmg * (1 + RS.STAR_STEP.dmg * ((b.stars && b.stars.orbit) || 0));
+        if (big) { troR = 4 * Math.max(2, nb); troDmg = s.dmg * (0.7 + 0.3 * k); speed = 4.4 - 1.8 * Math.max(0, nb - 1) / 7; knock = s.knock * (0.25 + 0.75 * k); }
+      }
+      ws.angle = (ws.angle || 0) + dt * speed;
+      const R = s.radius * st.area;
       const orbs = this.orbs || (this.orbs = []);
       orbs.length = n;
+      let maxR = 0;
       for (let i = 0; i < n; i++) {
-        const a = ws.angle + i * Math.PI * 2 / n;
-        const o = orbs[i] || (orbs[i] = { x: 0, y: 0, r: 0 });
-        o.x = p.x + Math.cos(a) * R; o.y = p.y + Math.sin(a) * R; o.r = ballR;
+        const a = ws.angle + i * TAU / n;
+        const o = orbs[i] || (orbs[i] = { x: 0, y: 0, r: 0, dmg: 0, look: 'white' });
+        o.x = p.x + Math.cos(a) * R; o.y = p.y + Math.sin(a) * R;
+        if (evolved) { const t = i < nTro; o.r = t ? troR : fillR; o.dmg = t ? troDmg : fillDmg; o.look = t ? 'ballon' : 'gold'; }
+        else { o.r = troR; o.dmg = s.dmg; o.look = RS.ballLookAt(b, id, i); }
+        if (o.r > maxR) maxR = o.r;
       }
-      const reach = R + ballR + 20;
+      const reach = R + maxR + 20;
       for (const e of this.enemies) {
         if (!e.alive) continue;
         if (Math.abs(e.x - p.x) > reach + e.r || Math.abs(e.y - p.y) > reach + e.r) continue;
@@ -1200,7 +1240,7 @@
           if ((e.x - o.x) ** 2 + (e.y - o.y) ** 2 < rr * rr) {
             e.orbT = this.t + s.cd * st.cd;
             const d = Math.hypot(e.x - p.x, e.y - p.y) || 1;
-            this.damageEnemy(e, s.dmg, { knock: s.knock || 20, kx: (e.x - p.x) / d, ky: (e.y - p.y) / d });
+            this.damageEnemy(e, o.dmg, { knock, kx: (e.x - p.x) / d, ky: (e.y - p.y) / d });
             break;
           }
         }
@@ -1242,6 +1282,8 @@
       const p = this.player, st = this.stats;
       const def = RS.SKILLS[id || use];
       const ball = (n, e) => def.proj ? def.proj[evo ? 1 : 0] : evo ? e : n;
+      // an evolved 발롱도르 move (def.trophy): the first ballonCount balls of each volley are trophies
+      const nTro = evo && def.trophy ? RS.ballonCount(this.build) : 0;
       // 메시's balls are played by a teammate (World.passOrigin); 날두 kicks himself
       const po = def.passer ? this.passOrigin(def.passer) : null, pz = po && po.mate;
       const ox = po ? po.x : p.x, oy = po ? po.y : p.y;
@@ -1258,7 +1300,7 @@
           for (let i = 0; i < s.count; i++) {
             const e = sorted[i % sorted.length];
             const a = Math.atan2(e.y - oy, e.x - ox) + (i % 2 ? 0.5 : -0.5) * Math.min(1, i);
-            this.spawnProj(evo ? 'golden' : 'cannon', ox, oy, a, s.speed * st.projSpeed,
+            this.spawnProj(i < nTro ? 'ballon' : evo ? 'golden' : 'cannon', ox, oy, a, s.speed * st.projSpeed,
               { dmg, pierce: s.pierce, r: s.r, life: 2.2, home: 4.5, target: e, knock: 60, boom: s.boom, boomDmg: s.boomDmg, gold: !!s.gold });
             if (i === 0) kicked(a);
           }
@@ -1326,7 +1368,7 @@
           const R = s.radius * st.area;
           tg.forEach((e, i) => {
             const x = e.x, y = e.y, delay = 0.35 + i * 0.07;
-            this.addFx('meteor', x, y, { dur: delay });
+            this.addFx('meteor', x, y, { dur: delay, ballon: i < nTro });
             this.later(delay, () => {
               this.shock(x, y, R, s.dmg, { knock: 80, stun: s.stun * st.dur, color: '#ffd84a' });
               if (i % 3 === 0) { this.emit('sfx', { name: 'thud' }); this.pfx('boomSmall', x, y + 3, { palette: RS.PFX_GOLD }); }
@@ -1355,7 +1397,7 @@
             const e = tg[i % tg.length];
             const spread = i >= tg.length ? (i - tg.length + 1) * 0.25 * (i % 2 ? 1 : -1) : 0;
             const a = Math.atan2(e.y - oy, e.x - ox) + spread;
-            this.spawnProj(ball('ball', 'golden'), ox, oy, a, s.speed * st.projSpeed, { dmg, pierce: s.pierce, bounce: s.bounce, r: s.r, life: 1.5 });
+            this.spawnProj(i < nTro ? 'ballon' : ball('ball', 'golden'), ox, oy, a, s.speed * st.projSpeed, { dmg, pierce: s.pierce, bounce: s.bounce, r: s.r, life: 1.5 });
             if (i === 0) kicked(a);
           }
           this.emit('sfx', { name: 'kick' });
@@ -1438,7 +1480,7 @@
           const R = s.radius * st.area;
           tg.slice().sort((a, b) => b.hp - a.hp).slice(0, s.count).forEach((e, i) => {
             const x = e.x, y = e.y, delay = 0.45 + i * 0.12;
-            this.addFx('lob', x, y, { dur: delay, white: !evo, x0: ox, y0: oy });
+            this.addFx('lob', x, y, { dur: delay, white: !evo, x0: ox, y0: oy, ballon: i < nTro });
             this.later(delay, () => { this.shock(x, y, R, dmg, { knock: 60, color: evo ? '#ffd84a' : '#ffffff' }); this.emit('sfx', { name: 'thud' }); });
             if (i === 0) kicked(Math.atan2(y - oy, x - ox));
           });
@@ -1499,6 +1541,7 @@
       D.length = s.count;
       for (const b of D) {
         b.r = br;
+        b.look = swarm ? 'gold' : RS.ballLookAt(this.build, 'dribball', b.i); // 위성 군단's trophies ride the ring
         b.cd -= dt;
         if (b.tg && (!b.tg.alive || (b.tg.x - p.x) ** 2 + (b.tg.y - p.y) ** 2 > leash * leash)) b.tg = null;
         if ((b.x - p.x) ** 2 + (b.y - p.y) ** 2 > (leash + 30) ** 2) b.tg = null; // 메시 ran off: back to his feet
@@ -1555,6 +1598,7 @@
       }
       for (const b of B) {
         b.t += dt;
+        b.look = RS.ballLookAt(this.build, 'dropball', b.i);
         if (b.st === 'orbit') {
           const a = ws.angle + b.i * TAU / n;
           b.x = p.x + Math.cos(a) * R; b.y = p.y + Math.sin(a) * R * 0.8; b.h = 7 + Math.sin(this.t * 6 + b.i * 2) * 2;
@@ -2601,7 +2645,7 @@
       if (c.kind === 'gold') this.coinsPicked += 30;
       if (c.kind === 'heal') this.player.hp = Math.min(this.stats.maxHp, this.player.hp + this.stats.maxHp * 0.4);
       if (c.kind === 'mate' && this.build.teammates.some((m) => m.id === c.id)) this.spawnMateRuntime(this.build.teammates.find((m) => m.id === c.id));
-      if (c.kind === 'evolve') { this.emit('evolve', { id: c.id }); this.emit('siuu'); this.emit('banner', { text: '진화! ' + RS.SKILLS[c.id].evoName }); }
+      if (c.kind === 'evolve') { this.emit('evolve', { id: c.id }); this.emit('siuu'); this.emit('banner', { text: '진화! ' + RS.evoTitle(this.build, c.id, this.build.evolved[c.id]) }); }
       if (c.kind === 'fuse') { this.emit('evolve', { id: c.id }); this.emit('siuu'); this.emit('banner', { text: '⚡ 합체! ' + RS.SKILLS[c.id].name }); }
       if (c.kind === 'evolve' || c.kind === 'fuse') this.pfx('goldBurst', this.player.x, this.player.y, { follow: this.player, dy: 8 });
       this.recalc();
@@ -2613,7 +2657,8 @@
       const evos = RS.availableEvolutions(this.build);
       if (evos.length) {
         const c = { kind: 'evolve', id: evos[0] };
-        this.applyChoiceRuntime(Object.assign(c, { name: RS.SKILLS[c.id].evoName, icon: RS.SKILLS[c.id].evoIcon, desc: RS.SKILLS[c.id].evoDesc, tag: '진화!' }));
+        const v = RS.SKILLS[c.id].evos && Object.keys(RS.SKILLS[c.id].evos)[0]; // a chest takes the first path
+        this.applyChoiceRuntime(Object.assign(c, { name: RS.evoTitle(this.build, c.id, v), icon: RS.SKILLS[c.id].evoIcon, desc: RS.evoDescFor(this.build, c.id, v), tag: '진화!' }));
         res.push(c);
       } else {
         const n = this.rng() < 0.25 ? 3 : 1;

@@ -198,9 +198,13 @@ test('메시 is faster, slides every 3 s, and his golden balls hit without proje
   RS.selectHero('ronaldo');
 });
 
-test('orbit evolves two ways: 8 balls (8발롱도르공) or one ball 8× (8발롱도르)', () => {
+test('with all eight 발롱도르 won the orbit evolves two ways: 8 balls (8발롱도르공) or one ball 8× (8발롱도르)', () => {
   RS.selectHero('messi');
-  const mk = () => { const b = RS.newBuild('messi'); b.skills.orbit = RS.SKILL_MAX; RS.applyChoice(b, { kind: 'passive', id: 'ballon' }); return b; };
+  const mk = () => {
+    const b = RS.newBuild('messi'); b.skills.orbit = RS.SKILL_MAX; RS.applyChoice(b, { kind: 'passive', id: 'ballon' });
+    b.ballons = RS.YEARS_MESSI.filter((y) => y.ballon).map((y) => y.year);
+    return b;
+  };
   const b = mk();
   const choices = RS.makeChoices(b, RS.makeRng(1), 2);
   const evos = choices.filter((c) => c.kind === 'evolve').map((c) => c.variant).sort();
@@ -222,7 +226,7 @@ test('orbit evolves two ways: 8 balls (8발롱도르공) or one ball 8× (8발�
   RS.selectHero('ronaldo');
 });
 
-test('메시\'s ball looks white at Lv.1-2, golden from Lv.3, the 발롱도르 once evolved', () => {
+test('메시\'s ball looks white at Lv.1-2, golden from Lv.3, the 발롱도르 once evolved after his first one', () => {
   const b = RS.newBuild('messi');
   assert.equal(RS.orbitLook(b), 'white');
   b.skills.orbit = 2;
@@ -231,19 +235,23 @@ test('메시\'s ball looks white at Lv.1-2, golden from Lv.3, the 발롱도르 o
   assert.equal(RS.orbitLook(b), 'gold');
   b.skills.orbit = RS.SKILL_MAX;
   RS.applyChoice(b, { kind: 'passive', id: 'ballon' });
+  assert.equal(RS.applyChoice(b, { kind: 'evolve', id: 'orbit', variant: 'count' }), false, 'no 발롱도르 won yet: no evolution');
+  b.ballons = [2009];
   assert.ok(RS.applyChoice(b, { kind: 'evolve', id: 'orbit', variant: 'count' }));
   assert.equal(RS.orbitLook(b), 'ballon');
 });
 
-test('the ball upgrade turns up in most of 메시\'s first level-up hands (it stayed one ball too long)', () => {
+test('메시\'s first level-up hands are varied: the ball upgrade is one card among new moves', () => {
   RS.selectHero('messi');
   const N = 400;
-  let shown = 0;
+  let shown = 0, fresh = 0;
   for (let s = 1; s <= N; s++) {
     const hand = RS.levelChoices(RS.newBuild('messi'), RS.makeRng(s), 0, 0, 0);
     if (hand.some((c) => c.kind === 'skillUp' && c.id === 'orbit')) shown++;
+    if (hand.some((c) => c.kind === 'skill')) fresh++;
   }
-  assert.ok(shown / N >= 0.6, 'ball upgrade in ' + shown + '/' + N + ' hands');
+  assert.ok(shown / N <= 0.4, 'ball upgrade in ' + shown + '/' + N + ' hands');
+  assert.ok(fresh / N >= 0.85, 'a new move in ' + fresh + '/' + N + ' hands');
   RS.selectHero('ronaldo');
 });
 

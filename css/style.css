@@ -346,3 +346,49 @@ ul.howto { text-align: left; padding-left: 4px; list-style: none; margin: 0; dis
 .ending-icon { font-size: 54px; animation: pop2 0.6s ease-out; }
 #end-title { color: #ff8a7a; text-shadow: 0 0 14px rgba(255,74,74,0.5), 0 2px 0 #000; font-size: 20px; }
 .end-sprite { display: flex; justify-content: center; filter: grayscale(0.85) brightness(0.8); }
+
+/* ---------- 페널티킥 (round 10): the scene is drawn on the canvas; this layer frames it, taps fall through to it */
+.screen.pk-screen { background: transparent; pointer-events: none; justify-content: space-between; overflow: hidden; touch-action: none;
+  padding-top: calc(var(--sat) + 6px); }
+.pk-screen .panel, .pk-screen button { pointer-events: auto; }
+.pk-top { width: 100%; max-width: 520px; text-align: center; text-shadow: 0 2px 0 #000, 0 0 6px rgba(0,0,0,0.8); }
+.pk-title { font-weight: 900; font-size: 17px; color: var(--gold); }
+.pk-sub { font-size: 12px; color: #dfe8e0; margin-top: 2px; }
+.pk-score { display: flex; flex-direction: column; align-items: center; gap: 3px; margin-top: 5px; }
+.pk-row { display: flex; align-items: center; gap: 7px; background: rgba(0,0,0,0.58); border-radius: 12px; padding: 3px 10px; font-size: 12px; }
+.pk-row b { min-width: 58px; text-align: right; font-weight: 800; color: #fff; }
+.pk-row span { display: flex; gap: 4px; }
+.pk-row i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.45); box-sizing: border-box; }
+.pk-row i.g { background: var(--green); border-color: #c8ffd4; }
+.pk-row i.m { background: var(--red); border-color: #ffc8c8; }
+.pk-row i.c { border-color: var(--gold); box-shadow: 0 0 8px rgba(255,210,58,0.9); animation: blink 0.8s infinite; }
+.pk-row em { font-style: normal; font-weight: 900; color: var(--gold); min-width: 14px; }
+.pk-bottom { width: 100%; max-width: 520px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.pk-hint { min-height: 20px; font-weight: 800; font-size: 14px; color: #fff; text-align: center; background: rgba(0,0,0,0.55); border-radius: 10px; padding: 3px 10px; word-break: keep-all; }
+.pk-hint:empty { visibility: hidden; }
+.pk-bar { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 8px; font-size: 12px; color: #dfe8e0; }
+.pk-bar span { background: rgba(0,0,0,0.55); border-radius: 8px; padding: 4px 8px; font-weight: 700; }
+#btn-pk-auto.on { border-color: var(--gold); color: var(--gold); }
+.pk-panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: calc(100% - 24px); max-width: 420px; max-height: 82%;
+  overflow-y: auto; text-align: center; display: flex; flex-direction: column; gap: 8px; z-index: 2; }
+.pk-panel h2 { margin: 2px 0; }
+.pk-panel .story { margin: 2px 0; }
+.pk-keeper { font-weight: 800; color: #fff; background: rgba(255,255,255,0.07); border-radius: 10px; padding: 6px 8px; }
+.pk-keeper span { display: block; font-size: 12px; color: var(--muted); font-weight: 600; margin-top: 2px; word-break: keep-all; }
+.pk-how { font-size: 12px; word-break: keep-all; }
+.pk-notes { display: flex; flex-direction: column; gap: 4px; }
+.pk-title-got { font-weight: 900; color: var(--gold); font-size: 16px; text-shadow: 0 0 10px rgba(255,210,58,0.6); }
+.pk-shout { position: absolute; left: 50%; top: 31%; transform: translate(-50%, -50%); font-weight: 900; font-size: 40px; white-space: nowrap; pointer-events: none;
+  text-shadow: 0 4px 0 #000, 0 0 18px rgba(0,0,0,0.7); letter-spacing: 1px; z-index: 1; }
+.pk-shout.goal { color: var(--gold); }
+.pk-shout.save { color: var(--cyan); }
+.pk-shout.miss { color: #ff7a7a; }
+.pk-shout.show { animation: pkshout 1.3s ease-out forwards; }
+@keyframes pkshout {
+  0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+  14% { transform: translate(-50%, -50%) scale(1.25); opacity: 1; }
+  26% { transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; }
+  100% { transform: translate(-50%, -64%) scale(1); opacity: 0; }
+}
+.pk-line { position: relative; z-index: 1; font-size: 12px; margin-top: -2px; }

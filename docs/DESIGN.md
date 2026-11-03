@@ -332,6 +332,42 @@ invisible. This removes the power creep of the carried-over build: late bosses n
   공중 지배 as a white shock), stun stars. Cap `RS.PFX_MAX` = 24; measured 2.6 ms a frame with 12 live. Hit stop
   (`RS.HIT_STOP`): the match freezes 0.12 s on a boss or rival kill and 0.035 s on a boss crit.
 
+### Round 10: penalties, 발롱도르 balls only from 발롱도르 won, a varied 메시 hand
+- **메시's hand.** 회전 공 carried `upW` 4, so its upgrade card weighed 12 against 1.7 for a new move: on 하드 37–72 %
+  of a youth hand held it and a 회전 공-only pick evolved it at Lv.9 in 1995. Without `upW` it is 10–33 %. 회전 공
+  evolves only after the career's first 발롱도르 (`RS.availableEvolutions`).
+- **발롱도르 balls** (`RS.ballonCount`, `build.ballons`): trophy balls come only from the 발롱도르 this career has won
+  (메시 up to 8, 날두 up to 5); before that the balls stay gold. Career schema 3 (`RS.backfillBallons`) rebuilds
+  `build.ballons` and each snapshot's from the cleared 발롱도르 seasons and takes back a 회전 공 evolved too early.
+  `UID` is per world, so a match replays exactly from its seed. 하드 `grow` 0.05 → 0.08: replayed per seed, 완전
+  오토 with the whole 훈련장 still cleared 하드 on 2 seeds of 8; now it stalls on all of them between 2011 and 2017.
+- **페널티킥** (`js/pk.js` rules, `js/pkscene.js` one kick, `js/pkrender.js` drawing, `js/pkui.js` screens). Real
+  numbers it is shaped on (messivsronaldo.app, Sept 2025): 날두 177/210 (84.3 %), 메시 113/145 (77.9 %); 메시 never
+  scored against 쩨흐 in six games and hit the bar from the spot in 2012.
+  - A kick: pick a zone (`RS.pkZoneCount`: 3 along the ground, 6 from Lv.35, 9 from Lv.70), stop the power gauge
+    (`RS.PK_POWER`: green 0.70–0.88; weak below 0.55, over-hit above 0.95), stop the needle on the white arc
+    (`RS.pkTiming`: the needle, the gauge and the arcs widen with 골결정력; gold = perfect, two turns = a miss).
+  - 골결정력 (`RS.pkFinishing`) = 62 날두 / 54 메시 + level × 0.2 (max +24) + 3 per 훈련장 `pkdrill`.
+  - Odds (`RS.pkOdds`): a miss from the zone, the needle and an over-hit; a save from the zone × (keeper rating / 80)²
+    × power × placement × 골결정력. A keeper's `nemesis` caps one hero (쩨흐 vs 메시: 10 %, the rest on the frame).
+    The aim grid shows each zone's odds. `tests/round10.test.js` guards: the bot 날두 beats the bot 메시 at Lv.10,
+    60 and 120; late 날두 vs a national keeper 78–92 %.
+  - **PK 챌린지**: every `RS.PK_EVERY` = 5 matches (cleared or not; `meta.pk.games`) five kicks against a keeper
+    from the career's stage (`RS.PK_POOLS`: 동네 수문장 → 야씬). `RS.pkCoinPer` coins a goal (8 + (rating − 50) / 2),
+    five of five pays eight. Each hero keeps his own record (`meta.pk.heroes`); titles at 10 / 25 / 50 goals
+    (`RS.PK_TITLES`, the last 세계 최고의 페널티 키커). The title screen shows the record and the matches left.
+  - **승부차기** (`RS.SHOOTOUTS`): 날두 2004 · 2006 · 2008 · 2012 · 2016 · 2024, 메시 2015 · 2016 · 2021 · 2022 ·
+    2023 · 2024, and 메시 2012's single penalty against 쩨흐. After that season is cleared: five a side in the real
+    order, the hero at his real place, teammates rolled (`RS.SO_MATE` 0.76 at rating 80), the other side's kicks
+    against our keeper (the player picks the dive), sudden death, decided early when it cannot be caught. A win pays
+    `RS.SHOOTOUT_COINS` 120 (single: 60) and moves 민심 by `RS.SHOOTOUT_FANS` 5, once per season; a loss can be won
+    back by replaying the season.
+  - 반자동 and 완전 오토 kick and dive by themselves (`RS.pkBotKick`), and the screen's button switches any kick to
+    the player. The kick that can decide a shootout is slow-motion with a zoom on the goal.
+  - Effects: night stadium with a crowd in both sides' colours (it jumps on a goal), LED boards that flash, a net
+    that bulges where the ball went in, a white flash, light and a gold firework for our goal, spark and shake on a
+    save or the frame, `GOAL!!` / `SIUUU!` shouts, fireworks and confetti for a won shootout or five of five.
+
 ### Hero readability (round 3)
 - The hero sprite alone has a gold double outline (`paint` `opt.glow`), a pulsing gold ring + soft light pool under
   the feet, a bobbing gold chevron above the head and a gold-framed HP bar.

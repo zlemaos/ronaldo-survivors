@@ -119,6 +119,7 @@
       this.updateOptions();
       for (const b of document.querySelectorAll('#hero-pick .hero')) b.classList.toggle('on', b.dataset.hero === c.build.hero);
       this.renderWallet($('title-wallet'));
+      $('title-pk').textContent = this.pkLine();
       const ts = $('title-sprite'); ts.innerHTML = '';
       ts.appendChild(RS.Sprites.toCanvas(RS.Sprites.hero(c.build.hero, c.yearIdx, 1, null, RS.smallBody(c.build)), 0, 7));
       this.makeAttract();
@@ -472,13 +473,15 @@
       let h = '<span class="chip">Lv.' + b.level + '</span>';
       for (const id of b.skillOrder) {
         const s = RS.SKILLS[id], v = s.evos && s.evos[b.evolved[id]], st = (b.stars && b.stars[id]) || 0;
-        h += b.evolved[id] ? '<span class="chip evo">' + (v ? v.icon : s.evoIcon) + ' ' + esc(v ? v.name : s.evoName) + (st ? ' ★' + st : '') + '</span>'
+        h += b.evolved[id] ? '<span class="chip evo">' + (v ? v.icon : s.evoIcon) + ' ' + esc(RS.evoTitle(b, id, b.evolved[id])) + (st ? ' ★' + st : '') + '</span>'
           : '<span class="chip">' + s.icon + ' ' + esc(s.name) + ' ' + b.skills[id] + '</span>';
       }
       for (const id of b.passiveOrder) h += '<span class="chip">' + RS.PASSIVES[id].icon + ' ' + b.passives[id] + '</span>';
       for (const id in b.drills || {}) h += '<span class="chip">' + RS.DRILLS[id].icon + ' ' + esc(RS.DRILLS[id].name) + ' ×' + b.drills[id] + '</span>';
       for (const id of b.relicOrder || []) { const r = RS.RELICS[id]; h += '<span class="chip t-' + r.tier + '">' + r.icon + ' ' + esc(r.name) + (r.stack ? ' ' + b.relics[id] + '/' + RS.STIM.max : '') + '</span>'; }
       if (b.coachCards.length) h += '<span class="chip">👔 감독 카드 ' + b.coachCards.length + '</span>';
+      // 발롱도르 won in this career: trophy balls come only from these (RS.ballonCount)
+      h += '<span class="chip">🏆 발롱도르 ' + RS.ballonCount(b) + '회 수상</span>';
       if (b.rivalry && (b.rivalry.w || b.rivalry.l)) h += '<span class="chip">⚔️ 클라시코 ' + b.rivalry.w + '승 ' + b.rivalry.l + '패</span>';
       const ft = RS.fanTier(b);
       h += '<span class="chip">' + ft.icon + ' 민심 ' + esc(ft.name) + ' ' + (b.fans != null ? b.fans : RS.FANS.start) + (ft.key !== 'calm' ? ' · ' + esc(ft.text) : '') + '</span>';
@@ -692,7 +695,14 @@
       $('tap-hint').classList.add('hidden');
       $('vignette').classList.add('hidden'); this.hud.low = false;
       for (const o of document.querySelectorAll('.overlay')) o.classList.add('hidden');
-      if (w.phase === 'victory') return this.showVictory(w, out);
+      // penalties first (pkui.js): the season's real shootout once it is cleared, then the PK 챌린지 every fifth match
+      const pk = [];
+      if (RS.shootoutDue(this.save, out.idx, out.cleared)) pk.push({ kind: 'shootout', idx: out.idx, replay: !!out.replay });
+      if (out.pkDue) pk.push({ kind: 'challenge', idx: out.idx });
+      this.runPK(pk, () => (w.phase === 'victory' ? this.showVictory(w, out) : this.showResult(w, out)));
+    },
+
+    showResult(w, out) {
       this.show('result');
       const yd = RS.YEARS[out.idx];
       $('res-title').textContent = out.cleared ? yd.year + ' 시즌 클리어!' : '부상 아웃...';
@@ -706,6 +716,7 @@
       add('Lv.' + out.level, '레벨');
       add('+' + out.coins, '코인');
       if (out.ballon) add('+' + out.ballon, '발롱도르 🏆');
+      if (out.ballonWon) add('🏆 ' + out.ballonWon + '회', '이번 커리어 발롱도르 · 발롱도르 공 ' + out.ballonWon + '개까지');
       if (out.rival) add(out.rival === 'win' ? '승 ⚔️' : '패 😤', '클라시코 vs ' + out.rivalName + (out.rival === 'win' ? ' · 민심 +' : ' · 민심 -') + RS.RIVAL_FANS);
       if (out.ballonStolen) add('🏆→' + out.rivalName, '발롱도르를 뺏겼다 · 다시 해서 되찾자');
       if (w.recruitedThisRun.length) add(w.recruitedThisRun.length + '명', '새 동료');
@@ -796,7 +807,8 @@
       const dt = Math.min(0.1, (ts - this.last) / 1000);
       this.last = ts;
       try {
-        if (this.state === 'play' && this.world) this.tick(dt);
+        if (this.state === 'pk' && this.pk) this.tickPK(dt);
+        else if (this.state === 'play' && this.world) this.tick(dt);
         else if (this.attract && this.screen === 'title') {
           this.attract.view = this.renderer.view;
           this.attractAcc = (this.attractAcc || 0) + dt;
@@ -1049,7 +1061,11 @@
       for (const b of document.querySelectorAll('#hero-pick .hero')) b.onclick = () => this.pickHero(b.dataset.hero);
       for (const b of document.querySelectorAll('[data-back]')) b.onclick = () => this.showTitle();
       for (const b of document.querySelectorAll('[data-home]')) b.onclick = () => this.showTitle();
+      // PK (pkui.js): taps on the pitch aim, stop the gauge and the needle, or pick the keeper's dive
+      $('game').addEventListener('pointerdown', (e) => { if (this.state === 'pk') this.pkTap(e); });
+      $('btn-pk-auto').onclick = () => { RS.Audio.sfx('click'); this.pkToggleAuto(); };
       window.addEventListener('keydown', (e) => {
+        if (this.state === 'pk') { this.pkKey(e); return; }
         if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') { if (this.state === 'play') this.pause(!this.paused); }
         if (this.state === 'play' && this.world && this.world.phase === 'levelup' && this.lvShown && ['1', '2', '3', '4'].includes(e.key)) {
           const btn = $('lv-cards').children[+e.key - 1]; if (btn) btn.click();
@@ -1058,6 +1074,7 @@
     }
   };
 
+  Object.assign(App, RS.PKUI); // the PK screens (pkui.js)
   RS.App = App;
   window.RSApp = App;
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => App.init());

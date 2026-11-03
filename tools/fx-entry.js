@@ -49,10 +49,10 @@ export const goldBurst = {
     return {
       update(dt) { t += dt; ps.update(dt); lights.update(dt); },
       draw(p) {
-        const k = 1 - smooth(Math.min(1, t / 0.5));
+        const k = 1 - smooth(0, 0.5, t); // smooth(e0, e1, x): the ring fades over its first half second
         if (t < 0.05) p.disc(0, -16, 9, WHITE, 1);
         if (t < 0.25) flare(p, 0, -16, 34 * (1 - t / 0.25) + 6, 0.9, C);
-        band(p, 0, 0, 10 + 60 * smooth(Math.min(1, t / 0.6)), 0.16, 2, 0.8 * k, C, undefined, true);
+        band(p, 0, 0, 10 + 60 * smooth(0, 0.6, t), 0.16, 2, 0.8 * k, C, undefined, true);
         ps.draw(p); lights.draw(p);
       }
     };
@@ -102,5 +102,41 @@ export const stunStars = {
   }
 };
 
-export const fx = { hitSpark, smallExplosion, bigExplosion, heal, sparkPop, goldBurst, boomSmall, stunStars };
+// 불꽃놀이 (round 10): a rocket climbs on a sparkling tail, bursts into a ring of coloured sparks that droop and
+// fade, with twinkling stars and a flash of light — a won shootout or a perfect PK 챌린지 (1.9 s, about 150 px).
+export const firework = {
+  meta: { name: "Firework", size: [160, 180], origin: [80, 160], duration: 1.9, loop: false, fps: 30, options: { palette: GOLD, seed: 1, n: 40, rise: 90 } },
+  create(o) {
+    const C = fit(o.palette, 6), R = new Rng(o.seed);
+    const ps = new Particles({ rng: R, sparks: [C[5], C[4], C[3], C[2]] }), lights = new Lights();
+    const T = 0.42, top = -o.rise;
+    let t = 0, burst = false;
+    return {
+      update(dt) {
+        t += dt;
+        if (t < T && R.chance(Math.min(1, dt * 45))) ps.spawn(P.SPARK, R.range(-1, 1), top * smooth(0, T, t) + 2, R.range(-12, 12), R.range(10, 40), R.range(0.15, 0.3), C[4], 1);
+        if (!burst && t >= T) {
+          burst = true;
+          lights.add(0, top, 64, C[4], 0.9, 0.45);
+          for (let i = 0; i < o.n; i++) {
+            const a = (i / o.n) * TAU + R.range(-0.06, 0.06), sp = R.range(95, 125);
+            ps.spawn(P.SPARK, 0, top, Math.cos(a) * sp, Math.sin(a) * sp, R.range(0.8, 1.3), C[i % 2 ? 5 : 3], 1);
+          }
+          for (let i = 0; i < 14; i++) {
+            const a = R.range(0, TAU), rr = R.range(10, 40);
+            ps.spawn(P.STAR, Math.cos(a) * rr, top + Math.sin(a) * rr, 0, 8, R.range(0.5, 1.0), C[5], 1, R.range(0.15, 0.6));
+          }
+        }
+        ps.update(dt); lights.update(dt);
+      },
+      draw(p) {
+        if (t < T) p.disc(0, top * smooth(0, T, t), 1.5, C[5], 1);
+        else if (t < T + 0.08) p.disc(0, top, 7 * (1 - (t - T) / 0.08) + 2, WHITE, 1);
+        ps.draw(p); lights.draw(p);
+      }
+    };
+  }
+};
+
+export const fx = { hitSpark, smallExplosion, bigExplosion, heal, sparkPop, goldBurst, boomSmall, stunStars, firework };
 export { createFrame, clearFrame, createFx, composite, GOLD, FIRE, ICE };

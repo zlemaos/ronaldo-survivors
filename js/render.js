@@ -197,16 +197,26 @@
       // projectiles
       for (const pr of w.projs) {
         if (!pr.alive) continue;
-        const it = S.item(pr.kind === 'ball' ? 'ball' : pr.kind);
+        const tro = pr.kind === 'ballon'; // a 발롱도르 the hero has really won (RS.ballonCount): the trophy ball
         const sx = H2(this.lx(pr) - camX), sy = H2(this.ly(pr) - camY);
         if (sx < -20 || sy < -20 || sx > V.w + 20 || sy > V.h + 20) continue;
         // motion trail: two fading dots behind every ball (hot colours for the power shots)
-        const hot = pr.kind === 'cannon' || pr.kind === 'golden' || pr.kind === 'shot' || pr.kind === 'rabona2';
-        L.fillStyle = pr.kind === 'golden' ? 'rgba(255,215,80,0.5)' : pr.kind === 'rabona2' ? 'rgba(255,90,190,0.55)' : hot ? 'rgba(255,140,40,0.5)' : pr.kind === 'rabona' ? 'rgba(255,170,60,0.5)' : 'rgba(255,255,255,0.35)';
+        const goldish = tro || pr.kind === 'golden';
+        const hot = goldish || pr.kind === 'cannon' || pr.kind === 'shot' || pr.kind === 'rabona2';
+        L.fillStyle = goldish ? 'rgba(255,215,80,0.5)' : pr.kind === 'rabona2' ? 'rgba(255,90,190,0.55)' : hot ? 'rgba(255,140,40,0.5)' : pr.kind === 'rabona' ? 'rgba(255,170,60,0.5)' : 'rgba(255,255,255,0.35)';
         L.fillRect(Math.round(sx - pr.vx * 0.025) - 1, Math.round(sy - pr.vy * 0.025) - 1, hot ? 3 : 2, hot ? 3 : 2);
-        L.fillStyle = pr.kind === 'golden' ? 'rgba(255,215,80,0.25)' : hot ? 'rgba(255,140,40,0.25)' : 'rgba(255,255,255,0.18)';
+        L.fillStyle = goldish ? 'rgba(255,215,80,0.25)' : hot ? 'rgba(255,140,40,0.25)' : 'rgba(255,255,255,0.18)';
         L.fillRect(Math.round(sx - pr.vx * 0.05) - 1, Math.round(sy - pr.vy * 0.05) - 1, 2, 2);
-        L.drawImage(it.n, sx - (it.w >> 1), sy - (it.h >> 1));
+        if (tro) {
+          const d = Math.max(8, Math.round(pr.r * 2.4)), spr = S.orb('ballon', d, (Math.floor(w.t * 18) + (pr.x | 0)) % S.ORB_FRAMES), gl = S.orbGlow(d);
+          L.globalCompositeOperation = 'lighter'; L.globalAlpha = 0.6;
+          L.drawImage(gl, sx - (gl.width >> 1), sy - (gl.height >> 1));
+          L.globalAlpha = 1; L.globalCompositeOperation = 'source-over';
+          L.drawImage(spr.c, sx - spr.cx, sy - spr.cy);
+        } else {
+          const it = S.item(pr.kind === 'ball' ? 'ball' : pr.kind);
+          L.drawImage(it.n, sx - (it.w >> 1), sy - (it.h >> 1));
+        }
       }
       for (const ep of w.eprojs) {
         if (!ep.alive) continue;
@@ -259,17 +269,20 @@
       L.globalAlpha = 1;
     }
 
-    // 메시's orbiting balls (RS.orbitLook): a white ball, golden from Lv.3, the 발롱도르 once evolved — each
-    // spinning over a ground shadow; the trophy glows and twinkles. A flash ring marks a look change mid-run.
+    // 메시's orbiting balls (each ball's look from World.updateOrbit): a white ball, golden from Lv.3, a 발롱도르
+    // trophy for every one he has won once evolved — each spinning over a ground shadow; a trophy glows and
+    // twinkles. A flash ring marks a change on the ring mid-run (a new look or another ball).
     drawOrbs(L, w, camX, camY) {
-      const S = RS.Sprites, V = this.view, look = RS.orbitLook(w.build), trophy = look === 'ballon';
-      if (this.orbWorld !== w) { this.orbWorld = w; this.orbLook = look; this.orbFlash = 0; }
-      else if (this.orbLook !== look) { this.orbLook = look; this.orbFlash = 1; }
+      const S = RS.Sprites, V = this.view;
+      let sig = 0;
+      for (const o of w.orbs) sig += o.look === 'ballon' ? 1000 : o.look === 'gold' ? 30 : 1;
+      if (this.orbWorld !== w) { this.orbWorld = w; this.orbLook = sig; this.orbFlash = 0; }
+      else if (this.orbLook !== sig) { this.orbLook = sig; this.orbFlash = 1; }
       const fl = this.orbFlash;
       if (fl > 0) this.orbFlash = Math.max(0, fl - 1 / 45);
       const spin = Math.floor(w.t * 18);
       for (let i = 0; i < w.orbs.length; i++) {
-        const o = w.orbs[i];
+        const o = w.orbs[i], look = o.look || 'white', trophy = look === 'ballon';
         const sx = H2(this.lx(o) - camX), sy = H2(this.ly(o) - camY);
         if (sx < -50 || sy < -50 || sx > V.w + 50 || sy > V.h + 50) continue;
         const d = Math.max(6, Math.round(o.r * 2));
@@ -308,10 +321,11 @@
       }
     }
 
-    // 드리볼: each ball spins along its path with two fading after-images behind it (look: RS.ballLook).
+    // 드리볼: each ball spins along its path with two fading after-images behind it (look: each ball's, RS.ballLookAt).
     drawDribs(L, w, camX, camY) {
-      const S = RS.Sprites, V = this.view, look = RS.ballLook(w.build, 'dribball'), trophy = look === 'ballon';
+      const S = RS.Sprites, V = this.view;
       for (const b of w.dribs) {
+        const look = b.look || 'white', trophy = look === 'ballon';
         const sx = H2(this.lx(b) - camX), sy = H2(this.ly(b) - camY);
         if (sx < -30 || sy < -30 || sx > V.w + 30 || sy > V.h + 30) continue;
         const d = Math.max(6, Math.round(b.r * 2)), spr = S.orb(look, d, Math.floor(b.spin / 3) % S.ORB_FRAMES);
@@ -336,13 +350,13 @@
     // 드롭볼: circling (bobbing over a shadow) → shooting up (light trail) → crashing down on a marked spot (meteor
     // trail, a growing shadow and a closing ring) → gone until it pops back.
     drawDrops(L, w, camX, camY) {
-      const S = RS.Sprites, V = this.view, look = RS.ballLook(w.build, 'dropball'), gold = look !== 'white';
+      const S = RS.Sprites, V = this.view;
       const lv = w.build.skills.dropball || 1;
       const st = RS.skillStats('dropball', lv, w.build.evolved.dropball, w.build.stars && w.build.stars.dropball);
       const R = st.radius * w.stats.area, d = 8, spin = Math.floor(w.t * 16);
-      const hot = gold ? '255,214,90' : '255,255,255';
       for (const b of w.drops) {
         if (b.st === 'gone') continue;
+        const look = b.look || 'white', gold = look !== 'white', hot = gold ? '255,214,90' : '255,255,255';
         const sx = H2(this.lx(b) - camX), sy = H2(this.ly(b) - camY);
         if (sx < -60 || sy < -200 || sx > V.w + 60 || sy > V.h + 60) continue;
         const spr = S.orb(look, d, (spin + b.i * 3) % S.ORB_FRAMES), by = H2(sy - b.h);
@@ -587,22 +601,22 @@
             break;
           }
           case 'meteor': { // 별똥별 슛 / 메시's 칩슛 (f.white): a ball falls from the sky; its landing shadow grows
-            const h = 72 * (1 - k), off = Math.round(12 * (1 - k)), it = S.item(f.white ? 'ball' : 'golden');
+            const h = 72 * (1 - k), off = Math.round(12 * (1 - k));
             L.fillStyle = (f.white ? 'rgba(255,255,255,' : 'rgba(255,215,80,') + (0.35 * k) + ')';
             L.beginPath(); L.ellipse(sx, sy, 2 + 7 * k, 1 + 3 * k, 0, 0, TAU); L.fill();
             L.strokeStyle = f.white ? 'rgba(255,255,255,0.6)' : 'rgba(255,236,150,0.65)'; L.lineWidth = 2;
             L.beginPath(); L.moveTo(sx + off + 7, Math.round(sy - h) - 16); L.lineTo(sx + off, Math.round(sy - h)); L.stroke();
-            L.drawImage(it.n, sx + off - (it.w >> 1), Math.round(sy - h) - (it.h >> 1));
+            this.drawFallBall(L, f, sx + off, Math.round(sy - h), w.t);
             break;
           }
           case 'lob': { // 로빙 패스: the ball arcs from the passer (x0, y0) onto the target; its shadow runs along the ground
             const gx = Math.round(f.x0 + (f.x - f.x0) * k - camX), gy = Math.round(f.y0 + (f.y - f.y0) * k - camY);
-            const h = Math.round(Math.sin(k * Math.PI) * 44), it = S.item(f.white ? 'ball' : 'golden');
+            const h = Math.round(Math.sin(k * Math.PI) * 44);
             L.fillStyle = 'rgba(0,0,0,0.25)';
             L.beginPath(); L.ellipse(gx, gy + 2, 3, 1.5, 0, 0, TAU); L.fill();
             L.fillStyle = (f.white ? 'rgba(255,255,255,' : 'rgba(255,215,80,') + (0.35 * k) + ')'; // landing spot
             L.beginPath(); L.ellipse(sx, sy, 2 + 7 * k, 1 + 3 * k, 0, 0, TAU); L.fill();
-            L.drawImage(it.n, gx - (it.w >> 1), gy - h - (it.h >> 1));
+            this.drawFallBall(L, f, gx, gy - h, w.t);
             break;
           }
           case 'whistle': // 추가시간 휘슬: a white wave over the pitch
@@ -771,6 +785,22 @@
           L.fillRect(H2(sx + Math.cos(a) * f.r * (0.7 + 0.5 * q)), H2(sy + Math.sin(a) * f.r * 0.45 * (0.7 + 0.5 * q) - 3 * q), 2, 1);
         }
       }
+    }
+
+    // A ball falling from the sky (별똥별 슛, 칩슛, 로빙, 유성): white, golden, or a 발롱도르 trophy (f.ballon) — one the
+    // hero has really won (World.fire: the first RS.ballonCount balls of a volley).
+    drawFallBall(L, f, x, y, time) {
+      const S = RS.Sprites;
+      if (f.ballon) {
+        const d = 10, spr = S.orb('ballon', d, Math.floor(time * 16) % S.ORB_FRAMES), gl = S.orbGlow(d);
+        L.globalCompositeOperation = 'lighter'; L.globalAlpha = 0.65;
+        L.drawImage(gl, x - (gl.width >> 1), y - (gl.height >> 1));
+        L.globalAlpha = 1; L.globalCompositeOperation = 'source-over';
+        L.drawImage(spr.c, x - spr.cx, y - spr.cy);
+        return;
+      }
+      const it = S.item(f.white ? 'ball' : 'golden');
+      L.drawImage(it.n, x - (it.w >> 1), y - (it.h >> 1));
     }
 
     arrow(L, sx, sy, color) {

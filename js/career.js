@@ -3,7 +3,9 @@
   'use strict';
 
   RS.SAVE_KEY = 'ronaldo-survivors.save.v1';
-  RS.CAREER_V = 2; // career schema 2: 메시's youth seasons come before his 2004 debut (see RS.migrateCareer)
+  // career schema 2: 메시's youth seasons come before his 2004 debut; 3: the 발롱도르 won (build.ballons, see
+  // RS.migrateCareer)
+  RS.CAREER_V = 3;
 
   RS.newSave = function () {
     return {
@@ -20,12 +22,14 @@
         rewardDone: -1, // boss reward for year idx picked when rewardDone >= idx
         build: RS.newBuild(),
         snapshots: {}, // idx -> build at the start of that year (after the coach pick)
+        shootouts: {}, // idx -> 'win' | 'loss': the season's real penalty shootout (RS.SHOOTOUTS)
         finished: false,
         laps: 0
       },
       careers: {}, // parked careers of the other heroes (see RS.switchHero)
-      // diff: RS.DIFFS key; auto: 'off' | 'semi' (반자동: important choices are the player's) | 'full' (완전 오토)
-      meta: { coins: 0, ballons: 0, upgrades: {}, ballonYears: [], muted: false, totalKills: 0, wins: 0, diff: 'normal', auto: 'off' }
+      // diff: RS.DIFFS key; auto: 'off' | 'semi' (반자동: important choices are the player's) | 'full' (완전 오토);
+      // pk: matches played and each hero's penalties (RS.normalizePk)
+      meta: { coins: 0, ballons: 0, upgrades: {}, ballonYears: [], muted: false, totalKills: 0, wins: 0, diff: 'normal', auto: 'off', pk: { games: 0, heroes: {} } }
     };
   };
   RS.AUTO_MODES = ['off', 'semi', 'full'];
@@ -54,6 +58,7 @@
     for (const k of Object.keys(s.meta.upgrades)) if (!RS.META[k]) delete s.meta.upgrades[k];
     if (!RS.DIFFS[s.meta.diff]) s.meta.diff = 'normal';
     if (!RS.AUTO_MODES.includes(s.meta.auto)) s.meta.auto = 'off';
+    s.meta.pk = RS.normalizePk(s.meta.pk);
     RS.setDiff(s.meta.diff);
     return s;
   };
@@ -82,9 +87,9 @@
   RS.migrateCareer = function (career) {
     if (!career || career.v >= RS.CAREER_V) return career;
     if (career.eventDone == null) career.eventDone = -1; // parked careers are stored without defaults
-    const b = career.build;
+    const b = career.build, v = career.v || 1;
     const started = (career.yearIdx | 0) > 0 || career.coachDone >= 0 || career.finished || (career.cleared || []).some(Boolean);
-    if (b && b.hero === 'messi' && started) {
+    if (v < 2 && b && b.hero === 'messi' && started) {
       const n = RS.YEARS_MESSI.filter((y) => y.youth).length;
       const shift = (v) => (v == null || v < 0 ? v : v + n);
       career.yearIdx = shift(career.yearIdx | 0);
@@ -95,8 +100,22 @@
       career.snapshots = snaps;
       b.hgh = true;
     }
+    if (v < 3 && b) RS.backfillBallons(career);
     career.v = RS.CAREER_V;
     return career;
+  };
+  // Schema 3 (round 10): the 발롱도르 a career has won (build.ballons) come from its cleared 발롱도르 seasons — for the
+  // build and each year's snapshot, the ones before that year — and a 회전 공 evolved before the first one goes back
+  // to Lv.6 (the evolution is the 발롱도르 he has won: RS.availableEvolutions).
+  RS.backfillBallons = function (career) {
+    const hero = RS.HEROES[career.build.hero] ? career.build.hero : 'ronaldo', years = RS.HEROES[hero].years, cleared = career.cleared || [];
+    const before = (k) => years.slice(0, k).filter((y, i) => y.ballon && cleared[i]).map((y) => y.year);
+    const fix = (b, k) => {
+      b.ballons = before(k);
+      if (b.evolved && b.evolved.orbit && !b.ballons.length) { delete b.evolved.orbit; if (b.stars) delete b.stars.orbit; }
+    };
+    fix(career.build, career.finished ? years.length : (career.yearIdx | 0));
+    for (const k of Object.keys(career.snapshots || {})) fix(career.snapshots[k], +k);
   };
 
   RS.writeSave = function (storage, save) {
@@ -283,6 +302,7 @@
     // level-up coin shop: wallet money spent during the match leaves the wallet, win or lose
     save.meta.coins = Math.max(0, save.meta.coins - (world.walletSpent || 0)) + res.coins;
     save.meta.totalKills += res.kills;
+    out.pkDue = RS.pkCountGame(save.meta); // every fifth match, cleared or not, ends with a PK 챌린지
     if (res.cleared) {
       const yd = RS.YEARS[idx];
       // 엘 클라시코: the record and 민심 move once the season is really played (not a replay); a lost 클라시코 in a
@@ -296,6 +316,8 @@
       }
       const stolen = yd.ballon && yd.rival && res.rival === 'loss';
       if (stolen) { out.ballonStolen = true; out.rivalName = res.rivalName; }
+      // the career's own 발롱도르 (trophy balls, RS.ballonCount); a replay that wins a stolen one back counts too
+      const keep = (b) => { if (yd.ballon && !stolen && !b.ballons.includes(yd.year)) { b.ballons.push(yd.year); out.ballonWon = b.ballons.length; } };
       if (yd.ballon && !stolen && !save.meta.ballonYears.includes(yd.year)) {
         save.meta.ballonYears.push(yd.year);
         save.meta.ballons += 1;
@@ -310,10 +332,12 @@
         const c = save.career;
         c.cleared[idx] = true;
         c.build = world.exportBuild();
+        keep(c.build);
         if (yd.final) { c.finished = true; out.finished = true; }
         else c.yearIdx = idx + 1;
       } else {
         save.career.cleared[idx] = true;
+        keep(save.career.build);
       }
     }
     return out;

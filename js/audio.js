@@ -187,6 +187,12 @@
             this.tone(140, 0.5, 'sawtooth', 0.3, 3); this.tone(60, 0.12, 'sine', 0.8, 0.8, 0.05); this.tone(55, 0.12, 'sine', 0.7, 0.8, 0.25); break;
           case 'flash': this.noise(0.04, 0.3, 5000); this.noise(0.03, 0.2, 7000, 0.05); break; // camera shutters
           case 'gavel': this.tone(220, 0.08, 'square', 0.4, 0.5); this.noise(0.06, 0.4, 900, 0, true); this.tone(220, 0.08, 'square', 0.4, 0.5, 0.32); this.noise(0.06, 0.4, 900, 0.32, true); break;
+          // round 10: penalties
+          case 'net': this.noise(0.3, 0.32, 1400); this.tone(190, 0.14, 'sine', 0.4, 0.6); break; // the ball swishes into the net
+          case 'ping': this.tone(1760, 0.32, 'triangle', 0.32, 0.98); this.tone(2640, 0.22, 'sine', 0.18, 0.99, 0.01); this.noise(0.03, 0.35, 4000); break; // the post rings
+          case 'oh': this.noise(0.9, 0.3, 520, 0, true); this.tone(190, 0.6, 'sawtooth', 0.1, 0.65); break; // the crowd groans
+          case 'horn': [392, 494, 587, 784].forEach((f, i) => this.tone(f, 0.18, 'square', 0.3, null, i * 0.08)); this.tone(784, 0.5, 'sawtooth', 0.22, null, 0.32); break; // stadium goal horn
+          case 'drum': this.tone(68, 0.22, 'sine', 0.85, 0.55); this.noise(0.08, 0.25, 180, 0, true); break; // tension on the kick that decides it
         }
       } catch (e) { /* ignore audio errors */ }
     },

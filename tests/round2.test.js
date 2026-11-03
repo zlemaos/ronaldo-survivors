@@ -9,7 +9,7 @@ test('level-up cards show each evolution condition', () => {
   assert.equal(RS.evoHint(b, 'kick'), '진화: Lv.6 + 황금 축구화 패시브 필요');
   b.passives.boots = 1; b.passiveOrder.push('boots');
   assert.equal(RS.evoHint(b, 'kick'), '진화: Lv.6 + 황금 축구화 ✓');
-  assert.equal(RS.passiveHint(b, 'boots'), '진화 짝: 축구공 킥 → 황금 발롱볼');
+  assert.equal(RS.passiveHint(b, 'boots'), '진화 짝: 축구공 킥 → 황금 볼', 'no 발롱도르 won yet: no trophy in the name');
   assert.equal(RS.passiveHint(b, 'freekick'), '진화 짝: 무회전 프리킥 (스킬 필요)');
 });
 
@@ -17,6 +17,7 @@ test('every evolution stays reachable even when passive slots are full', () => {
   for (const sid of Object.keys(RS.SKILLS)) {
     const b = RS.newBuild(RS.SKILLS[sid].hero || 'ronaldo'); // hero-locked skills are tested for their hero
     b.skills = { [sid]: RS.SKILL_MAX }; b.skillOrder = [sid];
+    if (RS.SKILLS[sid].needBallon) b.ballons = [2009]; // the 회전 공 also waits for a 발롱도르 won
     const pair = RS.SKILLS[sid].passive;
     for (const pid of Object.keys(RS.PASSIVES)) if (pid !== pair && b.passiveOrder.length < RS.MAX_PASSIVES) { b.passives[pid] = 1; b.passiveOrder.push(pid); }
     assert.equal(b.passiveOrder.length, RS.MAX_PASSIVES);

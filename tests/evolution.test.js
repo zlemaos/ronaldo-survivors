@@ -29,7 +29,7 @@ test('evolution is offered as a card and applied; cannot apply twice', () => {
   b.skills.kick = RS.SKILL_MAX; b.passives.boots = 1; b.passiveOrder.push('boots');
   const c = RS.makeChoices(b, RS.makeRng(9), 0);
   assert.equal(c[0].kind, 'evolve');
-  assert.equal(c[0].name, '황금 발롱볼');
+  assert.equal(c[0].name, '황금 볼', 'no 발롱도르 won yet: the golden ball, not the trophy');
   assert.equal(RS.applyChoice(b, c[0]), true);
   assert.equal(b.evolved.kick, true);
   assert.equal(RS.applyChoice(b, { kind: 'evolve', id: 'kick' }), false);

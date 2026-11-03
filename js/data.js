@@ -60,9 +60,9 @@
   // Each skill: lv[] holds stats for level 1..max; evo holds evolved stats. passive = paired passive for evolution.
   RS.SKILLS = {
     kick: {
-      name: '축구공 킥', icon: '⚽', passive: 'boots', hero: 'ronaldo', evoName: '황금 발롱볼', evoIcon: '🏆',
+      name: '축구공 킥', icon: '⚽', passive: 'boots', hero: 'ronaldo', evoName: '황금 발롱볼', evoIcon: '🏆', trophy: true,
       desc: '가장 가까운 적에게 축구공을 찬다.',
-      evoDesc: '황금 공이 적 사이를 튕기며 관통한다.',
+      evoDesc: '황금 공이 적 사이를 튕기며 관통한다. 받은 발롱도르 수만큼은 발롱도르 공이 날아간다.',
       ups: ['', '공이 1번 튕긴다', '공 +1', '관통 +1, 피해 증가', '피해 증가, 튕김 +1', '피해·관통 크게 증가, 연사 증가'],
       lv: [
         { dmg: 10, cd: 0.95, count: 1, pierce: 0, bounce: 0, speed: 230, r: 3 },
@@ -164,13 +164,14 @@
       ],
       evo: { dmg: 50, cd: 4.0, radius: 150, stun: 2.4, knock: 220, heal: 4 }
     },
-    // 메시 only: balls circle him instead of projectiles — a plain white ball, golden from Lv.goldLv, the 발롱도르
-    // trophy ball once evolved (RS.orbitLook). Two evolutions: 8 balls or one ball 8× the size.
-    // upW: his only weapon at the start, so its upgrade card comes up more often than other upgrades.
+    // 메시 only: balls circle him instead of projectiles — a plain white ball, golden from Lv.goldLv. needBallon: the
+    // evolution turns them into the 발롱도르 he has really won in this career (RS.ballonCount, at most BALLON_MAX), so
+    // it opens after his first one and grows with every one he wins: N trophy balls (count) or one ball N× the size
+    // (size); below four trophies golden balls fill the ring up to the Lv.6 four (World.updateOrbit).
     orbit: {
-      name: '회전 공', icon: '⚽', passive: 'ballon', hero: 'messi', evoName: '8발롱도르', evoIcon: '🌕', goldLv: 3, upW: 4,
-      desc: '공이 메시 주위를 빙글빙글 돌며 닿는 적을 때린다. Lv3부터 황금 공, 진화하면 발롱도르.',
-      evoDesc: '발롱도르로 진화: 공 8개 또는 8배 크기의 공.',
+      name: '회전 공', icon: '⚽', passive: 'ballon', hero: 'messi', evoName: '8발롱도르', evoIcon: '🌕', goldLv: 3, needBallon: true,
+      desc: '공이 메시 주위를 빙글빙글 돌며 닿는 적을 때린다. Lv3부터 황금 공, 진화하면 그동안 받은 발롱도르가 돈다.',
+      evoDesc: '받은 발롱도르 수만큼(최대 8개) 발롱도르 공이 돈다. 첫 발롱도르를 받아야 진화한다.',
       ups: ['', '공 +1 (2개)', '황금 공으로 변신, 공이 커진다', '공 +1 (3개)', '공 +1 (4개), 피해 증가', '공이 더 커진다, 피해 증가'],
       lv: [
         { dmg: 9, cd: 0.4, count: 1, size: 1, speed: 3.4, radius: 34 },
@@ -182,8 +183,8 @@
       ],
       evo: { dmg: 30, cd: 0.3, count: 8, size: 1.6, speed: 4.4, radius: 44 },
       evos: {
-        count: { name: '8발롱도르공', icon: '🟡', desc: '발롱도르 8개가 쉴 새 없이 돈다.', stats: { dmg: 30, cd: 0.3, count: 8, size: 1.6, speed: 4.4, radius: 44 } },
-        size: { name: '8발롱도르', icon: '🌕', desc: '거대한 발롱도르 하나(8배)가 모든 것을 쓸어버린다.', stats: { dmg: 46, cd: 0.32, count: 1, size: 8, speed: 2.6, radius: 46, knock: 90 } }
+        count: { name: '8발롱도르공', icon: '🟡', desc: '받은 발롱도르가 쉴 새 없이 돈다. 받을 때마다 1개씩 늘어 최대 8개.', stats: { dmg: 30, cd: 0.3, count: 8, size: 1.6, speed: 4.4, radius: 44 } },
+        size: { name: '8발롱도르', icon: '🌕', desc: '받은 발롱도르가 하나로 합쳐져 그 수만큼 커진다. 최대 8배.', stats: { dmg: 46, cd: 0.32, count: 1, size: 8, speed: 2.6, radius: 46, knock: 90 } }
       }
     },
     // 날두: a curling boomerang ball, out and back, piercing both ways (catching it = 볼 트래핑).
@@ -347,11 +348,12 @@
       evo: { dmg: 110, cd: 4.0, radius: 50, stun: 1.2, count: 3, guard: 0.7 }
     },
     // 드리볼: balls leave 메시's feet and chase the enemies around him, tapping one after another; past the leash
-    // they run back and juggle at his feet. Looks like the 회전 공: white, golden from goldLv, the 발롱도르 evolved.
+    // they run back and juggle at his feet. Looks like the 회전 공: white, golden from goldLv; evolved, as many of
+    // them as he has won 발롱도르 are trophies (RS.ballLookAt).
     dribball: {
       name: '드리볼', icon: '🏃', passive: 'keepup', hero: 'messi', evoName: '마라도나의 재림', evoIcon: '🌟', goldLv: 3,
       desc: '메시 발끝을 떠난 공이 주변 적을 쫓아다니며 툭툭 때린다. 멀어지면 발밑으로 돌아온다.',
-      evoDesc: '발롱도르 4개가 미친 듯이 드리블하며 적 사이를 누빈다. 맞은 적은 넘어진다.',
+      evoDesc: '공 4개가 미친 듯이 드리블하며 적 사이를 누빈다. 맞은 적은 넘어진다. 받은 발롱도르 수만큼은 발롱도르 공.',
       ups: ['', '피해 증가', '공 +1', '더 빨라진다', '공 +1, 피해 증가', '피해 크게 증가'],
       lv: [
         { dmg: 11, count: 1, speed: 170, leash: 95, touch: 0.26, r: 3 },
@@ -369,7 +371,7 @@
     dropball: {
       name: '드롭볼', icon: '☄️', passive: 'juggle', hero: 'messi', evoName: '발롱도르 유성우', evoIcon: '🌠', goldLv: 3,
       desc: '메시 주위를 돌던 공이 가끔 하늘로 솟았다가 적 무리 위로 운석처럼 떨어져 넓게 터진다. 몇 초 뒤 다시 돌아온다.',
-      evoDesc: '떨어진 발롱도르가 터지며 작은 공 6개로 흩어져 주변을 휩쓴다.',
+      evoDesc: '떨어진 공이 터지며 작은 공 6개로 흩어져 주변을 휩쓴다. 받은 발롱도르 수만큼은 발롱도르 공.',
       ups: ['', '피해 증가', '공 +1', '폭발 범위 증가', '공 +1, 피해 증가', '쿨타임 감소, 피해 크게 증가'],
       lv: [
         { dmg: 20, cd: 3.4, count: 1, radius: 30, respawn: 2.2 },
@@ -383,6 +385,11 @@
     }
   };
   RS.SKILL_MAX = 6;
+  // 발롱도르 balls (round 10): a trophy ball only for a 발롱도르 the hero has really won in this career
+  // (build.ballons, RS.ballonCount); 메시's career holds eight, 날두's five.
+  RS.BALLON_MAX = 8;
+  // trophy: an evolved 발롱도르 move whose volley turns that many of its balls into trophies (World.fire).
+  RS.ORBIT_RING = 4; // the Lv.6 회전 공 ring: golden balls fill it while fewer 발롱도르 have been won
 
   // ---------------------------------------------------------------- 합체 기술 (fusions, round 9)
   // Two evolved moves fuse into one new move (RS.availableFusions → a 합체 card → RS.applyChoice 'fuse'): both
@@ -399,9 +406,9 @@
   RS.FUSE_SCALE = 0.42; // × the damage numbers below (RS.skillStats): a fusion is worth about one evolved move and a free slot
   // 날두
   FUSE('missile', {
-    name: '유도 대포알', icon: '🚀', fusion: ['kick', 'knuckle'], passive: 'freekick', hero: 'ronaldo', use: 'missile', evoName: '발롱도르 미사일', evoIcon: '🛰️',
-    desc: '황금 발롱볼 + 무회전 대포알. 적을 쫓아가는 대포알이 첫 적중에서 폭발한다.',
-    evoDesc: '황금 미사일 4발이 폭발하며 적 사이를 꿰뚫는다.',
+    name: '유도 대포알', icon: '🚀', fusion: ['kick', 'knuckle'], passive: 'freekick', hero: 'ronaldo', use: 'missile', evoName: '발롱도르 미사일', evoIcon: '🛰️', trophy: true,
+    desc: '진화한 축구공 킥 + 무회전 대포알. 적을 쫓아가는 대포알이 첫 적중에서 폭발한다.',
+    evoDesc: '황금 미사일 4발이 폭발하며 적 사이를 꿰뚫는다. 받은 발롱도르 수만큼은 발롱도르 미사일.',
     ups: ['', '폭발 범위 증가', '대포알 +1', '피해 증가, 관통 +1', '폭발 피해 증가', '피해 크게 증가, 쿨타임 감소'],
     lv: [
       { dmg: 60, cd: 1.4, count: 2, pierce: 2, speed: 330, r: 6, boom: 30, boomDmg: 40 },
@@ -459,9 +466,9 @@
     evo: { dmg: 90, cd: 3.0, radius: 150, stun: 1.6, knock: 130, zones: 16, zdmg: 30, life: 5.0, tick: 0.22, zr: 22, heal: 10 }
   });
   FUSE('cr7', {
-    name: 'CR7 궁극기', icon: '7️⃣', fusion: ['missile', 'airraid'], passive: 'boots', hero: 'ronaldo', use: 'meteor', evoName: '발롱도르 유성 폭격', evoIcon: '🌠',
-    desc: '발롱도르 미사일 + 오버헤드 폭격. 하늘에서 황금 유성이 적들 머리 위로 쏟아진다.',
-    evoDesc: '열여덟 개의 황금 유성, 경기장 전체가 폭격당한다.',
+    name: 'CR7 궁극기', icon: '7️⃣', fusion: ['missile', 'airraid'], passive: 'boots', hero: 'ronaldo', use: 'meteor', evoName: '발롱도르 유성 폭격', evoIcon: '🌠', trophy: true,
+    desc: '진화한 유도 대포알 + 오버헤드 폭격. 하늘에서 황금 유성이 적들 머리 위로 쏟아진다.',
+    evoDesc: '열여덟 개의 황금 유성, 경기장 전체가 폭격당한다. 받은 발롱도르 수만큼은 발롱도르가 떨어진다.',
     ups: ['', '유성 +2', '피해 증가', '범위 증가', '쿨타임 감소', '피해 크게 증가'],
     lv: [
       { dmg: 60, cd: 3.5, count: 8, radius: 24, range: 240, stun: 0.3 },
@@ -476,8 +483,8 @@
   // 메시
   FUSE('swarm', {
     name: '위성 군단', icon: '🪐', fusion: ['orbit', 'dribball'], passive: 'ballon', hero: 'messi', use: 'swarm', evoName: '발롱도르 위성계', evoIcon: '🌌', goldLv: 1,
-    desc: '8발롱도르 + 마라도나의 재림. 황금 공들이 메시를 돌면서, 몇 개는 떨어져 나가 적을 쫓아가 찬다.',
-    evoDesc: '발롱도르 열 개가 돌고 다섯 개가 사냥한다.',
+    desc: '진화한 회전 공 + 마라도나의 재림. 황금 공들이 메시를 돌면서, 몇 개는 떨어져 나가 적을 쫓아가 찬다.',
+    evoDesc: '공 열 개가 돌고 다섯 개가 사냥한다. 도는 공 중 받은 발롱도르 수만큼은 발롱도르.',
     ups: ['', '회전 공 +1', '사냥 공 +1', '피해 증가', '범위 증가', '피해 크게 증가, 회전 공 +2'],
     lv: [
       { dmg: 20, cd: 0.35, count: 4, radius: 40, speed: 3.2, size: 1.3, knock: 25, dcount: 2, leash: 110, dspeed: 220, r: 4, touch: 0.5, trip: 0.2 },
@@ -490,9 +497,9 @@
     evo: { dmg: 70, cd: 0.28, count: 10, radius: 60, speed: 3.8, size: 1.6, knock: 35, dcount: 5, leash: 150, dspeed: 270, r: 5, touch: 0.38, trip: 0.35 }
   });
   FUSE('rain', {
-    name: '유성우 폭격', icon: '☄️', fusion: ['dropball', 'chip'], passive: 'juggle', hero: 'messi', use: 'chip', evoName: '발롱도르 유성우', evoIcon: '🌠',
-    desc: '발롱도르 유성우 + 로빙 폭격. 황금 공이 가장 단단한 적들 머리 위로 쉴 새 없이 떨어진다.',
-    evoDesc: '열 개의 황금 유성이 보스부터 때린다.',
+    name: '유성우 폭격', icon: '☄️', fusion: ['dropball', 'chip'], passive: 'juggle', hero: 'messi', use: 'chip', evoName: '발롱도르 유성우', evoIcon: '🌠', trophy: true,
+    desc: '진화한 드롭볼 + 로빙 폭격. 황금 공이 가장 단단한 적들 머리 위로 쉴 새 없이 떨어진다.',
+    evoDesc: '열 개의 황금 유성이 보스부터 때린다. 받은 발롱도르 수만큼은 발롱도르가 떨어진다.',
     ups: ['', '유성 +1', '피해 증가', '범위 증가', '쿨타임 감소', '피해 크게 증가, 유성 +2'],
     lv: [
       { dmg: 55, cd: 2.2, count: 5, radius: 34 },
@@ -520,9 +527,9 @@
     evo: { dmg: 200, cd: 3.0, count: 13, range: 220, stun: 0.8 }
   });
   FUSE('symphony', {
-    name: '패스 교향곡', icon: '🎻', fusion: ['tiki', 'killpass'], passive: 'leftfoot', hero: 'messi', use: 'kick', passer: 'xavino', proj: ['tiki', 'golden'], evoName: '발롱도르 교향곡', evoIcon: '🎼',
+    name: '패스 교향곡', icon: '🎻', fusion: ['tiki', 'killpass'], passive: 'leftfoot', hero: 'messi', use: 'kick', passer: 'xavino', proj: ['tiki', 'golden'], evoName: '발롱도르 교향곡', evoIcon: '🎼', trophy: true,
     desc: '티키타카 오케스트라 + 라인 브레이커. 챠비와 니에미스타의 패스가 적 사이를 튕기고 꿰뚫으며 멈추지 않는다.',
-    evoDesc: '황금 패스 여덟 줄기가 경기장을 가른다.',
+    evoDesc: '황금 패스 여덟 줄기가 경기장을 가른다. 받은 발롱도르 수만큼은 발롱도르 패스.',
     ups: ['', '패스 +1', '관통 +1', '튕김 +1', '피해 증가', '피해 크게 증가, 패스 +1'],
     lv: [
       { dmg: 40, cd: 0.6, count: 4, pierce: 3, bounce: 3, speed: 260, r: 4 },
@@ -550,9 +557,9 @@
     evo: { dmg: 260, cd: 2.6, count: 5, radius: 95, stun: 2.4, guard: 1.3 }
   });
   FUSE('goat', {
-    name: 'GOAT 모드', icon: '🐐', fusion: ['swarm', 'rain'], passive: 'ballon', hero: 'messi', use: 'meteor', evoName: '8발롱도르 유성우', evoIcon: '🏆',
-    desc: '발롱도르 위성계 + 발롱도르 유성우. 하늘에서 발롱도르가 쏟아져 적들을 짓누른다.',
-    evoDesc: '발롱도르 여덟 개가 한꺼번에 떨어지는 밤.',
+    name: 'GOAT 모드', icon: '🐐', fusion: ['swarm', 'rain'], passive: 'ballon', hero: 'messi', use: 'meteor', evoName: '8발롱도르 유성우', evoIcon: '🏆', trophy: true,
+    desc: '진화한 위성 군단 + 진화한 유성우 폭격. 하늘에서 황금 공이 쏟아져 적들을 짓누른다.',
+    evoDesc: '받은 발롱도르가 모두(최대 8개) 황금 유성과 함께 한꺼번에 떨어지는 밤.',
     ups: ['', '유성 +2', '피해 증가', '범위 증가', '쿨타임 감소', '피해 크게 증가'],
     lv: [
       { dmg: 60, cd: 3.5, count: 8, radius: 24, range: 240, stun: 0.3, gold: true },
@@ -1185,7 +1192,9 @@
   RS.DIFFS = {
     easy: { name: '이지', icon: '🙂', hp: 0.72, dmg: 0.65, spawn: 0.85, boss: 0.8, grow: 0, heal: 1.4, special: 1, poise: 1, bossCool: 1, ramp: 0, desc: '적이 약하고 회복이 자주 나온다. 처음이라면 여기서' },
     normal: { name: '노멀', icon: '⚽', hp: 1.6, dmg: 1.5, spawn: 1.25, boss: 1.5, grow: 0.035, heal: 0.9, special: 0.85, poise: 0.85, bossCool: 0.95, ramp: 3, desc: '기본 난이도. 중반부터는 벽이 느껴진다 · 훈련장 강화가 필요하다' },
-    hard: { name: '하드', icon: '🔥', hp: 2.4, dmg: 2.1, spawn: 1.5, boss: 2.2, grow: 0.05, heal: 0.45, special: 0.5, poise: 0.6, bossCool: 0.8, ramp: 1, desc: '적이 단단하고 아프며 잘 밀리지 않는다. 회복과 히든도 드물다. 오토로는 못 깬다' }
+    // grow 0.08 (round 10, was 0.05): with each match replayable from its seed, 완전 오토 with the whole 훈련장 still
+    // cleared 하드 on 2 seeds of 8; now it stalls on every one between 2011 and 2017
+    hard: { name: '하드', icon: '🔥', hp: 2.4, dmg: 2.1, spawn: 1.5, boss: 2.2, grow: 0.08, heal: 0.45, special: 0.5, poise: 0.6, bossCool: 0.8, ramp: 1, desc: '적이 단단하고 아프며 잘 밀리지 않는다. 회복과 히든도 드물다. 오토로는 못 깬다' }
   };
   RS.DIFF_ORDER = ['easy', 'normal', 'hard'];
   RS.DIFF = 'normal';
@@ -1531,6 +1540,8 @@
     cooldown: { name: '회복 훈련', icon: '⏳', desc: '쿨타임 -3%', max: 6, cost: [70, 140, 230, 340, 470, 620], mods: { cd: -0.03 } },
     luck: { name: '행운 부적', icon: '🍀', desc: '특수 카드 확률 +10%', max: 5, cost: [60, 120, 200, 300, 420], mods: { luck: 0.1 } },
     revive: { name: '불사조 정신', icon: '🔥', desc: '연도마다 1회 부활', max: 1, ballon: [2], mods: { revive: 1 } },
+    // round 10: 골결정력 for penalties only (RS.pkFinishing), no match stat
+    pkdrill: { name: 'PK 훈련', icon: '🎯', desc: '페널티킥 골결정력 +3', max: 5, cost: [60, 120, 200, 300, 420], mods: {} },
     reroll: { name: '전술 보드', icon: '🔁', desc: '레벨업 리롤 +1', max: 3, ballon: [1, 1, 1], mods: { reroll: 1 } }
   };
 })(globalThis.RS = globalThis.RS || {});

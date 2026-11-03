@@ -377,6 +377,24 @@
   function kitPal(kit, extra) {
     return Object.assign({ K: kit.main, k2: kit.alt, S: kit.shorts, W: kit.socks }, extra || {});
   }
+  function heroPal(hero, L) {
+    return hero === 'messi'
+      ? kitPal(L.kit, { H: '#4a3020', b: '#4a3020', B: L.goldBoots ? '#f0c030' : '#f0f0f0', A: '#75aadb', s: '#e8b48e' })
+      : kitPal(L.kit, { H: '#20140c', h: '#e8c870', B: L.goldBoots ? '#f0c030' : '#222', A: '#ffd400', s: '#d9a27a' });
+  }
+  // round 10 (PK): a person seen from behind — the face rows become hair (a bald head stays skin), the chin the neck
+  function backRows(rows) {
+    const hair = rows.slice(0, 4).some((r) => /[Hh]/.test(r));
+    return rows.map((r, j) => (j < 4 ? (hair ? r.replace(/[seb]/g, 'H') : r.replace(/[eb]/g, 's')) : j === 4 ? r.replace(/[eb]/g, 's') : r));
+  }
+  // The penalty taker: frames 0-3 run and 4 kick seen from behind, 5 the celebration facing the camera (arms up).
+  function pkPerson(hair, kid, pal, opt, armband) {
+    const frames = person(hair, null, kid).concat(person(hair, 'kick', kid)).map(backRows).concat(person(hair, 'head', kid));
+    if (armband) for (const f of frames) f[7] = f[7].slice(0, 2) + 'A' + f[7].slice(3);
+    return makeSprite(frames, pal, opt);
+  }
+  const PK_HAIRS = ['short', 'fade', 'slick', 'long', 'bald'];
+  const PK_SKINS = ['#d9a27a', '#8a5a3a', '#e8b48e', '#5a3a26', '#c99070'];
 
   RS.Sprites = {
     ronaldo(yearIdx, scale, yd) { return RS.Sprites.hero('ronaldo', yearIdx, scale, yd); },
@@ -387,12 +405,31 @@
       return get(L.key + '|' + (scale || 1), () => {
         const frames = person(L.hair, null, L.kid).concat(person(L.hair, 'kick', L.kid), person(L.hair, hero === 'messi' ? 'dribble' : 'head', L.kid));
         if (L.armband) for (const f of frames) f[7] = f[7].slice(0, 2) + 'A' + f[7].slice(3);
-        const pal = hero === 'messi'
-          ? kitPal(L.kit, { H: '#4a3020', b: '#4a3020', B: L.goldBoots ? '#f0c030' : '#f0f0f0', A: '#75aadb', s: '#e8b48e' })
-          : kitPal(L.kit, { H: '#20140c', h: '#e8c870', B: L.goldBoots ? '#f0c030' : '#222', A: '#ffd400', s: '#d9a27a' });
         // the hero alone carries a gold halo outline: instantly separable from the crowd
-        return makeSprite(frames, pal, { pattern: L.kit.pattern, collar: 6, scale: scale || 1, glow: '#ffd84a' });
+        return makeSprite(frames, heroPal(hero, L), { pattern: L.kit.pattern, collar: 6, scale: scale || 1, glow: '#ffd84a' });
       });
+    },
+    // round 10 (PK, see pkPerson): the hero in that season's look — in the national team's kit for a shootout of
+    // the national team (nat) — a teammate (n picks his hair and skin) and the other side's kicker. At three times
+    // life size the pitch's gold halo outline would swamp him; Renderer.pkKicker rings his feet instead.
+    pkHero(hero, yearIdx, small, nat) {
+      const L0 = RS.heroLook(hero, yearIdx, null, small), L = nat ? Object.assign({}, L0, { kit: RS.NAT_KITS[hero] }) : L0;
+      return get('pkh|' + L0.key + '|' + !!nat, () => pkPerson(L.hair, L.kid, heroPal(hero, L), { pattern: L.kit.pattern, collar: 6 }, L.armband));
+    },
+    pkMate(yearIdx, n, kit) {
+      const k = kit || RS.ERAS[RS.YEARS[yearIdx].era].kit, i = n % 5;
+      return get('pkm|' + k.main + k.alt + k.pattern + '|' + i, () => pkPerson(PK_HAIRS[i], false, kitPal(k, { H: '#2a1a10', f: '#2a1a10', s: PK_SKINS[i], B: '#222' }), { pattern: k.pattern, collar: 6 }));
+    },
+    pkFoe(yearIdx, n) {
+      const foe = RS.foeColors(yearIdx), i = (n + 2) % 5;
+      return get('pkf|' + foe.join() + '|' + i, () => pkPerson(PK_HAIRS[i], false, { K: foe[0], k2: foe[1] || '#111', S: '#20202a', W: foe[0], H: '#2a1a10', f: '#2a1a10', s: PK_SKINS[i], B: '#222' }, { pattern: 'trim', collar: 6 }));
+    },
+    // A keeper facing the kicker (RS.PK_KEEPERS look): frames 0-3 on his line, 4 diving (arms up).
+    pkKeeper(look) {
+      const st = look.style || 'short';
+      return get('pkg|' + st + look.K + look.k2 + look.H + look.s + look.C, () => makeSprite(person(st).concat(person(st, 'head')),
+        { K: look.K, k2: look.k2 || '#111', S: look.S || '#161616', W: look.W || look.K, H: look.H || '#2a1a10', f: look.H || '#2a1a10', s: look.s || '#d9a27a', C: look.C || look.K, B: '#222' },
+        { pattern: 'trim', collar: 6 }));
     },
     messi(scale) {
       return get('messi|' + (scale || 1), () => makeSprite(person('messi'),
