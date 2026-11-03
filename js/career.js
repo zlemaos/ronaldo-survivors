@@ -23,13 +23,16 @@
         build: RS.newBuild(),
         snapshots: {}, // idx -> build at the start of that year (after the coach pick)
         shootouts: {}, // idx -> 'win' | 'loss': the season's real penalty shootout (RS.SHOOTOUTS)
+        torresBeaten: {}, // idx -> true: 토레쓰 beaten that season (his reward is paid once per season)
+        torresReward: null, // idx of a 토레쓰 reward still to pick (RS.needsTorresReward)
         finished: false,
         laps: 0
       },
       careers: {}, // parked careers of the other heroes (see RS.switchHero)
       // diff: RS.DIFFS key; auto: 'off' | 'semi' (반자동: important choices are the player's) | 'full' (완전 오토);
       // pk: matches played and each hero's penalties (RS.normalizePk)
-      meta: { coins: 0, ballons: 0, upgrades: {}, ballonYears: [], muted: false, totalKills: 0, wins: 0, diff: 'normal', auto: 'off', pk: { games: 0, heroes: {} } }
+      // unlocked: heroes opened in play (round 11: torres, by beating him after 드록빠)
+      meta: { coins: 0, ballons: 0, upgrades: {}, ballonYears: [], muted: false, totalKills: 0, wins: 0, diff: 'normal', auto: 'off', pk: { games: 0, heroes: {} }, unlocked: {} }
     };
   };
   RS.AUTO_MODES = ['off', 'semi', 'full'];
@@ -55,10 +58,12 @@
     for (const h of Object.keys(s.careers)) RS.migrateCareer(s.careers[h]);
     RS.selectHero(s.career.build.hero);
     s.career.yearIdx = Math.max(0, Math.min(RS.YEARS.length - 1, s.career.yearIdx | 0));
+    if (!s.career.finished) RS.releaseOffSeason(s.career.build, s.career.yearIdx); // squads saved before round 11
     for (const k of Object.keys(s.meta.upgrades)) if (!RS.META[k]) delete s.meta.upgrades[k];
     if (!RS.DIFFS[s.meta.diff]) s.meta.diff = 'normal';
     if (!RS.AUTO_MODES.includes(s.meta.auto)) s.meta.auto = 'off';
     s.meta.pk = RS.normalizePk(s.meta.pk);
+    if (!s.meta.unlocked || typeof s.meta.unlocked !== 'object') s.meta.unlocked = {};
     RS.setDiff(s.meta.diff);
     return s;
   };
@@ -78,6 +83,7 @@
     save.career = next;
     RS.selectHero(hero);
     save.career.yearIdx = Math.max(0, Math.min(RS.YEARS.length - 1, save.career.yearIdx | 0));
+    if (!save.career.finished) RS.releaseOffSeason(save.career.build, save.career.yearIdx); // a parked pre-round-11 squad
     return save.career;
   };
 
@@ -112,7 +118,7 @@
     const before = (k) => years.slice(0, k).filter((y, i) => y.ballon && cleared[i]).map((y) => y.year);
     const fix = (b, k) => {
       b.ballons = before(k);
-      if (b.evolved && b.evolved.orbit && !b.ballons.length) { delete b.evolved.orbit; if (b.stars) delete b.stars.orbit; }
+      if (b.weapon) RS.syncWeapon(b); // a 무지개 회전 공 waits for the first 발롱도르 again
     };
     fix(career.build, career.finished ? years.length : (career.yearIdx | 0));
     for (const k of Object.keys(career.snapshots || {})) fix(career.snapshots[k], +k);
@@ -135,19 +141,29 @@
 
   // Story events (메시: the growth-hormone choice = difficulty, 딩요's tutoring): once, before that season's coach.
   RS.needsEvent = (save, idx) => !RS.isReplay(save, idx) && !!RS.YEARS[idx].event && save.career.eventDone < idx;
+  // A move taught by the story (event card skill, press answer fx.skill) comes as a 레어 +1 weapon (RS.GIFT_GRADE),
+  // into the hand when it beats the one held, else into the 무기고. Owned already: that weapon gets 강화 +1.
+  // Returns 'learned' | 'up' | 'full' (owned and maxed).
+  RS.giftWeapon = function (b, id) {
+    const own = RS.ownedWeapon(b, id);
+    if (own) { if (own.p >= RS.PLUS_MAX) return 'full'; own.p++; RS.syncWeapon(b); return 'up'; }
+    const w = { id, g: RS.GIFT_GRADE, p: 1 };
+    RS.gainWeapon(b, w, RS.weaponBetter(w, b.weapon));
+    return 'learned';
+  };
   RS.eventChoices = function (save, idx) {
     const b = save.career.build;
     return RS.EVENTS[RS.YEARS[idx].event].cards.map((c) => {
-      const card = c.skill && c.alt && (b.skills[c.skill] || b.skillOrder.length >= RS.MAX_SKILLS) ? c.alt : c;
-      return Object.assign({ kind: 'event' }, card);
+      const card = c.skill && c.alt && RS.ownedWeapon(b, c.skill) ? c.alt : c;
+      return Object.assign({ kind: 'event' }, card, card.skill ? { g: RS.GIFT_GRADE } : {});
     });
   };
   RS.applyEvent = function (save, idx, card) {
     const c = save.career, b = c.build, ev = RS.EVENTS[RS.YEARS[idx].event];
     const info = { card: card.id, text: card.result || '' };
     if (card.hgh != null) b.hgh = card.hgh;
-    if (card.skill && !b.skills[card.skill] && b.skillOrder.length < RS.MAX_SKILLS) { b.skills[card.skill] = 1; b.skillOrder.push(card.skill); }
-    if (card.skillsUp) for (const id of b.skillOrder) b.skills[id] = Math.min(RS.SKILL_MAX, b.skills[id] + card.skillsUp);
+    if (card.skill) RS.giftWeapon(b, card.skill);
+    if (card.skillsUp) RS.enhanceWeapon(b, card.skillsUp);
     if (card.mods && !b.coachCards.includes(card.id)) b.coachCards.push(card.id);
     if (card.trio) { RS.formTrio(b); info.trio = true; }
     if (ev.mate && RS.addMate(b, ev.mate)) info.mate = ev.mate;
@@ -179,11 +195,9 @@
     if (fx.coins != null) save.meta.coins = Math.floor(save.meta.coins * fx.coins); // a fine: share of the wallet
     const card = RS.pressCardId(pid, ch.id, roll);
     if (fx.mods && !b.coachCards.includes(card)) b.coachCards.push(card);
-    if (fx.skill) { // learn the move; Lv.+1 when owned; a small lasting boost when there is no room or it is maxed
-      const id = fx.skill;
-      if (b.skills[id] && b.skills[id] < RS.SKILL_MAX) { b.skills[id]++; out.skill = 'up'; }
-      else if (!b.skills[id] && b.skillOrder.length < RS.MAX_SKILLS) { b.skills[id] = 1; b.skillOrder.push(id); out.skill = 'learned'; }
-      else { if (!b.coachCards.includes(card + '_full')) b.coachCards.push(card + '_full'); out.skill = 'full'; }
+    if (fx.skill) { // the move as a weapon (RS.giftWeapon); a small lasting boost when that weapon is maxed already
+      out.skill = RS.giftWeapon(b, fx.skill);
+      if (out.skill === 'full' && !b.coachCards.includes(card + '_full')) b.coachCards.push(card + '_full');
     }
     if (fx.flag) b.flags[fx.flag] = true;
     if (o.ending) { c.over = o.ending; out.ending = o.ending; }
@@ -215,7 +229,7 @@
     const pool = coach.cards.filter((c) => !b.coachCards.includes(c.id));
     const out = [];
     while (out.length < 2 && pool.length) out.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
-    const canRecruit = !RS.squadFull(b) && RS.mateCandidates(b, idx, false).length > 0;
+    const canRecruit = !RS.squadFull(b) && RS.mateCandidates(b, idx).length > 0;
     const canTrain = RS.allMates(b).some((m) => m.lv < RS.MATE_MAX_LV);
     if (canRecruit && (!canTrain || rng() < 0.6)) out.push(RS.COACH_EXTRA.recruit);
     else if (canTrain) out.push(RS.COACH_EXTRA.train);
@@ -232,9 +246,8 @@
     const c = save.career;
     const info = { card: card.id };
     if (card.id === 'recruit') {
-      let cands = RS.mateCandidates(c.build, idx, true);
-      if (!cands.length) cands = RS.mateCandidates(c.build, idx, false);
-      if (cands.length) { const id = cands[Math.floor(rng() * cands.length)]; RS.addMate(c.build, id); info.mate = id; }
+      const cands = RS.mateCandidates(c.build, idx);
+      if (cands.length) { const id = cands[Math.floor(rng() * cands.length)], lv = RS.rollMatePlus(rng); RS.addMate(c.build, id, lv); info.mate = id; info.lv = lv; }
     } else if (card.id === 'train') {
       for (const m of RS.allMates(c.build)) RS.levelMate(c.build, m.id, 1);
     } else if (card.id === 'rest') {
@@ -247,21 +260,21 @@
     return info;
   };
 
-  // Transfer window: when the club changes, era players are offered (sign into a free slot or swap with
-  // a current teammate, who passes on his level). Returns up to 2 candidate ids, [] when nothing to offer.
+  // Transfer window: when the club changes, players of the new club in that season are offered (sign into a free
+  // slot or swap with a current teammate), each with his own 강화. Returns up to 2 offers {id, lv}, [] when none.
   RS.clubChanged = (idx) => idx > 0 && RS.YEARS[idx].era !== RS.YEARS[idx - 1].era;
   RS.transferOffers = function (save, idx, rng) {
     if (RS.isReplay(save, idx) || !RS.clubChanged(idx) || save.career.transferDone >= idx) return [];
-    const cands = RS.mateCandidates(save.career.build, idx, true);
+    const cands = RS.mateCandidates(save.career.build, idx);
     const out = [];
-    while (out.length < 2 && cands.length) out.push(cands.splice(Math.floor(rng() * cands.length), 1)[0]);
+    while (out.length < 2 && cands.length) out.push({ id: cands.splice(Math.floor(rng() * cands.length), 1)[0], lv: RS.rollMatePlus(rng) });
     return out;
   };
-  // outId: teammate to release (null = sign into a free slot). newId null = keep the squad.
-  RS.applyTransfer = function (save, idx, newId, outId) {
+  // outId: teammate to release (null = sign into a free slot). newId null = keep the squad. lv: the newcomer's 강화.
+  RS.applyTransfer = function (save, idx, newId, outId, lv) {
     const b = save.career.build;
     let ok = true;
-    if (newId) ok = outId ? RS.swapMate(b, outId, newId) : !!RS.addMate(b, newId);
+    if (newId) ok = outId ? RS.swapMate(b, outId, newId, lv || 1) : !!RS.addMate(b, newId, lv);
     save.career.snapshots[idx] = RS.cloneBuild(b);
     return ok;
   };
@@ -269,9 +282,9 @@
   // Simple policy for bots/tests: sign into free slots, otherwise replace the longest-serving teammate.
   RS.autoTransfers = function (save, idx, rng) {
     const offers = RS.transferOffers(save, idx, rng);
-    for (const id of offers) {
+    for (const { id, lv } of offers) {
       const b = save.career.build;
-      RS.applyTransfer(save, idx, id, RS.squadFull(b) ? b.teammates[0].id : null);
+      RS.applyTransfer(save, idx, id, RS.squadFull(b) ? b.teammates[0].id : null, lv);
       // the swapped-in player goes to the back of the line
       const i = b.teammates.findIndex((m) => m.id === id);
       if (i >= 0) b.teammates.push(b.teammates.splice(i, 1)[0]);
@@ -328,13 +341,27 @@
         save.meta.ballons += 1;
         out.ballon += 1;
       }
+      // 토레쓰 beaten after 드록빠 (RS.TORRES): his career opens; once per career season an extra reward waits
+      // (RS.torresRewardChoices, picked on the result screen — it survives a reload in career.torresReward)
+      out.torres = res.torres || null;
+      if (res.torres === 'win') {
+        if (!save.meta.unlocked || typeof save.meta.unlocked !== 'object') save.meta.unlocked = {};
+        if (!save.meta.unlocked.torres) { save.meta.unlocked.torres = true; out.unlockTorres = true; }
+        const c = save.career;
+        c.torresBeaten = c.torresBeaten || {};
+        if (!c.torresBeaten[idx]) { c.torresBeaten[idx] = true; c.torresReward = idx; out.torresReward = true; }
+      }
       if (!replay) {
         const c = save.career;
         c.cleared[idx] = true;
         c.build = world.exportBuild();
         keep(c.build);
         if (yd.final) { c.finished = true; out.finished = true; }
-        else c.yearIdx = idx + 1;
+        else {
+          c.yearIdx = idx + 1;
+          const moves = RS.releaseOffSeason(c.build, idx + 1); // the men who do not play beside him next season
+          if (moves.gone.length) out.farewell = moves;
+        }
       } else {
         save.career.cleared[idx] = true;
         keep(save.career.build);
@@ -347,7 +374,7 @@
   RS.BOSS_REWARDS = [
     { id: 'hp', icon: '🏆', name: '트로피 체력', desc: '최대 체력 +20 (영구)' },
     { id: 'reroll', icon: '🎲', name: '베테랑의 눈', desc: '레벨업 다시 뽑기 +1 (매 시즌)' },
-    { id: 'train', icon: '📈', name: '팀 훈련 캠프', desc: '선발·벤치 동료 전원 Lv.+1' },
+    { id: 'train', icon: '📈', name: '팀 훈련 캠프', desc: '선발·벤치 동료 전원 강화 +1' },
     { id: 'coins', icon: '💰', name: '우승 보너스', desc: '코인 +150' },
     { id: 'coach', icon: '👔', name: '감독의 선물', desc: '이번 시즌 감독 카드 1장 추가' }
   ];
@@ -379,6 +406,46 @@
   };
   RS.needsBossReward = (save, idx) => !RS.YEARS[idx].final && !!save.career.cleared[idx] && (save.career.rewardDone == null ? -1 : save.career.rewardDone) < idx && save.career.yearIdx === idx + 1;
 
+  // 토레쓰 reward (round 11): one pick after beating him. g: the card colour (RS.GRADES).
+  RS.TORRES_REWARDS = [
+    { id: 'mate', icon: '⚽', name: '토레쓰 영입', g: 4, desc: '토레쓰(OVR 90 공격수)가 강화 +5로 합류 · 자리가 없으면 가장 약한 벤치 동료와 교체' },
+    { id: 'weapon', icon: '🏆', name: '빈의 결승골', g: 5, desc: '황금 이상 무기 1개 (무지개 확률 15%) · 지금 무기보다 세면 바로 장착' },
+    { id: 'coins', icon: '💰', name: '5천만 파운드 이적료', g: 3, desc: '코인 +500' }
+  ];
+  RS.TORRES_WEAPON_ODDS = [0, 0, 0, 0, 0.85, 0.15];
+  RS.needsTorresReward = (save) => save.career.torresReward != null;
+  // Rewards still to pick, in the result screen's order. A reload between a clear and its picks keeps them in the
+  // save (토레쓰's in career.torresReward, the season boss's until the next season is cleared), so the next match
+  // start offers them: otherwise a later clear would bury the one and skip the other.
+  RS.pendingRewards = function (save) {
+    const out = [], y = save.career.yearIdx;
+    if (RS.needsTorresReward(save)) out.push('torres');
+    if (y > 0 && RS.needsBossReward(save, y - 1)) out.push('boss');
+    return out;
+  };
+  RS.torresRewardChoices = function (save) {
+    const b = save.career.build;
+    return RS.TORRES_REWARDS.filter((r) => r.id !== 'mate' || !RS.allMates(b).some((m) => RS.samePerson(m.id, 'torresmate')))
+      .map((r) => Object.assign({ kind: 'reward', tag: '토레쓰 보상' }, r));
+  };
+  RS.applyTorresReward = function (save, card, rng) {
+    const b = save.career.build, info = { card: card.id };
+    if (card.id === 'mate') {
+      if (!RS.addMate(b, 'torresmate', 5)) { // a full squad: he takes the weakest bench place
+        let lo = 0;
+        for (let i = 1; i < b.bench.length; i++) if (RS.mateValue(b.bench[i].id, b.bench[i].lv) < RS.mateValue(b.bench[lo].id, b.bench[lo].lv)) lo = i;
+        b.bench[lo] = { id: 'torresmate', lv: 5 };
+      }
+      info.mate = 'torresmate';
+    } else if (card.id === 'weapon') {
+      const res = RS.openBox(b, RS.rollWeapon(b, rng, RS.TORRES_WEAPON_ODDS), { cost: 0 });
+      info.weapon = res.w; info.kept = res.kept;
+      if (!res.kept) save.meta.coins += 500; // a copy no better than his own: the fee instead
+    } else if (card.id === 'coins') save.meta.coins += 500;
+    save.career.torresReward = null;
+    return info;
+  };
+
   // New career lap after beating the rival or after a bad ending (meta upgrades are kept).
   RS.newCareer = function (save) {
     const laps = save.career.laps + (save.career.finished ? 1 : 0);
@@ -404,6 +471,36 @@
     if (cost.coins != null) { if (save.meta.coins < cost.coins) return false; save.meta.coins -= cost.coins; }
     if (cost.ballons != null) { if (save.meta.ballons < cost.ballons) return false; save.meta.ballons -= cost.ballons; }
     save.meta.upgrades[id] = lv + 1;
+    return true;
+  };
+
+  // ---------------------------------------------------------------- 훈련장 weapons and squad (round 11)
+  // Coin sinks that never run out: 무기 상자, 무기 강화 (odds fall with every step; a failure only costs the coins)
+  // and teammate training. They change the career build (replays keep their own snapshots).
+  RS.buyBox = function (save, boxId, rng) {
+    const d = RS.WEAPON_BOXES.find((x) => x.id === boxId);
+    if (!d || save.meta.coins < d.cost) return null;
+    save.meta.coins -= d.cost;
+    const b = save.career.build, res = RS.openBox(b, RS.rollWeapon(b, rng, d.odds), d);
+    save.meta.coins += res.refund;
+    return res;
+  };
+  RS.enhanceCost = (w) => (w.p >= RS.PLUS_MAX ? null : RS.ENHANCE.cost[RS.clampGrade(w.g)] * w.p);
+  RS.enhanceOdds = (w) => (w.p >= RS.PLUS_MAX ? 0 : RS.ENHANCE.odds[w.p - 1]);
+  RS.buyEnhance = function (save, rng) {
+    const b = save.career.build, w = b.weapon, cost = RS.enhanceCost(w);
+    if (cost == null || save.meta.coins < cost) return null;
+    save.meta.coins -= cost;
+    const ok = rng() < RS.enhanceOdds(w);
+    if (ok) RS.enhanceWeapon(b, 1);
+    return { ok, p: b.weapon.p, cost };
+  };
+  RS.mateTrainCost = (m) => (m.lv >= RS.MATE_MAX_LV ? null : RS.MATE_ENHANCE * m.lv * (1 + RS.mateGrade(m.id, m.lv)));
+  RS.buyMateTrain = function (save, id) {
+    const m = RS.allMates(save.career.build).find((x) => x.id === id), cost = m && RS.mateTrainCost(m);
+    if (cost == null || save.meta.coins < cost) return false;
+    save.meta.coins -= cost;
+    m.lv++;
     return true;
   };
 })(globalThis.RS = globalThis.RS || {});

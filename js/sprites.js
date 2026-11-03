@@ -49,6 +49,8 @@
     short: ['...HHHHH...', '..HHHHHHH..', '..Hssssss..', '..sssesse..', '...sssss...'],
     bald: ['...sssss...', '..sssssss..', '..sssssss..', '..sssesse..', '...sssss...'],
     long: ['..HHHHHH...', '.HHHHHHHHH.', '.HHsssssH..', '.HHssesse..', '..Hsssss...'],
+    // 토레쓰 (round 11): the 엘 니뇨 look — long strawberry-blond hair held back by a white band
+    torres: ['...HHHHH...', '..HHHHHHHH.', '.HHqqqqqqH.', '.HHssesse..', '..Hsssss...'],
     cap: ['...CCCCC...', '..CCCCCCCC.', '..Hssssss..', '..sssesse..', '...sssss...']
   };
   const TANK = [
@@ -372,12 +374,23 @@
       key: 'mes|' + hair + '|' + !!small + '|' + y.era + '|' + (y.year >= 2009) + '|' + (y.year >= 2018)
     };
   };
-  RS.heroLook = (hero, yearIdx, yd, small) => hero === 'messi' ? RS.messiLook(yearIdx, yd, small) : RS.ronaldoLook(yearIdx, yd);
+  // 토레쓰 (round 11): the banded long hair up to 리버풀, shorter after; captain's armband in his first spell at
+  // home (from 19), gold boots from the 유로 2012 득점왕.
+  RS.torresLook = function (yearIdx, yd) {
+    const y = yd || RS.YEARS[yearIdx];
+    const era = RS.ERAS[y.era];
+    const hair = y.year <= 2010 ? 'torres' : 'short', gold = y.year >= 2012, arm = y.year >= 2003 && y.year <= 2006;
+    return { hair, kit: era.kit, goldBoots: gold, armband: arm, key: 'tor|' + hair + '|' + y.era + '|' + gold + '|' + arm };
+  };
+  RS.heroLook = (hero, yearIdx, yd, small) => hero === 'messi' ? RS.messiLook(yearIdx, yd, small)
+    : hero === 'torres' ? RS.torresLook(yearIdx, yd) : RS.ronaldoLook(yearIdx, yd);
 
   function kitPal(kit, extra) {
     return Object.assign({ K: kit.main, k2: kit.alt, S: kit.shorts, W: kit.socks }, extra || {});
   }
+  const TORRES_HAIR = '#e0a84a', TORRES_SKIN = '#f0c8a0';
   function heroPal(hero, L) {
+    if (hero === 'torres') return kitPal(L.kit, { H: TORRES_HAIR, h: '#f4d890', B: L.goldBoots ? '#f0c030' : '#f0f0f0', A: '#ffd400', s: TORRES_SKIN });
     return hero === 'messi'
       ? kitPal(L.kit, { H: '#4a3020', b: '#4a3020', B: L.goldBoots ? '#f0c030' : '#f0f0f0', A: '#75aadb', s: '#e8b48e' })
       : kitPal(L.kit, { H: '#20140c', h: '#e8c870', B: L.goldBoots ? '#f0c030' : '#222', A: '#ffd400', s: '#d9a27a' });
@@ -487,6 +500,8 @@
           case 'bgiant': return makeSprite([0, 1].map((i) => TANK.concat(TANK_LEGS[i])), { K: foe[1], k2: '#111', S: '#111', W: foe[1], H: '#111', s: '#c98a66' }, { pattern: 'trim', collar: 5, scale: sc });
           // 드록빠: 첼씨 royal blue with white trim and socks, close-cropped hair
           case 'bdrogba': return makeSprite(person('fade'), { K: '#1a56b8', k2: '#f2f2f2', S: '#1a56b8', W: '#f2f2f2', H: '#111111', f: '#111111', s: '#5a3a26' }, { pattern: 'trim', collar: 6, scale: sc });
+          // 토레쓰 (round 11): 첼씨 blue like 드록빠, told apart by the blond banded hair and white boots
+          case 'btorres': return makeSprite(person('torres'), { K: '#1a56b8', k2: '#f2f2f2', S: '#1a56b8', W: '#f2f2f2', H: TORRES_HAIR, s: TORRES_SKIN, B: '#f0f0f0' }, { pattern: 'trim', collar: 6, scale: sc });
           case 'messi': return RS.Sprites.messi(1);
           case 'ronaldo': { const ry = RS.YEARS_RONALDO; return RS.Sprites.hero('ronaldo', ry.length - 1, 1, ry[ry.length - 1]); }
         }

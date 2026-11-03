@@ -4,12 +4,74 @@
 (function (RS) {
   'use strict';
 
-  RS.MAX_SKILLS = 6;
   RS.MAX_PASSIVES = 6;
   RS.MAX_MATES = 2;   // on the pitch with 날두
   RS.MAX_BENCH = 3;   // bench warmers: weak passive synergy only
   RS.BENCH_FACTOR = 0.34;
   RS.MATE_MAX_LV = 10;
+
+  // ---------------------------------------------------------------- Round 11: one weapon, 등급 and 강화
+  // The hero fights with ONE weapon at a time (build.weapon = { id, g, p }; the weapons are the moves of RS.SKILLS).
+  // Its grade g picks the move's behaviour — level table row lv (Lv.1-6) or its evolved form (evo) — and multiplies
+  // the damage by mul; 강화 p (+1 … PLUS_MAX) adds PLUS_STEP per step on top. One grade is worth more than nine
+  // steps (1.3 > 1 + 9 × 0.03), so a +10 always stays below the next grade's +1. color: the grade colour of cards,
+  // badges and the HUD (무지개 is animated in CSS). Owned weapons wait in the 무기고 (build.armory).
+  RS.GRADES = [
+    { key: 'common', name: '일반', color: '#b4bcc8', lv: 1, mul: 1 },
+    { key: 'uncommon', name: '고급', color: '#46d36e', lv: 2, mul: 1.3 },
+    { key: 'rare', name: '레어', color: '#3d8bff', lv: 3, mul: 1.69 },
+    { key: 'epic', name: '에픽', color: '#b05cff', lv: 4, mul: 2.2 },
+    { key: 'gold', name: '황금', color: '#ffc83a', lv: 6, mul: 2.86 },
+    { key: 'rainbow', name: '무지개', color: '#ff5ad0', lv: 6, evo: true, mul: 3.71 }
+  ];
+  RS.PLUS_MAX = 10;
+  RS.PLUS_STEP = 0.03;
+  RS.GRADE_ODDS = [0.56, 0.27, 0.12, 0.04, 0.009, 0.001]; // a weapon found at a level-up (the debut stage)
+  // The level-up weapon card climbs with the career (pro season, RS.tuneIdx): later stages drop the lowest grades,
+  // and inside every stage a higher grade stays rarer. 무기 상자 keep their own fixed odds.
+  RS.GRADE_STAGES = [
+    { from: 0, odds: RS.GRADE_ODDS },
+    { from: 5, odds: [0.2, 0.42, 0.26, 0.1, 0.017, 0.003] },
+    { from: 10, odds: [0, 0.3, 0.42, 0.22, 0.054, 0.006] },
+    { from: 16, odds: [0, 0, 0.45, 0.4, 0.14, 0.01] }
+  ];
+  RS.WEAPON_PLUS_W = [62, 24, 10, 4]; // and it comes at +1 … +4
+  RS.FUSED_FROM = 4; // 합체 weapons (two moves in one) only come at 황금 or better
+  // 무기 상자 (coins, in the level-up shop and the 훈련장): grade odds of each box
+  RS.WEAPON_BOXES = [
+    { id: 'box1', icon: '🎁', name: '무기 상자', cost: 90, odds: [0.5, 0.3, 0.14, 0.05, 0.009, 0.001] },
+    { id: 'box2', icon: '💎', name: '고급 무기 상자', cost: 320, odds: [0, 0.6, 0.28, 0.09, 0.025, 0.005] },
+    { id: 'box3', icon: '👑', name: '전설 무기 상자', cost: 1100, odds: [0, 0, 0.62, 0.28, 0.08, 0.02] }
+  ];
+  RS.SELL_BACK = 0.3; // a box weapon no better than the one owned turns into this share of the box price
+  // 강화 with coins (훈련장): cost[grade] × the current step; odds[p − 1] = the chance to go from +p to +p+1 (a failure
+  // only costs the coins). The 강화 card of a level-up always succeeds.
+  RS.ENHANCE = { cost: [12, 24, 45, 85, 160, 300], odds: [1, 1, 0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4] };
+  // Teammates arrive already trained (m.lv = their 강화 +1 … +10): 사비 +1 is common, 사비 +10 is rare.
+  RS.MATE_PLUS_W = [30, 22, 15, 11, 8, 6, 4, 2.4, 1.1, 0.5];
+  RS.MATE_GRADE = { prospect: 1, starter: 2, world: 3, legend: 4 }; // card colour by OVR tier, one grade more from +8
+  RS.MATE_ENHANCE = 35; // 훈련장: coins × the current 강화 × (1 + the colour grade) to train one teammate +1
+  RS.ROLE_PLUS = 0.06; // a teammate's team effect × (1 + this × (강화 − 1))
+  RS.TIER_GRADE = { rare: 2, hidden: 3, ultra: 4, super: 5 }; // graded items share the colour scale
+  RS.ARMOR_CAP = 0.5; // armor never takes away more than this share of a hit
+  RS.GUARD_MAX = 0.5; // seconds of cover the 신의 손 palm gives (one slam), whatever the grade
+  // When the season boss, the 클라시코 rival or 토레쓰 comes on, the ordinary crowd but the `keep` nearest walks off
+  // (one weapon's shots were soaked up by the men in front: a boss took 185 damage in 140 s); while he is on, at
+  // most `max` stay and fewer arrive (World.updateSpawns).
+  // The final duel keeps `duelKeep` of them and at most `duelMax` on (메시's / 날두's own summons included): during
+  // the duel the crowd used to refill to 30 and decided the final for the close-range weapons.
+  RS.BOSS_CROWD = { keep: 10, max: 30, rivalKeep: 16, rivalRate: 0.5, duelKeep: 4, duelMax: 10 };
+  // Each weapon must carry a match alone: × its damage numbers (World.weaponStats), from a bench of every move at
+  // 에픽 +5 against a season-7 crowd (kills before the boss, normalised to the median move). 1 when unlisted.
+  RS.WEAPON_SOLO = {
+    trail: 0.8, rabona: 0.9, kick: 0.95, siuu: 1.8, scissors: 1.8, bicycle: 1.9, stepover: 2,
+    dropball: 0.85, orbit: 0.9, tiki: 0.9, chip: 0.9, curler: 1.6, elastico: 2.6, bobo: 2, solo: 2
+  };
+  // × the cooldown of the moves built as a side skill (a dash every 4 s, a shout every 7 s): alone they must fire
+  // often enough to hold the crowd off
+  RS.WEAPON_CD = { stepover: 0.5, solo: 0.5, siuu: 0.7 };
+  RS.NUM_GAP = 0.25; // seconds between two damage numbers on one boss / 준보스 / elite (the hits between are summed)
+  RS.GIFT_GRADE = 2; // a move taught by a story event or a press answer comes as a 레어 +1 weapon
   // Teammate grade from the player's OVR (a FIFA-style overall), shown on every teammate card. A higher OVR hits
   // harder and lends a stronger team buff (RS.mateMul), so a swap can be judged at a glance.
   RS.MATE_TIERS = [
@@ -60,7 +122,7 @@
   // Each skill: lv[] holds stats for level 1..max; evo holds evolved stats. passive = paired passive for evolution.
   RS.SKILLS = {
     kick: {
-      name: '축구공 킥', icon: '⚽', passive: 'boots', hero: 'ronaldo', evoName: '황금 발롱볼', evoIcon: '🏆', trophy: true,
+      name: '축구공 킥', icon: '⚽', passive: 'boots', hero: ['ronaldo', 'torres'], evoName: '황금 발롱볼', evoIcon: '🏆', trophy: true,
       desc: '가장 가까운 적에게 축구공을 찬다.',
       evoDesc: '황금 공이 적 사이를 튕기며 관통한다. 받은 발롱도르 수만큼은 발롱도르 공이 날아간다.',
       ups: ['', '공이 1번 튕긴다', '공 +1', '관통 +1, 피해 증가', '피해 증가, 튕김 +1', '피해·관통 크게 증가, 연사 증가'],
@@ -75,7 +137,7 @@
       evo: { dmg: 40, cd: 0.6, count: 3, pierce: 3, bounce: 4, speed: 280, r: 5 }
     },
     knuckle: {
-      name: '무회전 프리킥', icon: '🎯', passive: 'freekick', hero: 'ronaldo', evoName: '무회전 대포알', evoIcon: '💥',
+      name: '무회전 프리킥', icon: '🎯', passive: 'freekick', hero: ['ronaldo', 'torres'], evoName: '무회전 대포알', evoIcon: '💥',
       desc: '흔들리며 날아가 적을 꿰뚫는 무회전 슛.',
       evoDesc: '거대한 대포알이 모든 적을 꿰뚫는다.',
       ups: ['', '피해 증가', '관통 +1', '슛 +1', '관통 +1, 피해 증가', '피해 크게 증가'],
@@ -90,7 +152,7 @@
       evo: { dmg: 110, cd: 1.25, count: 2, pierce: 999, speed: 360, r: 8 }
     },
     header: {
-      name: '헤딩 점프', icon: '🦘', passive: 'jump', hero: 'ronaldo', evoName: '2.56m 슈퍼 헤더', evoIcon: '🚀',
+      name: '헤딩 점프', icon: '🦘', passive: 'jump', hero: ['ronaldo', 'torres'], evoName: '2.56m 슈퍼 헤더', evoIcon: '🚀',
       desc: '뛰어올라 착지할 때 주변에 충격파.',
       evoDesc: '하늘 높이 솟구쳐 두 번의 거대 충격파.',
       ups: ['', '범위 증가', '피해 증가', '쿨타임 감소', '범위·피해 증가', '피해 크게 증가'],
@@ -105,7 +167,7 @@
       evo: { dmg: 75, cd: 1.7, radius: 85, double: true }
     },
     bicycle: {
-      name: '바이시클 킥', icon: '🌀', passive: 'flex', hero: 'ronaldo', evoName: '오버헤드 토네이도', evoIcon: '🌪️',
+      name: '바이시클 킥', icon: '🌀', passive: 'flex', hero: ['ronaldo', 'torres'], evoName: '오버헤드 토네이도', evoIcon: '🌪️',
       desc: '몸을 날려 360도 주변을 걷어찬다.',
       evoDesc: '멈추지 않는 회오리 킥이 주변을 계속 깎는다.',
       ups: ['', '피해 증가', '범위 증가', '쿨타임 감소', '피해·범위 증가', '피해 크게 증가'],
@@ -120,7 +182,7 @@
       evo: { dmg: 22, cd: 0.3, radius: 58, aura: true }
     },
     stepover: {
-      name: '스텝오버', icon: '💨', passive: 'speed', hero: 'ronaldo', evoName: '환상 스텝오버', evoIcon: '👻',
+      name: '스텝오버', icon: '💨', passive: 'speed', hero: ['ronaldo', 'torres'], evoName: '환상 스텝오버', evoIcon: '👻',
       desc: '적이 붙으면 자동 대시. 대시 중 무적, 지나간 적에게 피해.',
       evoDesc: '더 자주, 더 멀리. 출발점에 잔상이 폭발한다.',
       ups: ['', '대시 거리 증가', '피해 증가', '쿨타임 감소', '피해·거리 증가', '쿨타임 크게 감소'],
@@ -135,7 +197,7 @@
       evo: { dmg: 60, cd: 1.5, dist: 90, burst: 44 }
     },
     scissors: {
-      name: '시저스 킥', icon: '✂️', passive: 'finisher', hero: 'ronaldo', evoName: '더블 시저스', evoIcon: '⚔️',
+      name: '시저스 킥', icon: '✂️', passive: 'finisher', hero: ['ronaldo', 'torres'], evoName: '더블 시저스', evoIcon: '⚔️',
       desc: '공을 X자로 교차해 찬다.',
       evoDesc: '6방향 교차 슛이 깊게 관통하고, 치명타 확률 증가.',
       ups: ['', '피해 증가', '방향 +2', '관통 +1', '피해 증가, 쿨타임 감소', '방향 +2'],
@@ -189,7 +251,7 @@
     },
     // 날두: a curling boomerang ball, out and back, piercing both ways (catching it = 볼 트래핑).
     rabona: {
-      name: '라보나 킥', icon: '🪃', passive: 'trap', hero: 'ronaldo', evoName: '라보나 부메랑 폭풍', evoIcon: '🌪️',
+      name: '라보나 킥', icon: '🪃', passive: 'trap', hero: ['ronaldo', 'torres'], evoName: '라보나 부메랑 폭풍', evoIcon: '🌪️',
       desc: '휘어 나갔다 되돌아오는 공. 오갈 때 모두 꿰뚫는다.',
       evoDesc: '커다란 부메랑 공 4개가 사방을 휘젓고 돌아온다.',
       ups: ['', '피해 증가', '공 +1', '사거리 증가', '공 +1, 피해 증가', '피해 크게 증가, 공이 커진다'],
@@ -205,7 +267,7 @@
     },
     // 날두: running leaves burning turf; enemies standing in it burn (rewards moving, like the game).
     trail: {
-      name: '불꽃 질주', icon: '🔥', passive: 'fitness', hero: 'ronaldo', evoName: '지옥의 레드카펫', evoIcon: '☄️',
+      name: '불꽃 질주', icon: '🔥', passive: 'fitness', hero: ['ronaldo', 'torres'], evoName: '지옥의 레드카펫', evoIcon: '☄️',
       desc: '달린 자리에 불타는 잔디를 남긴다. 밟은 적이 탄다.',
       evoDesc: '넓고 오래 타는 불길. 멈춰 서도 발밑이 불탄다.',
       ups: ['', '피해 증가', '불길이 넓어진다', '더 오래 탄다', '피해·범위 증가', '피해 크게 증가'],
@@ -218,6 +280,23 @@
         { dmg: 12, cd: 0.2, radius: 16, life: 2.4, tick: 0.34 }
       ],
       evo: { dmg: 18, cd: 0.15, radius: 20, life: 2.8, tick: 0.3, still: true }
+    },
+    // 토레쓰 (round 11): his trademark finish — he lifts the ball over the toughest man near him (the boss first) and
+    // it lands with a small blast (the 'chip' behaviour played by himself, no passer). Also 날두's 슈팅 moves are his.
+    nino: {
+      name: '엘 니뇨 칩슛', icon: '🪶', passive: 'finisher', hero: 'torres', use: 'chip', evoName: '빈의 결승골', evoIcon: '🏆',
+      desc: '가장 센 적(보스 우선) 머리 위로 공을 띄워 떨어뜨린다. 떨어진 자리가 터진다.',
+      evoDesc: '황금 칩슛 세 개가 한꺼번에 떨어져 크게 터진다.',
+      ups: ['', '피해 증가', '범위 증가', '칩슛 +1', '피해·범위 증가', '쿨타임 감소, 피해 증가'],
+      lv: [
+        { dmg: 16, cd: 1.6, count: 1, radius: 20 },
+        { dmg: 19, cd: 1.55, count: 1, radius: 21 },
+        { dmg: 20, cd: 1.5, count: 1, radius: 25 },
+        { dmg: 22, cd: 1.45, count: 2, radius: 25 },
+        { dmg: 27, cd: 1.4, count: 2, radius: 28 },
+        { dmg: 33, cd: 1.25, count: 2, radius: 30 }
+      ],
+      evo: { dmg: 54, cd: 1.1, count: 3, radius: 38 }
     },
     // ---- 메시 only: his own moves. `use` names the runtime behaviour a move shares with a 날두 move (own name,
     // numbers and evolution); proj = [normal, evolved] ball look. A hero never sees the other hero's moves.
@@ -406,7 +485,7 @@
   RS.FUSE_SCALE = 0.42; // × the damage numbers below (RS.skillStats): a fusion is worth about one evolved move and a free slot
   // 날두
   FUSE('missile', {
-    name: '유도 대포알', icon: '🚀', fusion: ['kick', 'knuckle'], passive: 'freekick', hero: 'ronaldo', use: 'missile', evoName: '발롱도르 미사일', evoIcon: '🛰️', trophy: true,
+    name: '유도 대포알', icon: '🚀', fusion: ['kick', 'knuckle'], passive: 'freekick', hero: ['ronaldo', 'torres'], use: 'missile', evoName: '발롱도르 미사일', evoIcon: '🛰️', trophy: true,
     desc: '진화한 축구공 킥 + 무회전 대포알. 적을 쫓아가는 대포알이 첫 적중에서 폭발한다.',
     evoDesc: '황금 미사일 4발이 폭발하며 적 사이를 꿰뚫는다. 받은 발롱도르 수만큼은 발롱도르 미사일.',
     ups: ['', '폭발 범위 증가', '대포알 +1', '피해 증가, 관통 +1', '폭발 피해 증가', '피해 크게 증가, 쿨타임 감소'],
@@ -421,7 +500,7 @@
     evo: { dmg: 170, cd: 0.85, count: 4, pierce: 6, speed: 380, r: 8, boom: 60, boomDmg: 120, gold: true }
   });
   FUSE('airraid', {
-    name: '공중 지배', icon: '🛸', fusion: ['header', 'bicycle'], passive: 'jump', hero: 'ronaldo', use: 'airraid', evoName: '오버헤드 폭격', evoIcon: '🌪️',
+    name: '공중 지배', icon: '🛸', fusion: ['header', 'bicycle'], passive: 'jump', hero: ['ronaldo', 'torres'], use: 'airraid', evoName: '오버헤드 폭격', evoIcon: '🌪️',
     desc: '슈퍼 헤더 + 오버헤드 토네이도. 솟구쳐 내려찍고, 착지점에서 회오리가 바깥으로 번진다.',
     evoDesc: '다섯 겹의 회오리가 화면을 쓸어 적을 기절시킨다.',
     ups: ['', '회오리 +1', '피해 증가', '범위 증가', '쿨타임 감소', '피해·범위 크게 증가'],
@@ -436,7 +515,7 @@
     evo: { dmg: 190, cd: 1.4, radius: 100, rings: 5, stun: 0.6 }
   });
   FUSE('blitz', {
-    name: '환상 난무', icon: '👻', fusion: ['stepover', 'scissors'], passive: 'speed', hero: 'ronaldo', use: 'blitz', evoName: '유령 질주', evoIcon: '💀',
+    name: '환상 난무', icon: '👻', fusion: ['stepover', 'scissors'], passive: 'speed', hero: ['ronaldo', 'torres'], use: 'blitz', evoName: '유령 질주', evoIcon: '💀',
     desc: '환상 스텝오버 + 더블 시저스. 잔상이 적 사이를 번개처럼 누비며 한 명마다 가위차기를 꽂는다. 그동안 무적.',
     evoDesc: '열두 명을 연달아 제치는 유령의 질주.',
     ups: ['', '제치는 수 +1', '피해 증가', '쿨타임 감소', '제치는 수 +2', '피해 크게 증가'],
@@ -626,11 +705,12 @@
   // A level-up sometimes deals a 4th card of a grade: 레어 < 히든 < 초히든 < 슈퍼히든, or a gamble card.
   // Each item is owned once and kept for the career. mods use the RS.computeStats keys; fx names a runtime
   // effect in game.js (World.updateRelics, damageEnemy, killEnemy, the dice reroll).
+  // Colours follow the weapon grades (RS.TIER_GRADE): 레어 blue, 히든 purple, 초히든 gold, 슈퍼히든 rainbow.
   RS.TIERS = {
-    rare: { name: '레어', color: '#4aa8ff' },
-    hidden: { name: '히든', color: '#b65cff' },
-    ultra: { name: '초히든', color: '#ff4a4a' },
-    super: { name: '슈퍼히든', color: '#ffd84a' }
+    rare: { name: '레어', color: '#3d8bff' },
+    hidden: { name: '히든', color: '#b05cff' },
+    ultra: { name: '초히든', color: '#ffc83a' },
+    super: { name: '슈퍼히든', color: '#ff5ad0' }
   };
   RS.TIER_ORDER = ['rare', 'hidden', 'ultra', 'super'];
   RS.TIER_POWER = { rare: 12, hidden: 25, ultra: 45, super: 80 }; // 전투력 points per item
@@ -648,13 +728,14 @@
     spikes: { tier: 'rare', icon: '👟', name: '스파이크 축구화', desc: '공격력 +12%, 치명타 +5%', mods: { dmg: 0.12, crit: 0.05 } },
     lunchbox: { tier: 'rare', icon: '🍱', name: '에그타르트 도시락', desc: '최대 체력 +25, 먹는 즉시 체력 완전 회복', mods: { hp: 25 }, fx: 'fullheal', hero: 'ronaldo' },
     mate: { tier: 'rare', icon: '🧉', name: '마테차 보온병', desc: '최대 체력 +25, 마시는 즉시 체력 완전 회복', mods: { hp: 25 }, fx: 'fullheal', hero: 'messi' },
+    jamon: { tier: 'rare', icon: '🥪', name: '하몽 보까디요', desc: '최대 체력 +25, 먹는 즉시 체력 완전 회복', mods: { hp: 25 }, fx: 'fullheal', hero: 'torres' },
     shinpad: { tier: 'rare', icon: '🦵', name: '정강이 보호대', desc: '받는 피해 -1, 최대 체력 +10', mods: { armor: 1, hp: 10 } },
     adrenaline: { tier: 'hidden', icon: '⚡', name: '아드레날린', desc: '체력이 절반 이하면 공격력 +60%', fx: 'adrenaline' },
     goldboot: { tier: 'hidden', icon: '🥇', name: '골든 부트', desc: '공격력 +25%', mods: { dmg: 0.25 } },
     heart: { tier: 'hidden', icon: '🫀', name: '강철 심장', desc: '쿨타임 -12%, 이동속도 +6%', mods: { cd: -0.12, moveSpeed: 0.06 } },
     blackhole: { tier: 'hidden', icon: '🌀', name: '블랙홀 트래핑', desc: '흡수 범위 +120%, 경험치 +15%', mods: { magnet: 1.2, xp: 0.15 } },
     // 날두's power shots blow up; 메시 slips the ball through the fallen man's legs instead (his own style)
-    bomb: { tier: 'hidden', icon: '💥', name: '폭발 슈팅', desc: '쓰러진 적이 폭발해 주변 적까지 쓸어버린다', fx: 'bomb', hero: 'ronaldo' },
+    bomb: { tier: 'hidden', icon: '💥', name: '폭발 슈팅', desc: '쓰러진 적이 폭발해 주변 적까지 쓸어버린다', fx: 'bomb', hero: ['ronaldo', 'torres'] },
     nutmeg: { tier: 'hidden', icon: '🔗', name: '알까기 연쇄', desc: '적이 쓰러지면 공이 가랑이 사이로 빠져나가 주변 적 3명을 연달아 제치고 넘어뜨린다(피해 + 기절)', fx: 'nutmeg', hero: 'messi' },
     sniper: { tier: 'hidden', icon: '🎯', name: '저격수의 눈', desc: '치명타 +15%, 보스에게 주는 피해 +15%', mods: { crit: 0.15, bossDmg: 0.15 } },
     whistle: { tier: 'ultra', icon: '⏱️', name: '추가시간 휘슬', desc: '12초마다 휘슬! 보스를 뺀 모든 적이 2초간 멈춘다', fx: 'whistle' },
@@ -668,7 +749,7 @@
       mods: { dmg: 0.2, hp: 30, moveSpeed: 0.08, cd: -0.1, area: 0.15, magnet: 0.15, crit: 0.05, armor: 1 }, hero: 'messi', need: 'hgh', stack: true },
     honaldo: { tier: 'super', icon: '🥋', name: '호날도', desc: '전설의 무술. 3초마다 정권 → 회오리 발차기 → 내려찍기 3연타 (호! 날! 도!)', fx: 'honaldo', hero: 'ronaldo' },
     messia: { tier: 'super', icon: '✨', name: '메시아', desc: '구세주의 기적. 3초마다 드리블 돌파 → 감아차기 연사 → 기적의 일격 3연타 (메! 시! 아!)', fx: 'messia', hero: 'messi' },
-    meteor: { tier: 'super', icon: '🌠', name: '별똥별 슛', desc: '4초마다 하늘에서 황금 공 8개가 적에게 쏟아진다', fx: 'meteor', hero: 'ronaldo' },
+    meteor: { tier: 'super', icon: '🌠', name: '별똥별 슛', desc: '4초마다 하늘에서 황금 공 8개가 적에게 쏟아진다', fx: 'meteor', hero: ['ronaldo', 'torres'] },
     // 메시's own: "외계인" — a phantom dribble zigzags through eight defenders
     alien: { tier: 'super', icon: '👽', name: '외계인 모드', desc: '4초마다 메시의 잔상이 주변 적 8명 사이를 번개처럼 지그재그로 제치며 큰 피해 + 기절. 그동안 무적', fx: 'alien', hero: 'messi' },
     goat: { tier: 'super', icon: '🐐', name: 'GOAT', desc: '공격력 +50%, 쿨타임 -15%, 최대 체력 +60, 이동속도 +12%, 받는 피해 -2', mods: { dmg: 0.5, cd: -0.15, hp: 60, moveSpeed: 0.12, armor: 2 } }
@@ -785,6 +866,37 @@
       kit: { main: '#75aadb', alt: '#ffffff', shorts: '#1a1a2e', socks: '#ffffff', pattern: 'stripes' },
       theme: { g1: '#2f6f33', g2: '#2a662e', line: '#dff0da', edge: '#163a19', night: true },
       foe: ['#1d4fa8', '#f4f4f4']
+    },
+    // ---- 토레쓰 career eras (round 11)
+    atletico: {
+      club: '마드리드 적백 줄무늬단', short: '줄무늬단',
+      kit: { main: '#cb3524', alt: '#f6f6f6', shorts: '#1c2c5b', socks: '#cb3524', pattern: 'stripes' },
+      theme: { g1: '#48963f', g2: '#408b39', line: '#eef6e8', edge: '#2d6a2a', night: false },
+      foe: ['#f7f7f7', '#6c4bc0']
+    },
+    liverpool: {
+      club: '리버풀 붉은 함성단', short: '리버풀',
+      kit: { main: '#c8102e', alt: '#f6eb61', shorts: '#c8102e', socks: '#c8102e', pattern: 'trim' },
+      theme: { g1: '#3d8b3d', g2: '#367f36', line: '#e2f2dc', edge: '#265c26', night: false },
+      foe: ['#274488', '#f4f4f4']
+    },
+    chelseat: {
+      club: '런던 파란 사자단', short: '첼씨',
+      kit: { main: '#1a56b8', alt: '#f2f2f2', shorts: '#1a56b8', socks: '#f2f2f2', pattern: 'trim' },
+      theme: { g1: '#43933e', g2: '#3b8837', line: '#f0f7ec', edge: '#2b682a', night: false },
+      foe: ['#d3232f', '#a50044']
+    },
+    atletico2: {
+      club: '마드리드 적백 줄무늬단', short: '줄무늬단',
+      kit: { main: '#cb3524', alt: '#f6f6f6', shorts: '#1c2c5b', socks: '#cb3524', pattern: 'stripes' },
+      theme: { g1: '#44923d', g2: '#3d8737', line: '#eef6e8', edge: '#2b662a', night: false },
+      foe: ['#f7f7f7', '#1f3f8f']
+    },
+    tosu: {
+      club: '사간 도스 하늘단', short: '도스',
+      kit: { main: '#5aa5dc', alt: '#e75a8c', shorts: '#1c2c5b', socks: '#5aa5dc', pattern: 'trim' },
+      theme: { g1: '#2f6f33', g2: '#2a662e', line: '#dff0da', edge: '#163a19', night: true },
+      foe: ['#a50044', '#004d98']
     }
   };
   // Named opponents: a season with `foe` dresses the whole crowd in that club's kit (RS.foeColors) and adds its
@@ -929,94 +1041,158 @@
       { id: 'mc_fight', name: '투지', icon: '💢', desc: '공격력 +8%', mods: { dmg: 0.08 } },
       { id: 'mc_lead', name: '동료 리더십', icon: '🗣️', desc: '동료 공격력 +10%', mods: { teamDmg: 0.10 } },
       { id: 'mc_shield', name: '서포터스 실드', icon: '🛡️', desc: '최대 체력 +20', mods: { hp: 20 } }
+    ] },
+    // ---- 토레쓰 career coaches (round 11; 첼씨 also had 안첼로띠 and 무링요: eyebrow, special)
+    aragones: { name: '아라고네쓰 감독', tag: '현자, 엘 니뇨를 1군에 올린 스승', look: { hair: '#d8d8d8', suit: '#2a2a3a' }, cards: [
+      { id: 'ar_nino', name: '엘 니뇨 데뷔', icon: '👦', desc: '경험치 +12%', mods: { xp: 0.12 } },
+      { id: 'ar_pass', name: '짧은 패스 축구', icon: '↔️', desc: '쿨타임 -6%', mods: { cd: -0.06 } },
+      { id: 'ar_pride', name: '줄무늬의 자존심', icon: '❤️', desc: '최대 체력 +15', mods: { hp: 15 } }
+    ] },
+    benitez: { name: '베니떼쓰 감독', tag: '전술 노트의 라파', look: { hair: '#3a3a3a', suit: '#1a1a2a' }, cards: [
+      { id: 'rb_zonal', name: '지역 방어', icon: '🧱', desc: '받는 피해 -1', mods: { armor: 1 } },
+      { id: 'rb_rot', name: '로테이션', icon: '🔄', desc: '동료 쿨타임 -10%', mods: { teamCd: -0.10 } },
+      { id: 'rb_notes', name: '전술 노트', icon: '📒', desc: '보스에게 주는 피해 +12%', mods: { bossDmg: 0.12 } }
+    ] },
+    dimatteo: { name: '디마떼오 감독', tag: '대행 감독, 뮌헨의 기적', look: { hair: '#2a2a2a', suit: '#1a2a5a' }, cards: [
+      { id: 'dm_bus', name: '두 줄 수비', icon: '🚌', desc: '받는 피해 -1, 최대 체력 +10', mods: { armor: 1, hp: 10 } },
+      { id: 'dm_run', name: '단독 역습', icon: '⚡', desc: '이동속도 +7%', mods: { moveSpeed: 0.07 } },
+      { id: 'dm_munich', name: '뮌헨의 기적', icon: '🏆', desc: '보스에게 주는 피해 +15%', mods: { bossDmg: 0.15 } }
+    ] },
+    simeone: { name: '씨메오네 감독', tag: '검은 정장의 촐로', look: { hair: '#111111', suit: '#111111' }, cards: [
+      { id: 'si_one', name: '한 경기씩', icon: '☝️', desc: '공격력 +10%', mods: { dmg: 0.10 } },
+      { id: 'si_press', name: '강도 높은 압박', icon: '🔥', desc: '쿨타임 -6%, 이동속도 +4%', mods: { cd: -0.06, moveSpeed: 0.04 } },
+      { id: 'si_wall', name: '줄무늬 철벽', icon: '🛡️', desc: '최대 체력 +20', mods: { hp: 20 } }
+    ] },
+    tosu: { name: '도스 감독', tag: '마지막 시즌의 사령탑', look: { hair: '#2a2a2a', suit: '#1c2c5b' }, cards: [
+      { id: 'to_last', name: '마지막 시즌', icon: '🌅', desc: '공격력 +12%', mods: { dmg: 0.12 } },
+      { id: 'to_fans', name: '사가의 환영', icon: '🎌', desc: '코인 획득 +20%', mods: { gold: 0.20 } },
+      { id: 'to_legend', name: '레전드의 품격', icon: '👑', desc: '치명타 확률 +6%', mods: { crit: 0.06 } }
     ] }
   };
 
   // Extra coach cards that can appear in any coach pick.
   RS.COACH_EXTRA = {
-    recruit: { id: 'recruit', name: '동료 영입', icon: '🤝', desc: '이 시대의 동료 1명이 합류한다.' },
-    train: { id: 'train', name: '동료 특훈', icon: '📈', desc: '모든 동료 레벨 +1' }
+    recruit: { id: 'recruit', name: '동료 영입', icon: '🤝', desc: '지금 이 팀의 동료 1명이 합류한다 (강화 +1~+10 랜덤).' },
+    train: { id: 'train', name: '동료 특훈', icon: '📈', desc: '모든 동료 강화 +1' }
   };
 
   // ---------------------------------------------------------------- Teammates (parody nicknames)
-  // role: defender | keeper | winger | mid | striker. era: where they can be found (rescue markers prefer the current era).
+  // role: defender | keeper | winger | mid | striker — one job each, shown with its icon on the card and above the
+  // player on the pitch. {hero} = the playing hero's short name (RS.mateLine).
   RS.ROLES = {
-    // {hero} = the playing hero's short name (RS.mateLine)
-    defender: { name: '수비수', desc: '{hero} 주위를 돌며 부딪힌 적을 밀쳐낸다.' },
-    keeper: { name: '골키퍼', desc: '날아오는 공·카드를 막아낸다.' },
-    winger: { name: '윙어', desc: '적 진영을 일직선으로 돌파한다.' },
+    defender: { name: '수비수', icon: '🛡️', desc: '{hero} 주위를 돌며 다가오는 적을 밀쳐낸다' },
+    keeper: { name: '골키퍼', icon: '🧤', desc: '날아오는 빨간 공격을 몇 초마다 1번 막아낸다' },
+    winger: { name: '윙어', icon: '⚡', desc: '적 무리를 일직선으로 뚫고 지나가며 때린다' },
     // 메시 never shoots: his midfielders' passes end in a dribble that scatters the defenders around him
-    mid: { name: '미드필더', desc: '{hero}에게 패스, {hero}가 강슛으로 마무리.', descMessi: '{hero}에게 패스, {hero}가 드리블로 주변 수비를 휘젓는다.' },
-    striker: { name: '스트라이커', desc: '가까운 적에게 추가 슛을 쏜다.' }
+    mid: { name: '미드필더', icon: '🎯', desc: '{hero}에게 패스 → {hero}가 강슛으로 마무리', descMessi: '{hero}에게 패스 → {hero}가 드리블로 주변 적을 휘젓는다' },
+    striker: { name: '공격수', icon: '⚽', desc: '가까운 적에게 직접 슛을 쏜다' }
   };
   // name: a twisted spelling that still reads as the player at a glance. ovr: overall rating (RS.MATE_TIERS).
-  // same: the same person at another club — never two of him in one squad (RS.samePerson).
+  // era: the hero's club (season era) he plays for; yrs: [first, last] season (RS.YEARS year) he was the hero's
+  // teammate there — only these are signed in a season (RS.mateCandidates), so nobody turns up years early.
+  // same: the same person at another club — never two of him in one squad (RS.samePerson). special: a reward only
+  // (never signed in a season).
   RS.TEAMMATES = {
-    pepperoni: { name: '페페로니', ovr: 85, role: 'defender', era: 'madrid', hair: '#1a1a1a', skin: '#c99a73' },
-    gingerscorp: { name: '폴 스콜쓰', ovr: 88, role: 'mid', era: 'manchester', hair: '#d0702a', skin: '#f1c9a5' },
-    looneytoon: { name: '루니툰', ovr: 89, role: 'striker', era: 'manchester', hair: '#6a4a2a', skin: '#f1c9a5' },
-    tumblenano: { name: '나니뇨', ovr: 80, role: 'winger', era: 'lisbon', hair: '#1a1a1a', skin: '#a8714a' },
-    saintcasi: { name: '카시야쓰', ovr: 90, role: 'keeper', era: 'madrid', hair: '#2a1a10', skin: '#e8b892' },
-    ramong: { name: '라몬스', ovr: 90, role: 'defender', era: 'madrid', hair: '#3a2a1a', skin: '#e0ac84' },
-    ozilly: { name: '외질리', ovr: 87, role: 'mid', era: 'madrid', hair: '#111111', skin: '#e3b48c' },
-    benjamin: { name: '벤제마왕', ovr: 90, role: 'striker', era: 'madrid', hair: '#151515', skin: '#c8956a' },
-    modric: { name: '모드리찌', ovr: 92, role: 'mid', era: 'madrid', hair: '#c9a46a', skin: '#f0c8a2' },
-    marcel: { name: '마르쎌루', ovr: 87, role: 'winger', era: 'madrid', hair: '#2a1a10', skin: '#8a5a3a' },
-    golfbale: { name: '골프왕 베일리', ovr: 88, role: 'winger', era: 'madrid', hair: '#3a2a1a', skin: '#f1c9a5' },
-    buffonne: { name: '부퐁', ovr: 92, role: 'keeper', era: 'turin', hair: '#5a4a3a', skin: '#e8b892' },
-    maskchiello: { name: '끼엘리니', ovr: 88, role: 'defender', era: 'turin', hair: '#3a3a3a', skin: '#e0ac84' },
-    vdsar: { name: '판데르싸르', ovr: 87, role: 'keeper', era: 'manchester', hair: '#c9a46a', skin: '#f1c9a5' },
-    rioferd: { name: '리오 퍼디난도', ovr: 88, role: 'defender', era: 'manchester', hair: '#111111', skin: '#8a5a3a' },
-    brunofk: { name: '브루노 페르난데쓰', ovr: 86, role: 'mid', era: 'manchester2', hair: '#3a2a1a', skin: '#e3b48c' },
-    sadiomane: { name: '사디오 마녜', ovr: 86, role: 'winger', era: 'riyadh', hair: '#111111', skin: '#5a3a26' },
-    talis: { name: '탈리스까', ovr: 79, role: 'striker', era: 'riyadh', hair: '#1a1a1a', skin: '#a8714a' },
-    bernardo: { name: '베르나르두 씰바', ovr: 87, role: 'mid', era: 'national', hair: '#3a2a1a', skin: '#e3b48c' },
-    quaresmo: { name: '콰레스망', ovr: 81, role: 'winger', era: 'national', hair: '#111111', skin: '#a8714a' },
-    hugovia: { name: '위고 비아냐', ovr: 74, role: 'mid', era: 'lisbon', hair: '#3a2a1a', skin: '#e3b48c' },
-    lisbongk: { name: '사자굴 수문장', ovr: 72, role: 'keeper', era: 'lisbon', hair: '#1a1a1a', skin: '#c99a73' },
-    parkji: { name: '박지썽', ovr: 83, role: 'winger', era: 'manchester', hair: '#111111', skin: '#e8c09a' },
-    dybalino: { name: '디발리노', ovr: 86, role: 'striker', era: 'turin', hair: '#2a1a10', skin: '#e8b892' },
-    pjanic: { name: '퍄니찌', ovr: 84, role: 'mid', era: 'turin', hair: '#1a1a1a', skin: '#e0ac84' },
-    cuadrado: { name: '콰드라또', ovr: 82, role: 'winger', era: 'turin', hair: '#111111', skin: '#7a4a2a' },
-    rashy: { name: '래쉬포드', ovr: 83, role: 'winger', era: 'manchester2', hair: '#111111', skin: '#6a4430' },
-    degea: { name: '데헤아노', ovr: 88, role: 'keeper', era: 'manchester2', hair: '#2a1a10', skin: '#e8b892' },
-    varanne: { name: '바란느', ovr: 87, role: 'defender', era: 'manchester2', hair: '#111111', skin: '#9a6a48' },
-    brozo: { name: '브로조비찌', ovr: 82, role: 'mid', era: 'riyadh', hair: '#c9a46a', skin: '#f0c8a2' },
-    laporto: { name: '라포르뜨', ovr: 84, role: 'defender', era: 'riyadh', hair: '#1a1a1a', skin: '#e0ac84' },
-    bentoz: { name: '벤뚜', ovr: 78, role: 'keeper', era: 'riyadh', hair: '#111111', skin: '#9a6a48' },
-    dias: { name: '후벵 디아쓰', ovr: 88, role: 'defender', era: 'national', hair: '#111111', skin: '#c99a73' },
-    brunopt: { name: '비티냥', ovr: 86, role: 'mid', era: 'national', hair: '#1a1a1a', skin: '#e0ac84' },
-    leaozinho: { name: '라파엘 레옹', ovr: 85, role: 'striker', era: 'national', hair: '#111111', skin: '#6a4430' },
+    pepperoni: { name: '페페로니', ovr: 85, role: 'defender', era: 'madrid', yrs: [2009, 2017], hair: '#1a1a1a', skin: '#c99a73' },
+    gingerscorp: { name: '폴 스콜쓰', ovr: 88, role: 'mid', era: 'manchester', yrs: [2003, 2008], hair: '#d0702a', skin: '#f1c9a5' },
+    looneytoon: { name: '루니툰', ovr: 89, role: 'striker', era: 'manchester', yrs: [2004, 2008], hair: '#6a4a2a', skin: '#f1c9a5' },
+    tumblenano: { name: '나니뇨', ovr: 80, role: 'winger', era: 'manchester', yrs: [2007, 2008], hair: '#1a1a1a', skin: '#a8714a' },
+    saintcasi: { name: '카시야쓰', ovr: 90, role: 'keeper', era: 'madrid', yrs: [2009, 2015], hair: '#2a1a10', skin: '#e8b892' },
+    ramong: { name: '라몬스', ovr: 90, role: 'defender', era: 'madrid', yrs: [2009, 2017], hair: '#3a2a1a', skin: '#e0ac84' },
+    ozilly: { name: '외질리', ovr: 87, role: 'mid', era: 'madrid', yrs: [2010, 2013], hair: '#111111', skin: '#e3b48c' },
+    benjamin: { name: '벤제마왕', ovr: 90, role: 'striker', era: 'madrid', yrs: [2009, 2017], hair: '#151515', skin: '#c8956a' },
+    modric: { name: '모드리찌', ovr: 92, role: 'mid', era: 'madrid', yrs: [2012, 2017], hair: '#c9a46a', skin: '#f0c8a2' },
+    marcel: { name: '마르쎌루', ovr: 87, role: 'winger', era: 'madrid', yrs: [2009, 2017], hair: '#2a1a10', skin: '#8a5a3a' },
+    golfbale: { name: '골프왕 베일리', ovr: 88, role: 'winger', era: 'madrid', yrs: [2013, 2017], hair: '#3a2a1a', skin: '#f1c9a5' },
+    buffonne: { name: '부퐁', ovr: 92, role: 'keeper', era: 'turin', yrs: [2019, 2020], hair: '#5a4a3a', skin: '#e8b892' },
+    maskchiello: { name: '끼엘리니', ovr: 88, role: 'defender', era: 'turin', yrs: [2018, 2020], hair: '#3a3a3a', skin: '#e0ac84' },
+    vdsar: { name: '판데르싸르', ovr: 87, role: 'keeper', era: 'manchester', yrs: [2005, 2008], hair: '#c9a46a', skin: '#f1c9a5' },
+    rioferd: { name: '리오 퍼디난도', ovr: 88, role: 'defender', era: 'manchester', yrs: [2003, 2008], hair: '#111111', skin: '#8a5a3a' },
+    brunofk: { name: '브루노 페르난데쓰', ovr: 86, role: 'mid', era: 'manchester2', yrs: [2021, 2022], hair: '#3a2a1a', skin: '#e3b48c' },
+    sadiomane: { name: '사디오 마녜', ovr: 86, role: 'winger', era: 'riyadh', yrs: [2023, 2025], hair: '#111111', skin: '#5a3a26' },
+    talis: { name: '탈리스까', ovr: 79, role: 'striker', era: 'riyadh', yrs: [2023, 2024], hair: '#1a1a1a', skin: '#a8714a' },
+    bernardo: { name: '베르나르두 씰바', ovr: 87, role: 'mid', era: 'national', yrs: [2026, 2026], hair: '#3a2a1a', skin: '#e3b48c' },
+    quaresmo: { name: '콰레스망', ovr: 79, role: 'winger', era: 'lisbon', yrs: [2002, 2002], hair: '#111111', skin: '#a8714a' },
+    hugovia: { name: '위고 비아냐', ovr: 74, role: 'mid', era: 'lisbon', yrs: [2002, 2002], hair: '#3a2a1a', skin: '#e3b48c' },
+    lisbongk: { name: '사자굴 수문장', ovr: 72, role: 'keeper', era: 'lisbon', yrs: [2002, 2002], hair: '#1a1a1a', skin: '#c99a73' },
+    parkji: { name: '박지썽', ovr: 83, role: 'winger', era: 'manchester', yrs: [2005, 2008], hair: '#111111', skin: '#e8c09a' },
+    dybalino: { name: '디발리노', ovr: 86, role: 'striker', era: 'turin', yrs: [2018, 2020], hair: '#2a1a10', skin: '#e8b892' },
+    pjanic: { name: '퍄니찌', ovr: 84, role: 'mid', era: 'turin', yrs: [2018, 2020], hair: '#1a1a1a', skin: '#e0ac84' },
+    cuadrado: { name: '콰드라또', ovr: 82, role: 'winger', era: 'turin', yrs: [2018, 2020], hair: '#111111', skin: '#7a4a2a' },
+    rashy: { name: '래쉬포드', ovr: 83, role: 'winger', era: 'manchester2', yrs: [2021, 2022], hair: '#111111', skin: '#6a4430' },
+    degea: { name: '데헤아노', ovr: 88, role: 'keeper', era: 'manchester2', yrs: [2021, 2022], hair: '#2a1a10', skin: '#e8b892' },
+    varanne: { name: '바란느', ovr: 87, role: 'defender', era: 'manchester2', yrs: [2021, 2022], hair: '#111111', skin: '#9a6a48' },
+    brozo: { name: '브로조비찌', ovr: 82, role: 'mid', era: 'riyadh', yrs: [2023, 2025], hair: '#c9a46a', skin: '#f0c8a2' },
+    laporto: { name: '라포르뜨', ovr: 84, role: 'defender', era: 'riyadh', yrs: [2023, 2025], hair: '#1a1a1a', skin: '#e0ac84' },
+    bentoz: { name: '벤뚜', ovr: 78, role: 'keeper', era: 'riyadh', yrs: [2024, 2025], hair: '#111111', skin: '#9a6a48' },
+    dias: { name: '후벵 디아쓰', ovr: 88, role: 'defender', era: 'national', yrs: [2026, 2026], hair: '#111111', skin: '#c99a73' },
+    brunopt: { name: '비티냥', ovr: 86, role: 'mid', era: 'national', yrs: [2026, 2026], hair: '#1a1a1a', skin: '#e0ac84' },
+    leaozinho: { name: '라파엘 레옹', ovr: 85, role: 'striker', era: 'national', yrs: [2026, 2026], hair: '#111111', skin: '#6a4430' },
     // ---- 메시 career teammates (youth first)
-    alleypal: { name: '골목 단짝', ovr: 60, role: 'mid', era: 'rosario', hair: '#2a1a10', skin: '#e8b892' },
-    tinykeeper: { name: '87년생 꼬마 골키퍼', ovr: 58, role: 'keeper', era: 'rosario', hair: '#1a1a1a', skin: '#e0ac84' },
-    alleyback: { name: '골목대장 수비수', ovr: 59, role: 'defender', era: 'rosario', hair: '#3a2a1a', skin: '#c99a73' },
-    cescino: { name: '꼬마 쎄스크', ovr: 70, role: 'mid', era: 'masia', hair: '#2a1a10', skin: '#e8b892' },
-    piquechu: { name: '꼬마 피케츄', ovr: 69, role: 'defender', era: 'masia', hair: '#3a2a1a', skin: '#f0c8a2' },
-    youthcap: { name: '유스 주장 바스께스', ovr: 66, role: 'striker', era: 'masia', hair: '#1a1a1a', skin: '#e0ac84' },
-    dingyo: { name: '호나우딩요', ovr: 91, role: 'winger', era: 'barcelona', hair: '#111111', skin: '#8a5a3a', style: 'long' }, // style: fixed haircut
-    iniestar: { name: '니에미스타', ovr: 92, role: 'mid', era: 'barcelona', hair: '#3a3a3a', skin: '#f0c8a2', style: 'bald' },
-    xavino: { name: '챠비', ovr: 92, role: 'mid', era: 'barcelona', hair: '#2a1a10', skin: '#e8b892', style: 'short' },
-    puyolion: { name: '뿌욜', ovr: 88, role: 'defender', era: 'barcelona', hair: '#4a3020', skin: '#e0ac84', style: 'long' },
-    valdes: { name: '발데쓰', ovr: 84, role: 'keeper', era: 'barcelona', hair: '#1a1a1a', skin: '#e8b892' },
-    alvesrun: { name: '다니 알베쓰', ovr: 87, role: 'winger', era: 'barcelona', hair: '#111111', skin: '#9a6a48' },
-    suarezbite: { name: '수아레즈', ovr: 91, role: 'striker', era: 'barcelona', hair: '#1a1a1a', skin: '#e0ac84' },
-    neytrick: { name: '네이마루', ovr: 90, role: 'winger', era: 'barcelona', hair: '#2a1a10', skin: '#c8956a' },
-    etoocheetah: { name: '에뚜', ovr: 88, role: 'striker', era: 'barcelona', hair: '#111111', skin: '#5a3a26' },
-    busquetsorch: { name: '부스께츠', ovr: 87, role: 'mid', era: 'barcelona', hair: '#1a1a1a', skin: '#e3b48c' },
-    stegenwall: { name: '테어슈테건', ovr: 88, role: 'keeper', era: 'barcelona', hair: '#c9a46a', skin: '#f1c9a5' },
-    mbaflash: { name: '음바뻬', ovr: 91, role: 'striker', era: 'paris', hair: '#111111', skin: '#8a5a3a' },
-    donnarum: { name: '돈나룸바', ovr: 87, role: 'keeper', era: 'paris', hair: '#3a2a1a', skin: '#e8b892' },
-    verratino: { name: '베라띠', ovr: 86, role: 'mid', era: 'paris', hair: '#1a1a1a', skin: '#e3b48c' },
-    hakimiwing: { name: '하킴이', ovr: 85, role: 'winger', era: 'paris', hair: '#111111', skin: '#a8714a' },
-    albamiami: { name: '조르디 알바생', ovr: 80, role: 'defender', era: 'miami', hair: '#1a1a1a', skin: '#e0ac84' },
-    busquetsmia: { name: '마이애미 부스께츠', ovr: 80, role: 'mid', era: 'miami', hair: '#1a1a1a', skin: '#e3b48c', same: 'busquetsorch' },
-    suarezmia: { name: '마이애미 수아레즈', ovr: 82, role: 'striker', era: 'miami', hair: '#1a1a1a', skin: '#e0ac84', same: 'suarezbite' },
-    dibugk: { name: '디부 마르띠', ovr: 86, role: 'keeper', era: 'argentina', hair: '#1a1a1a', skin: '#e0ac84' },
-    dimariangel: { name: '디마리오', ovr: 87, role: 'winger', era: 'argentina', hair: '#3a2a1a', skin: '#e8b892' },
-    julianfin: { name: '훌리안 알바레쓰', ovr: 85, role: 'striker', era: 'argentina', hair: '#2a1a10', skin: '#f0c8a2' },
-    otamendiwall: { name: '오따멘디', ovr: 82, role: 'defender', era: 'argentina', hair: '#1a1a1a', skin: '#e0ac84' },
-    enzomid: { name: '엔쪼', ovr: 84, role: 'mid', era: 'argentina', hair: '#1a1a1a', skin: '#e8b892' }
+    alleypal: { name: '골목 단짝', ovr: 60, role: 'mid', era: 'rosario', yrs: [1995, 1998], hair: '#2a1a10', skin: '#e8b892' },
+    tinykeeper: { name: '87년생 꼬마 골키퍼', ovr: 58, role: 'keeper', era: 'rosario', yrs: [1995, 1998], hair: '#1a1a1a', skin: '#e0ac84' },
+    alleyback: { name: '골목대장 수비수', ovr: 59, role: 'defender', era: 'rosario', yrs: [1995, 1998], hair: '#3a2a1a', skin: '#c99a73' },
+    cescino: { name: '꼬마 쎄스크', ovr: 70, role: 'mid', era: 'masia', yrs: [2001, 2001], hair: '#2a1a10', skin: '#e8b892' },
+    piquechu: { name: '꼬마 피케츄', ovr: 69, role: 'defender', era: 'masia', yrs: [2001, 2001], hair: '#3a2a1a', skin: '#f0c8a2' },
+    youthcap: { name: '유스 주장 바스께스', ovr: 66, role: 'striker', era: 'masia', yrs: [2001, 2001], hair: '#1a1a1a', skin: '#e0ac84' },
+    dingyo: { name: '호나우딩요', ovr: 91, role: 'winger', era: 'barcelona', yrs: [2004, 2007], hair: '#111111', skin: '#8a5a3a', style: 'long' }, // style: fixed haircut
+    iniestar: { name: '니에미스타', ovr: 92, role: 'mid', era: 'barcelona', yrs: [2004, 2018], hair: '#3a3a3a', skin: '#f0c8a2', style: 'bald' },
+    xavino: { name: '챠비', ovr: 92, role: 'mid', era: 'barcelona', yrs: [2004, 2015], hair: '#2a1a10', skin: '#e8b892', style: 'short' },
+    puyolion: { name: '뿌욜', ovr: 88, role: 'defender', era: 'barcelona', yrs: [2004, 2014], hair: '#4a3020', skin: '#e0ac84', style: 'long' },
+    valdes: { name: '발데쓰', ovr: 84, role: 'keeper', era: 'barcelona', yrs: [2004, 2014], hair: '#1a1a1a', skin: '#e8b892' },
+    alvesrun: { name: '다니 알베쓰', ovr: 87, role: 'winger', era: 'barcelona', yrs: [2008, 2016], hair: '#111111', skin: '#9a6a48' },
+    suarezbite: { name: '수아레즈', ovr: 91, role: 'striker', era: 'barcelona', yrs: [2015, 2020], hair: '#1a1a1a', skin: '#e0ac84' },
+    neytrick: { name: '네이마루', ovr: 90, role: 'winger', era: 'barcelona', yrs: [2013, 2017], hair: '#2a1a10', skin: '#c8956a' },
+    etoocheetah: { name: '에뚜', ovr: 88, role: 'striker', era: 'barcelona', yrs: [2004, 2009], hair: '#111111', skin: '#5a3a26' },
+    busquetsorch: { name: '부스께츠', ovr: 87, role: 'mid', era: 'barcelona', yrs: [2008, 2020], hair: '#1a1a1a', skin: '#e3b48c' },
+    stegenwall: { name: '테어슈테건', ovr: 88, role: 'keeper', era: 'barcelona', yrs: [2015, 2020], hair: '#c9a46a', skin: '#f1c9a5' },
+    mbaflash: { name: '음바뻬', ovr: 91, role: 'striker', era: 'paris', yrs: [2021, 2023], hair: '#111111', skin: '#8a5a3a' },
+    donnarum: { name: '돈나룸바', ovr: 87, role: 'keeper', era: 'paris', yrs: [2021, 2023], hair: '#3a2a1a', skin: '#e8b892' },
+    verratino: { name: '베라띠', ovr: 86, role: 'mid', era: 'paris', yrs: [2021, 2023], hair: '#1a1a1a', skin: '#e3b48c' },
+    hakimiwing: { name: '하킴이', ovr: 85, role: 'winger', era: 'paris', yrs: [2021, 2023], hair: '#111111', skin: '#a8714a' },
+    albamiami: { name: '조르디 알바생', ovr: 80, role: 'defender', era: 'miami', yrs: [2023, 2025], hair: '#1a1a1a', skin: '#e0ac84' },
+    busquetsmia: { name: '마이애미 부스께츠', ovr: 80, role: 'mid', era: 'miami', yrs: [2023, 2025], hair: '#1a1a1a', skin: '#e3b48c', same: 'busquetsorch' },
+    suarezmia: { name: '마이애미 수아레즈', ovr: 82, role: 'striker', era: 'miami', yrs: [2024, 2025], hair: '#1a1a1a', skin: '#e0ac84', same: 'suarezbite' },
+    dibugk: { name: '디부 마르띠', ovr: 86, role: 'keeper', era: 'argentina', yrs: [2022, 2026], hair: '#1a1a1a', skin: '#e0ac84' },
+    dimariangel: { name: '디마리오', ovr: 87, role: 'winger', era: 'argentina', yrs: [2022, 2024], hair: '#3a2a1a', skin: '#e8b892' },
+    julianfin: { name: '훌리안 알바레쓰', ovr: 85, role: 'striker', era: 'argentina', yrs: [2022, 2026], hair: '#2a1a10', skin: '#f0c8a2' },
+    otamendiwall: { name: '오따멘디', ovr: 82, role: 'defender', era: 'argentina', yrs: [2022, 2026], hair: '#1a1a1a', skin: '#e0ac84' },
+    enzomid: { name: '엔쪼', ovr: 84, role: 'mid', era: 'argentina', yrs: [2022, 2026], hair: '#1a1a1a', skin: '#e8b892' },
+    // ---- 토레쓰 career teammates (round 11)
+    atlkeeper: { name: '줄무늬단 수문장', ovr: 74, role: 'keeper', era: 'atletico', yrs: [2001, 2004], hair: '#1a1a1a', skin: '#e0ac84' },
+    atlmate: { name: '유스 동기 미드필더', ovr: 72, role: 'mid', era: 'atletico', yrs: [2001, 2004], hair: '#3a2a1a', skin: '#e8b892' },
+    atlback: { name: '2부 리그 센터백', ovr: 73, role: 'defender', era: 'atletico', yrs: [2001, 2003], hair: '#2a1a10', skin: '#c99a73' },
+    gabi: { name: '가비', ovr: 79, role: 'mid', era: 'atletico', yrs: [2004, 2006], hair: '#2a1a10', skin: '#e0ac84' },
+    ibagaza: { name: '이바가싸', ovr: 82, role: 'mid', era: 'atletico', yrs: [2004, 2006], hair: '#1a1a1a', skin: '#e8b892' },
+    leofranco: { name: '레오 프랑꼬', ovr: 80, role: 'keeper', era: 'atletico', yrs: [2005, 2006], hair: '#3a2a1a', skin: '#e8b892' },
+    pabloib: { name: '파블로 이바녜쓰', ovr: 80, role: 'defender', era: 'atletico', yrs: [2005, 2006], hair: '#1a1a1a', skin: '#e0ac84' },
+    maxirod: { name: '막시 로드리게쓰', ovr: 81, role: 'winger', era: 'atletico', yrs: [2006, 2006], hair: '#2a1a10', skin: '#e3b48c' },
+    aguerito: { name: '꾼 아게로', ovr: 84, role: 'striker', era: 'atletico', yrs: [2006, 2006], hair: '#1a1a1a', skin: '#c8956a' },
+    gerrardo: { name: '제라두', ovr: 90, role: 'mid', era: 'liverpool', yrs: [2007, 2010], hair: '#5a3a20', skin: '#f1c9a5' },
+    carraga: { name: '캐라거', ovr: 85, role: 'defender', era: 'liverpool', yrs: [2007, 2010], hair: '#3a2a1a', skin: '#f1c9a5' },
+    reinaa: { name: '레이냐', ovr: 87, role: 'keeper', era: 'liverpool', yrs: [2007, 2010], hair: '#1a1a1a', skin: '#e0ac84' },
+    xabialon: { name: '사비 알론쏘', ovr: 87, role: 'mid', era: 'liverpool', yrs: [2007, 2009], hair: '#3a2a1a', skin: '#e3b48c' },
+    maschera: { name: '마스께라노', ovr: 85, role: 'mid', era: 'liverpool', yrs: [2007, 2010], hair: '#1a1a1a', skin: '#e0ac84' },
+    kuyto: { name: '카위트', ovr: 82, role: 'winger', era: 'liverpool', yrs: [2007, 2010], hair: '#c9a46a', skin: '#f1c9a5' },
+    drogbro: { name: '드록빠', ovr: 89, role: 'striker', era: 'chelseat', yrs: [2011, 2012], hair: '#111111', skin: '#5a3a26' },
+    lampardo: { name: '람빠드', ovr: 88, role: 'mid', era: 'chelseat', yrs: [2011, 2014], hair: '#6a4a2a', skin: '#f1c9a5' },
+    cechwall: { name: '쩨흐', ovr: 89, role: 'keeper', era: 'chelseat', yrs: [2011, 2014], hair: '#1a1a1a', skin: '#f0c8a2' },
+    terrycap: { name: '존 테뤼', ovr: 87, role: 'defender', era: 'chelseat', yrs: [2011, 2014], hair: '#2a1a10', skin: '#f1c9a5' },
+    dluiz: { name: '다비드 루이쓰', ovr: 84, role: 'defender', era: 'chelseat', yrs: [2011, 2014], hair: '#3a2a1a', skin: '#c8956a', style: 'long' },
+    matamagic: { name: '후안 마따', ovr: 86, role: 'mid', era: 'chelseat', yrs: [2012, 2013], hair: '#1a1a1a', skin: '#e8b892' },
+    hazardo: { name: '에당 아자흐', ovr: 88, role: 'winger', era: 'chelseat', yrs: [2013, 2014], hair: '#2a1a10', skin: '#e0ac84' },
+    griezo: { name: '그리즈망', ovr: 89, role: 'striker', era: 'atletico2', yrs: [2015, 2018], hair: '#c9a46a', skin: '#f0c8a2' },
+    oblako: { name: '오블라끄', ovr: 90, role: 'keeper', era: 'atletico2', yrs: [2015, 2018], hair: '#3a2a1a', skin: '#f1c9a5' },
+    godinwall: { name: '고딘', ovr: 88, role: 'defender', era: 'atletico2', yrs: [2015, 2018], hair: '#1a1a1a', skin: '#e0ac84' },
+    kokemid: { name: '코께', ovr: 86, role: 'mid', era: 'atletico2', yrs: [2015, 2018], hair: '#1a1a1a', skin: '#e8b892' },
+    gabicap: { name: '주장 가비', ovr: 84, role: 'mid', era: 'atletico2', yrs: [2015, 2018], hair: '#2a1a10', skin: '#e0ac84', same: 'gabi' },
+    saulino: { name: '사울', ovr: 84, role: 'mid', era: 'atletico2', yrs: [2016, 2018], hair: '#2a1a10', skin: '#e3b48c' },
+    carrasko: { name: '카라스꼬', ovr: 83, role: 'winger', era: 'atletico2', yrs: [2016, 2017], hair: '#1a1a1a', skin: '#e8b892' },
+    tosucap: { name: '도스 주장', ovr: 76, role: 'mid', era: 'tosu', yrs: [2019, 2019], hair: '#1a1a1a', skin: '#f0c8a2' },
+    tosugk: { name: '도스 수문장', ovr: 75, role: 'keeper', era: 'tosu', yrs: [2019, 2019], hair: '#1a1a1a', skin: '#f0c8a2' },
+    tosuwing: { name: '도스 윙어', ovr: 74, role: 'winger', era: 'tosu', yrs: [2019, 2019], hair: '#2a1a10', skin: '#f0c8a2' },
+    // the 토레쓰 reward (RS.TORRES_REWARDS): he joins any career's squad
+    torresmate: { name: '토레쓰', ovr: 90, role: 'striker', era: 'chelseat', special: true, hair: '#e0a84a', skin: '#f0c8a0', style: 'torres' }
   };
 
   // ---------------------------------------------------------------- Enemies
@@ -1040,7 +1216,7 @@
   RS.IFRAMES = 0.55; // seconds of invulnerability after a hit (crowds can hit at most this often)
   RS.MINI_TYPES = ['brute', 'enforcer'];
   // manual slide (슬라이딩 버튼): invulnerable dash with a gradient trail; cooldown per hero
-  RS.SLIDE = { speed: 420, dur: 0.28, dmg: 12, cd: { ronaldo: 5, messi: 3 } }; // 메시: quicker feet, shorter cooldown
+  RS.SLIDE = { speed: 420, dur: 0.28, dmg: 12, cd: { ronaldo: 5, messi: 3, torres: 4 } }; // 메시: quicker feet, shorter cooldown
 
   // Season bosses — archetypes reused with parody names per year.
   // Each archetype has its own signature so fights feel different:
@@ -1057,8 +1233,15 @@
     // with less rest between them and a longer fight
     drogba: { hp: 600, fight: 1.35, speed: 46, r: 13, dmg: 19, actions: ['snipe', 'dash', 'pslam', 'wall', 'burst', 'dash', 'snipe'], cool: 1.35, sprite: 'bdrogba', sig: '대포알 슛·몸싸움 돌진·헤더 강타·버스 수비' },
     messi: { hp: 700, fight: 1.4, speed: 70, r: 9, dmg: 18, actions: [], cool: 1.25, sprite: 'messi', sig: '드리블·감아차기·발리' }, // the final: a long duel
-    ronaldo: { hp: 720, fight: 1.4, speed: 62, r: 10, dmg: 18, actions: [], cool: 1.25, sprite: 'ronaldo', sig: '무회전·헤딩 강타·SIUU' } // 메시 career final
+    ronaldo: { hp: 720, fight: 1.4, speed: 62, r: 10, dmg: 18, actions: [], cool: 1.25, sprite: 'ronaldo', sig: '무회전·헤딩 강타·SIUU' }, // 메시 career final
+    // round 11: the special boss who runs on after 드록빠 (RS.TORRES) — runs in behind, chips and strikes quickly
+    torres: { hp: 560, fight: 1, speed: 56, r: 10, dmg: 16, actions: ['dash', 'snipe', 'burst', 'dash', 'pslam'], cool: 1.4, sprite: 'btorres', sig: '단독 돌파·칩슛·속공' }
   };
+  // 토레쓰 (round 11): when 드록빠 falls the season is already cleared, and 토레쓰 runs on at once for `window`
+  // seconds. Beating him is optional: it gives one pick of RS.TORRES_REWARDS (career.js) and unlocks his career
+  // (RS.HEROES.torres, meta.unlocked.torres); the window closing or the hero going down just ends the clear.
+  // secs: share of the window his HP is set to (from the damage that really lands, like the 클라시코 rival).
+  RS.TORRES = { window: 30, secs: 0.5, name: '페르난도 토레쓰' };
   // Final bosses: phase 1 → roar at 50 % HP → phase 2 rage (two action lists per boss).
   RS.FINAL = {
     messi: {
@@ -1156,6 +1339,29 @@
     Y(2025, 'miami', 'mascherano', '서포터스 실드', 'keeper', 'MLS 결승 수문장', 'MLS 정규리그 1위 서포터스 실드. 결승 무대의 수문장과 승부.'),
     Y(2026, 'argentina', 'scaloni', '마지막 월드컵 — 최종 결전', 'ronaldo', '호날두', '마지막 월드컵. 20년을 함께 달려온 영원한 라이벌, 호날두와의 최종 결전.', { final: true })
   ];
+  // 토레쓰 career (round 11; unlocked by beating him after 드록빠): debut at 17 in 2001 for his home club, the
+  // 리버풀 and 첼씨 years, home again, then 사간 도스 and a last duel with 메시 (Camp Nou 2012 was his).
+  RS.YEARS_TORRES = [
+    Y(2001, 'atletico', 'aragones', '17세 데뷔, 엘 니뇨', 'keeper', '2부 리그 베테랑 수문장', '열일곱 살, 2부 리그로 떨어진 고향 팀의 1군 데뷔. 앳된 얼굴에 붙은 별명은 "엘 니뇨(꼬마)". 골문엔 산전수전 다 겪은 베테랑 수문장이 버틴다.'),
+    Y(2002, 'atletico', 'aragones', '1부 리그 승격', 'tackler', '라리가 백태클러', '고향 팀을 1부 리그로 다시 끌어올렸다. 라리가의 거친 수비수들이 꼬마 공격수를 노린다.'),
+    Y(2003, 'atletico', 'aragones', '열아홉 살 주장', 'maestro', '이웃집 백색군단 지휘자', '열아홉 살에 주장 완장을 찼다. 마드리드 더비, 이웃집 백색군단의 중원 지휘자가 길을 막는다.'),
+    Y(2004, 'atletico', 'aragones', '유로 2004 조별 탈락', 'giant', '포르투갈 철벽 수비대장', '첫 메이저 대회 유로 2004. 개최국 포르투갈에 0-1로 지며 조별리그에서 짐을 쌌다. 그날의 철벽 수비대장과 다시 만난다.', { trial: 1 }),
+    Y(2005, 'atletico', 'aragones', '줄무늬의 심장', 'striker', '라리가 득점왕 경쟁자', '팀이 흔들려도 골은 늘 토레쓰의 몫. 라리가 득점 경쟁자와 골 대결을 벌인다.'),
+    Y(2006, 'atletico', 'aragones', '독일 월드컵 16강', 'referee', '16강 프랑스전 주심', '독일 월드컵 조별리그 3골. 하지만 16강에서 프랑스에 1-3으로 졌다. 그날 휘슬을 분 주심이 상대다.'),
+    Y(2007, 'liverpool', 'benitez', '리버풀 이적, 데뷔 시즌 24골', 'tackler', '프리미어 백태클러', '고향을 떠나 리버풀로. 데뷔 시즌 리그 24골을 넣었다. 프리미어리그의 백태클이 기다린다.'),
+    Y(2008, 'liverpool', 'benitez', '유로 2008 결승골', 'keeper', '빈 결승 독일 수문장', '빈에서 열린 유로 2008 결승. 수비 뒷공간을 파고들어 독일 수문장 위로 공을 띄운 한 방으로 44년 만의 우승을 안겼다.'),
+    Y(2009, 'liverpool', 'benitez', '올드 트래퍼드 4-1', 'giant', '맨체스터 철벽 비디찌', '맨체스터 원정 4-1 대승. 철벽 수비수 비디찌를 속도로 무너뜨린 밤, 그 철벽이 복수를 노린다.'),
+    Y(2010, 'liverpool', 'benitez', '남아공 월드컵 우승', 'maestro', '오렌지 군단 지휘자', '남아공 월드컵 우승. 부상을 안고 뛰었지만 결승에서 오렌지 군단을 넘었다.'),
+    Y(2011, 'chelseat', 'eyebrow', '5천만 파운드 이적', 'tackler', '친정팀 수비대장 캐라거', '영국 최고 이적료로 첼씨에 입단. 데뷔전 상대는 하필 친정팀 리버풀, 옛 동료 수비대장이 몸으로 막아선다.'),
+    Y(2012, 'chelseat', 'dimatteo', '캄프 누 단독 돌파, 유럽 정상', 'keeper', '뮌헨 결승 수문장 노이어르', '캄프 누 4강, 하프라인부터 혼자 달려 쐐기골. 뮌헨 결승은 승부차기 끝에 우승했고, 여름엔 유로 2012 결승골과 득점왕까지.'),
+    Y(2013, 'chelseat', 'benitez', '유로파리그 우승', 'striker', '암스테르담 결승 저격수', '암스테르담 유로파리그 결승에서 선제골. 상대 팀 저격수와 맞붙는다.'),
+    Y(2014, 'chelseat', 'special', '무링요의 첼씨', 'giant', '프리미어 거인 센터백', '스페셜 원이 돌아왔다. 출전 시간은 줄었지만 거인 센터백들과의 몸싸움은 계속된다.', { trial: 1 }),
+    Y(2015, 'atletico2', 'simeone', '고향 복귀, 4만 관중', 'maestro', '베르나베우 백색군단 지휘자', '4만 5천 관중의 환영 속에 고향 팀으로 돌아왔다. 복귀 직후 베르나베우 원정에서 두 골, 백색군단 지휘자와 다시 더비.'),
+    Y(2016, 'atletico2', 'simeone', '밀라노 결승의 눈물', 'ronaldo', '호날두', '밀라노 챔스 결승, 마드리드 더비는 승부차기까지 갔다. 우승을 확정한 마지막 키커는 날두. 그 날두를 넘어야 한다.', { rivalBoss: true, trial: 2 }),
+    Y(2017, 'atletico2', 'simeone', '공포의 충돌, 다시 일어서다', 'giant', '공중볼 경합의 거인', '공중볼 경합에서 머리를 부딪쳐 의식을 잃었지만 며칠 만에 그라운드로 돌아왔다. 그 거인을 다시 넘는다.'),
+    Y(2018, 'atletico2', 'simeone', '유로파리그 우승, 고향과의 작별', 'tackler', '리옹 결승 수비대장', '리옹 유로파리그 결승 우승, 고향 팀에서 들어 올린 첫 큰 트로피. 눈물의 작별 뒤 일본으로.'),
+    Y(2019, 'tosu', 'tosu', '은퇴 무대 — 최종 결전', 'messi', '메시', '사간 도스에서 맞는 마지막 시즌. 2012년 캄프 누에서 울렸던 메시와 마지막으로 맞선다.', { final: true })
+  ];
   // ---------------------------------------------------------------- 엘 클라시코 (the rival as a mid-season boss)
   // 날두 in 마드리드 (2009–2018) meets 메시's 바르샤 every season: 날두's seasons 2009–2017 and 메시's 2010–2018 get
   // the rival at the middle of the stage (World.spawnRival) for RS.RIVAL_WINDOW seconds. Kill him = 클라시코 win;
@@ -1166,21 +1372,31 @@
   RS.RIVAL_WINDOW = 30;
   RS.RIVAL_FANS = 8; // 민심 per 클라시코 won (+) or lost (−)
   RS.RIVAL_HIT_SHARE = 0.12; // share of the player's recent total output assumed to land on the rival
+  // secs: [base, per rivalLv] share of the window his HP aims at, capped at RIVAL_MAX_SHARE (round 11: the 9th
+  // 클라시코 asked for 38 s of a 30 s window, so he never fell)
   RS.RIVAL = {
-    messi: { name: '메시', tiers: [['dribble', 'curl'], ['volley'], ['encircle'], ['snipe'], ['summon'], ['dribble3']], rageAt: 3, hp: 0.3, dmg: 0.08, secs: [0.47, 0.1] },
-    ronaldo: { name: '호날두', tiers: [['dash', 'snipe'], ['burst'], ['pslam'], ['wall'], ['ring'], ['summon']], rageAt: 3, hp: 0.3, dmg: 0.08, secs: [0.47, 0.1] }
+    messi: { name: '메시', tiers: [['dribble', 'curl'], ['volley'], ['encircle'], ['snipe'], ['summon'], ['dribble3']], rageAt: 3, hp: 0.3, dmg: 0.08, secs: [0.4, 0.04] },
+    ronaldo: { name: '호날두', tiers: [['dash', 'snipe'], ['burst'], ['pslam'], ['wall'], ['ring'], ['summon']], rageAt: 3, hp: 0.3, dmg: 0.08, secs: [0.4, 0.04] }
   };
-  RS.RIVAL_CALIBRATIONS = 2; // the rival's HP follows the damage that lands only at the first two checkpoints
+  RS.RIVAL_MAX_SHARE = 0.7;
+  // The rival's (and 토레쓰's) HP follows the average damage landing on him since the first hit, at these seconds
+  // after it; never below RIVAL_FLOOR of a boss's base HP.
+  RS.RIVAL_CALIBRATE_AT = [5, 12];
+  RS.RIVAL_FLOOR = 0.03;
   for (const y of RS.YEARS) if (y.era === 'madrid') y.rival = 'messi';
   for (const y of RS.YEARS_MESSI) if (y.year >= 2010 && y.year <= 2018) y.rival = 'ronaldo';
-  for (const years of [RS.YEARS, RS.YEARS_MESSI]) { let n = 0; for (const y of years) if (y.rival) y.rivalLv = n++; }
+  for (const years of [RS.YEARS, RS.YEARS_MESSI, RS.YEARS_TORRES]) { let n = 0; for (const y of years) if (y.rival) y.rivalLv = n++; }
 
   // Playable heroes. selectHero() points RS.YEARS / DEBUT / BIRTH at the chosen career (one career at a time).
   RS.HEROES = {
     ronaldo: { name: '호날두', short: '날두', moveMul: 1, startSkill: 'kick', years: RS.YEARS, debut: 2002, birth: 1985, desc: '투사체 공격 · 슬라이딩 5초', rival: '메시' },
     // wall: ×RS.WALL's HP growth — his orbit, aura and stun hold a crowd off far better than 날두's shots
-    messi: { name: '메시', short: '메시', moveMul: 1.22, startSkill: 'orbit', years: RS.YEARS_MESSI, debut: 2004, birth: 1987, desc: '유소년부터 · 드리블과 공 기술 · 패스는 동료가 · 성장호르몬·약물 선택', rival: '호날두', wall: 3 }
+    messi: { name: '메시', short: '메시', moveMul: 1.22, startSkill: 'orbit', years: RS.YEARS_MESSI, debut: 2004, birth: 1987, desc: '유소년부터 · 드리블과 공 기술 · 패스는 동료가 · 성장호르몬·약물 선택', rival: '호날두', wall: 3 },
+    // round 11: unlocked by beating 토레쓰 after 드록빠 (meta.unlocked.torres); quick feet, 날두's shooting moves
+    // and his own 엘 니뇨 칩슛
+    torres: { name: '토레쓰', short: '토레쓰', moveMul: 1.1, startSkill: 'nino', years: RS.YEARS_TORRES, debut: 2001, birth: 1984, desc: '17세 데뷔 · 칩슛과 속공 · 슬라이딩 4초', rival: '메시', locked: true }
   };
+  RS.heroLocked = (meta, hero) => !!(RS.HEROES[hero] && RS.HEROES[hero].locked) && !(meta && meta.unlocked && meta.unlocked[hero]);
 
   // ---------------------------------------------------------------- Difficulty (이지 / 노멀 / 하드)
   // On top of the season curve: enemy HP, damage, spawn density and boss damage × these, and from the debut on
@@ -1191,10 +1407,11 @@
   // which the extra toughness grows in (the debut on 노멀 still plays as it always did; 하드 bites from the start).
   RS.DIFFS = {
     easy: { name: '이지', icon: '🙂', hp: 0.72, dmg: 0.65, spawn: 0.85, boss: 0.8, grow: 0, heal: 1.4, special: 1, poise: 1, bossCool: 1, ramp: 0, desc: '적이 약하고 회복이 자주 나온다. 처음이라면 여기서' },
-    normal: { name: '노멀', icon: '⚽', hp: 1.6, dmg: 1.5, spawn: 1.25, boss: 1.5, grow: 0.035, heal: 0.9, special: 0.85, poise: 0.85, bossCool: 0.95, ramp: 3, desc: '기본 난이도. 중반부터는 벽이 느껴진다 · 훈련장 강화가 필요하다' },
+    // round 11: grow 0.035 → 0.02 (normal), 0.08 → 0.045 (hard): one weapon grows far slower than six moves did
+    normal: { name: '노멀', icon: '⚽', hp: 1.6, dmg: 1.5, spawn: 1.25, boss: 1.5, grow: 0.02, heal: 0.9, special: 0.85, poise: 0.85, bossCool: 0.95, ramp: 3, desc: '기본 난이도. 중반부터는 벽이 느껴진다 · 훈련장 강화가 필요하다' },
     // grow 0.08 (round 10, was 0.05): with each match replayable from its seed, 완전 오토 with the whole 훈련장 still
     // cleared 하드 on 2 seeds of 8; now it stalls on every one between 2011 and 2017
-    hard: { name: '하드', icon: '🔥', hp: 2.4, dmg: 2.1, spawn: 1.5, boss: 2.2, grow: 0.08, heal: 0.45, special: 0.5, poise: 0.6, bossCool: 0.8, ramp: 1, desc: '적이 단단하고 아프며 잘 밀리지 않는다. 회복과 히든도 드물다. 오토로는 못 깬다' }
+    hard: { name: '하드', icon: '🔥', hp: 2.4, dmg: 2.1, spawn: 1.5, boss: 2.2, grow: 0.045, heal: 0.45, special: 0.5, poise: 0.6, bossCool: 0.8, ramp: 1, desc: '적이 단단하고 아프며 잘 밀리지 않는다. 회복과 히든도 드물다. 오토로는 못 깬다' }
   };
   RS.DIFF_ORDER = ['easy', 'normal', 'hard'];
   RS.DIFF = 'normal';
@@ -1479,10 +1696,18 @@
   // The mid-career wall: from pro season WALL.from on, the crowd outgrows a maxed build — per season past it
   // enemies gain hp/hp2 (linear/quadratic) HP, dmg damage, speed, spawn density and boss damage, and poise:
   // knockback and stun on them shrink to 1 / (1 + poise × seasons), so a crowd can no longer be held off forever.
-  RS.WALL = { from: 5, hp: 0.25, hp2: 0.012, dmg: 0.04, speed: 0.004, spawn: 0.025, boss: 0.05, poise: 0.12, ref: 0.08, final: 0 };
-  RS.FINAL_DMG = 0.11; // the final duel boss: damage × (1 + FINAL_DMG × season index)
+  // round 11: hp 0.25 → 0.05, hp2 0.012 → 0, spawn 0.025 → 0.015 (one weapon instead of six moves: the crowd outgrew
+  // even a 황금 +10 build and piled up to 300 men on screen)
+  RS.WALL = { from: 5, hp: 0.05, hp2: 0, dmg: 0.04, speed: 0.004, spawn: 0.015, boss: 0.05, poise: 0.12, ref: 0.08, final: 0 };
+  // the final duel boss: damage × (1 + FINAL_DMG × season index). Round 11: 0.11 → 0.065 — a one-weapon build
+  // (≈340 HP at the final) fell to four of 메시's balls: the strong bot won 4 finals of 8 and the weak bot none;
+  // now 7 of 8 (6 of them below half HP) and 2 of 8 (0.07 still left the weak bot without a win)
+  RS.FINAL_DMG = 0.065;
   // 고난의 시즌 (RS.YEARS[i].trial = 1–3): per level, on top of the curve.
-  RS.TRIAL = { hp: 0.18, dmg: 0.12, spawn: 0.1, boss: 0.15, fight: 0.12, poise: 0.1 };
+  // round 11: a hard season is tougher, not more crowded (spawn 0.1 → 0), and by about half as much (hp 0.18,
+  // dmg 0.12, boss 0.15, fight 0.12, poise 0.1 before): with one weapon 날두's four trial seasons in a row (2004-07)
+  // walled a strong bot with half the 훈련장 on 노멀 at 2007 in five seeds of nine
+  RS.TRIAL = { hp: 0.1, dmg: 0.07, spawn: 0, boss: 0.09, fight: 0.08, poise: 0.06 };
 
   // Per-year tuning derived from the difficulty index so new years need no extra numbers.
   RS.yearTuning = function (yearIdx) {
@@ -1496,21 +1721,24 @@
     // three pro seasons (the debut plays as it always did, so a newcomer can learn the controls)
     const D = RS.DIFFS[RS.DIFF] || RS.DIFFS.normal, g = 1 + D.grow * idx, ramp = D.ramp ? Math.min(1, idx / D.ramp) : 1;
     const dv = (v) => 1 + (v - 1) * ramp;
+    // round 11: the crowd's HP curve follows one weapon, not six moves (was 1 + 0.55 idx + 0.03 idx², bosses too)
+    const curve = 1 + 0.4 * idx + 0.004 * idx * idx;
     const t = {
-      hpMul: (1 + 0.55 * idx + 0.03 * idx * idx) * wallHp * (1 + T.hp * L) * dv(D.hp) * g,
+      hpMul: curve * wallHp * (1 + T.hp * L) * dv(D.hp) * g,
       wallHp, // 준보스 leave this out: they already scale with the season and must stay killable (World.spawnEnemy)
       dmgMul: (1 + 0.08 * idx) * gentle * (1 + W.dmg * w) * (1 + T.dmg * L) * dv(D.dmg) * g,
       wallDmg: 1 + W.dmg * w, // 준보스 leave this out too
       speedMul: 1 + 0.008 * idx + W.speed * w,
       poise: dv(D.poise) / (1 + W.poise * w + T.poise * L), // × knockback and stun taken by ordinary enemies
-      spawnRate: (2.3 + 0.18 * idx) * (idx === 0 ? 0.5 : 1) * (1 + W.spawn * w) * (1 + T.spawn * L) * dv(D.spawn),
+      // round 11: far fewer in the 20s, the crowd grows late (was (2.3 + 0.18 idx) and up to 150 + 12 idx alive)
+      spawnRate: (1 + 0.04 * idx + 0.0025 * idx * idx) * (idx === 0 ? 0.7 : 1) * (1 + W.spawn * w) * (1 + T.spawn * L) * dv(D.spawn),
       healMul: dv(D.heal), // × the heal drop chance
-      maxAlive: Math.min(420, 150 + 12 * idx),
+      maxAlive: Math.min(150, 40 + 5 * idx),
       duration: 60 + (tw.extra || 0), // one minute per season (+ 연장전), then the boss
       // inside a stage enemies visibly toughen: by the end they have this much more HP / damage / speed
       rampHp: 0.35, rampDmg: 0.12 * gentle, rampSpeed: 0.1, // speed ramp: normal-pace enemies only
       xpMul: 1 + 0.16 * idx,
-      bossHpMul: 1 + 0.55 * idx + 0.03 * idx * idx,
+      bossHpMul: curve,
       // the final duel keeps its own bite (tuned with World.finalScale / finalPace), outside the wall
       bossDmgMul: (y.final ? 1 + RS.FINAL_DMG * idx : (1 + 0.1 * idx) * gentle * (1 + W.boss * w) * (1 + T.boss * L) * g) * dv(D.boss),
       bossCool: (idx === 0 ? 1.2 : 1) * dv(D.bossCool),

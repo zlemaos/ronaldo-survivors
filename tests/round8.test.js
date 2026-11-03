@@ -23,6 +23,7 @@ function runWorld(w, secs) {
 const messiWorld = (setup, yearIdx) => {
   const b = RS.newBuild('messi'); b.hgh = true;
   setup(b);
+  const id = b.skillOrder[0]; b.weapon = { id, g: 2, p: 1 }; RS.syncWeapon(b);
   const w = new RS.World({ yearIdx: yearIdx || 10, seed: 7, build: b });
   w.debug.godMode = true;
   return w;
@@ -48,14 +49,17 @@ test('difficulty: 노멀 is the default; 이지 < 노멀 < 하드 in enemy tough
   assert.ok(ratio('hard', 14) > ratio('hard', 2));
 });
 
-test('노멀 needs the 훈련장 but rewards it: a strong bot with half of the upgrades gets past 맨체스터 into the 마드리드 years', () => {
-  // round 9 made 노멀 much tougher (the bot with the full 훈련장 is meant to stall around 2021); the first seven seasons
-  // must still fall to a half-built 훈련장, or the default setting would wall a newcomer before the story opens up
+test('노멀 training purchases carry a strong bot through Manchester into Madrid', () => {
   const simCareer = require('./career-sim.js');
   const save = RS.newSave();
   for (const k of Object.keys(RS.META)) save.meta.upgrades[k] = Math.floor(RS.META[k].max / 2);
-  const c = simCareer({ seed: 7, save, to: 8 });
-  assert.equal(c.stoppedAt, null, 'stopped at ' + (c.stoppedAt != null && RS.YEARS[c.stoppedAt].year));
+  const c = simCareer({ seed: 7, save, to: 8, train(s, rng) {
+    if (s.meta.coins >= 320) RS.buyBox(s, 'box2', rng);
+    RS.buyEnhance(s, rng);
+    for (const m of RS.allMates(s.career.build)) RS.buyMateTrain(s, m.id);
+    while (s.meta.coins >= 90) RS.buyBox(s, 'box1', rng);
+  } });
+  assert.equal(c.stoppedAt, null, JSON.stringify({ stoppedAt: c.stoppedAt, build: c.save.career.build, last: c.years.at(-1) }));
 });
 
 test('메시 gets his own items: never 폭발 슈팅 or 별똥별 (날두 only), and his 알까기 / 외계인 모드 work', () => withHero('messi', () => {
@@ -199,19 +203,19 @@ test('every press conference belongs to its hero, its effects are real, and 완�
   });
 });
 
-test('auto pickers: graded items, then a 약물 dose, then evolution, then what links with the build', () => {
+test('auto pickers prefer special items, doses and better weapons, rejecting downgrades', () => {
   const b = RS.newBuild('messi'); b.hgh = true;
-  b.skills = { orbit: 2 }; b.skillOrder = ['orbit'];
   const hand = [
-    { kind: 'skillUp', id: 'orbit' },
-    { kind: 'passive', id: 'ballon' }, // 회전 공's pair: links now
+    { kind: 'enhance', id: 'orbit' },
+    { kind: 'weapon', id: 'tiki', wpn: { id: 'tiki', g: 2, p: 1 } },
     { kind: 'stim', id: 'doping' },
     { kind: 'relic', id: 'goat', tier: 'super' }
   ];
   assert.equal(RS.botChoose(hand, b), 3);
   assert.equal(RS.botChoose(hand.slice(0, 3), b), 2);
   assert.equal(RS.botChoose(hand.slice(0, 2), b), 1);
-  assert.equal(RS.botChoose([{ kind: 'skill', id: 'tiki' }, { kind: 'skill', id: 'dribball' }], Object.assign(b, { passives: { keepup: 1 }, passiveOrder: ['keepup'] })), 1, 'a move whose passive is owned links now');
+  b.weapon.g = 4; RS.syncWeapon(b);
+  assert.equal(RS.botChoose(hand.slice(0, 2), b), 0, 'keep a stronger weapon');
   // the trio partner links too
   const m = RS.newBuild('messi'); RS.addMate(m, 'xavino');
   assert.equal(RS.botChoose([{ kind: 'mate', id: 'talis' }, { kind: 'mate', id: 'iniestar' }], m), 1);

@@ -61,19 +61,17 @@ test('엘 클라시코 seasons: 날두 2009–2017 and 메시 2010–2018, numbe
 });
 
 test('메시 2009: 호날두 is the season boss with his own moves and a rage phase at half HP', () => withHero('messi', () => {
-  const save = RS.newSave(); RS.switchHero(save, 'messi');
-  const c = simCareer({ seed: 5, save, to: 7 });
-  const w = RS.startYear(c.save, RS.YEARS.findIndex((y) => y.year === 2009), { seed: 2 });
-  w.t = w.stageTime - 1; for (const ev of w.schedule) if (ev.t < w.t) ev.done = true;
-  let boss = null, rage = false;
-  for (let i = 0; i < 60 * 150 && running(w); i++) {
-    step(w, true);
-    for (const ev of w.events) { if (ev.type === 'boss') boss = ev.name; if (ev.type === 'rage') rage = true; }
-    w.events.length = 0;
-  }
-  assert.equal(boss, '호날두');
-  assert.ok(rage, 'no 2nd phase');
-  assert.ok(w.boss.ai.history.some((k) => k === 'snipe' || k === 'dash' || k === 'pslam'), '호날두 moves: ' + w.boss.ai.history.join(','));
+  const w = new RS.World({ yearIdx: RS.YEARS.findIndex(y => y.year === 2009), seed: 2, build: RS.newBuild('messi') });
+  w.debug.godMode = true;
+  const boss = w.spawnBoss();
+  assert.equal(boss.name, '호날두');
+  assert.equal(boss.ai.phase, 1);
+  boss.hp = Math.floor(boss.maxHp / 2);
+  step(w, false);
+  assert.equal(boss.ai.phase, 2);
+  assert.ok(w.events.some(e => e.type === 'rage'));
+  for (let i = 0; i < 60 * 20; i++) step(w, false);
+  assert.ok(boss.ai.history.some(k => k === 'snipe' || k === 'dash' || k === 'pslam'), boss.ai.history.join(','));
 }));
 
 test('엘 클라시코: the rival comes at the middle of the stage for 30 s; a kill is a win, the window closing is a loss, and pooled enemies never inherit him', () => withHero('messi', () => {
@@ -129,56 +127,12 @@ test('the 클라시코 record moves 민심 and a lost one in a 발롱도르 year
   assert.deepEqual(save.career.build.rivalry, { w: 0, l: 1 });
 }));
 
-test('합체: both parts evolved → the fused move is offered first, replaces them at Lv.1 in one slot, fires, evolves and fuses again (tier 2)', () => {
-  for (const hero of ['ronaldo', 'messi']) withHero(hero, () => {
-    const fused = Object.keys(RS.SKILLS).filter((id) => RS.SKILLS[id].fusion && RS.SKILLS[id].hero === hero);
-    assert.ok(fused.length >= 5, hero + ' fusions: ' + fused.length);
-    const tier2 = fused.find((id) => RS.SKILLS[id].fusion.every((p) => RS.SKILLS[p].fusion));
-    assert.ok(tier2, hero + ' has a tier-2 fusion');
-    const b = RS.newBuild(hero);
-    const evolve = (id) => { if (!b.skills[id]) b.skillOrder.push(id); b.skills[id] = RS.SKILL_MAX; b.passives[RS.SKILLS[id].passive] = 1; b.evolved[id] = true; };
-    const [fa, fb] = RS.SKILLS[tier2].fusion;
-    RS.SKILLS[fa].fusion.forEach(evolve);
-    assert.equal(RS.availableFusions(b).join(), fa, 'only ' + fa + ' is ready');
-    assert.equal(RS.availableFusions(b).length, 1);
-    const hand = RS.makeChoices(b, RS.makeRng(1), 10, 4);
-    assert.ok(hand.some((c) => c.kind === 'fuse' && c.id === fa), 'offered: ' + hand.map((c) => c.kind + ':' + c.id).join(' '));
-    assert.equal(RS.botChoose(hand, b), hand.findIndex((c) => c.kind === 'fuse'), '완전 오토 fuses first');
-    const slots = b.skillOrder.length;
-    assert.ok(RS.applyChoice(b, { kind: 'fuse', id: fa }));
-    assert.equal(b.skills[fa], 1);
-    assert.equal(b.skillOrder.length, slots - 1, 'one slot freed');
-    for (const p of RS.SKILLS[fa].fusion) assert.ok(!b.skills[p] && !b.evolved[p] && !b.skillOrder.includes(p));
-    assert.ok(!RS.availableFusions(b).length, 'nothing else ready');
-    // new-skill cards never offer a fused move directly
-    for (let i = 0; i < 30; i++) for (const c of RS.makeChoices(b, RS.makeRng(i), 10, 4)) if (c.kind === 'skill') assert.ok(!RS.SKILLS[c.id].fusion);
-    // it fires in a live world, at Lv.1 and evolved
-    for (const evo of [false, true]) {
-      const w = new RS.World({ yearIdx: 8, seed: 3, build: JSON.parse(JSON.stringify(b)) });
-      if (evo) { w.build.skills[fa] = RS.SKILL_MAX; w.build.evolved[fa] = true; w.recalc(); }
-      w.debug.godMode = true;
-      for (let i = 0; i < 16; i++) { const a = i / 16 * 6.28; w.spawnEnemy('grunt', w.player.x + Math.cos(a) * 50, w.player.y + Math.sin(a) * 50); }
-      for (let i = 0; i < 60 * 6 && running(w); i++) step(w, false);
-      assert.ok(w.dmgDealt > 0, fa + (evo ? ' evolved' : '') + ' dealt nothing');
-    }
-    // tier 2: evolve the fused move and the other pair's fusion, then fuse them
-    evolve(fa); RS.SKILLS[fb].fusion.forEach(evolve); assert.ok(RS.fuse(b, fb)); evolve(fb);
-    assert.deepEqual(RS.availableFusions(b), [tier2]);
-    assert.ok(RS.fuse(b, tier2));
-    assert.equal(b.skills[tier2], 1);
-    assert.ok(!b.skills[fa] && !b.skills[fb]);
-    // the build survives a save round trip
-    const back = RS.cloneBuild(b);
-    assert.equal(back.skills[tier2], 1);
-    assert.ok(back.skillOrder.includes(tier2));
-  });
-});
-
-test('old saves load: no 클라시코 record and no fusions yet, and a 날두 build keeps its moves', () => {
+test('old saves convert the best 날두 move into the held weapon and keep the rest in the armory', () => {
   const raw = JSON.stringify({ v: 2, career: { yearIdx: 3, build: { hero: 'ronaldo', level: 9, skills: { kick: 6, knuckle: 2 }, skillOrder: ['kick', 'knuckle'], passives: {}, passiveOrder: [], evolved: {}, teammates: [], bench: [], relics: {}, relicOrder: [], coachCards: [] } }, meta: { coins: 10 } });
   const save = RS.loadSave(memStore(raw));
   const b = save.career.build;
   assert.deepEqual(b.rivalry, { w: 0, l: 0 });
-  assert.equal(b.skills.kick, 6);
-  assert.ok(!RS.availableFusions(b).length);
+  assert.deepEqual(b.weapon, { id: 'kick', g: 3, p: 1 });
+  assert.deepEqual(b.armory, [{ id: 'knuckle', g: 1, p: 1 }]);
+  assert.deepEqual(b.skillOrder, ['kick']);
 });

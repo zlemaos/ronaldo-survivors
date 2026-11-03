@@ -48,40 +48,24 @@ test('collecting XP levels up and offers 4 picks; picking applies and resumes', 
   assert.equal(w.levelQueue, 0);
 });
 
-test('skill and passive slot limits are respected by choices', () => {
+test('passive slots cap at six while existing passives can improve', () => {
   const b = RS.newBuild();
-  for (const id of Object.keys(RS.SKILLS)) if (!b.skills[id] && b.skillOrder.length < RS.MAX_SKILLS) { b.skills[id] = 1; b.skillOrder.push(id); }
-  const rng = RS.makeRng(5);
-  for (let i = 0; i < 200; i++) {
-    for (const c of RS.makeChoices(b, rng, 0)) assert.notEqual(c.kind, 'skill', 'no new skills when slots are full');
-  }
-  assert.equal(RS.applyChoice(b, { kind: 'skill', id: 'siuu' }), b.skillOrder.length < RS.MAX_SKILLS && !b.skills.siuu);
+  const ids = Object.keys(RS.PASSIVES).filter(id => RS.passiveFor(id, 'ronaldo'));
+  for (const id of ids.slice(0, 6)) assert.ok(RS.applyChoice(b, { kind: 'passive', id }));
+  assert.equal(RS.applyChoice(b, { kind: 'passive', id: ids[6] }), false);
+  assert.ok(RS.applyChoice(b, { kind: 'passiveUp', id: ids[0] }));
+  assert.equal(b.passives[ids[0]], 2);
 });
 
-test('a maxed build still gets a real choice: ★ awakening of evolved moves, then 개인 훈련 and a heal', () => {
+test('a maxed build can keep training and healing', () => {
   const b = RS.newBuild();
-  b.skills = {}; b.skillOrder = [];
-  for (const id of Object.keys(RS.SKILLS).slice(0, 6)) { b.skills[id] = RS.SKILL_MAX; b.skillOrder.push(id); b.evolved[id] = true; }
+  b.weapon.g = 5; b.weapon.p = 10;
+  b.armory = RS.weaponIds('ronaldo', 5).filter(id => id !== b.weapon.id).map(id => ({ id, g: 5, p: 10 }));
+  RS.syncWeapon(b);
   for (const id of Object.keys(RS.PASSIVES).slice(0, 6)) { b.passives[id] = RS.PASSIVE_MAX; b.passiveOrder.push(id); }
   const all = Object.keys(RS.TEAMMATES).map((id) => ({ id, lv: RS.MATE_MAX_LV }));
   b.teammates = all.slice(0, RS.MAX_MATES);
   b.bench = all.slice(RS.MAX_MATES, RS.MAX_MATES + RS.MAX_BENCH);
-  const c = RS.makeChoices(b, RS.makeRng(1), 5, 4);
-  // six evolved 날두 moves always hold at least one 합체 pair (round 9): those cards lead, the rest are ★
-  assert.ok(c.length === 4 && c.every((x) => x.kind === 'star' || x.kind === 'fuse') && c.some((x) => x.kind === 'fuse'), c.map((x) => x.kind).join());
-  const star = c.find((x) => x.kind === 'star');
-  assert.ok(RS.applyChoice(b, star));
-  assert.equal(b.stars[star.id], 1);
-  // fuse everything that can fuse (maxed and evolved at once), refill the slots with the moves left, until the
-  // build is as finished as it can be
-  const maxed = (id) => { b.skills[id] = RS.SKILL_MAX; b.evolved[id] = true; b.passives[RS.SKILLS[id].passive] = RS.PASSIVE_MAX; };
-  for (let guard = 0; guard < 20; guard++) {
-    for (const id of RS.availableFusions(b)) { assert.ok(RS.fuse(b, id)); maxed(id); }
-    const spare = Object.keys(RS.SKILLS).find((id) => !b.skills[id] && !RS.SKILLS[id].fusion && RS.skillFor(id, 'ronaldo'));
-    if (b.skillOrder.length < RS.MAX_SKILLS && spare) { b.skillOrder.push(spare); maxed(spare); continue; }
-    if (!RS.availableFusions(b).length) break;
-  }
-  for (const id of b.skillOrder) b.stars[id] = RS.STAR_MAX;
   const d = RS.makeChoices(b, RS.makeRng(1), 5, 4);
   assert.deepEqual(d.map((x) => x.kind), ['drill', 'drill', 'drill', 'heal']);
   assert.equal(new Set(d.map((x) => x.id)).size, 4, 'no card twice');

@@ -32,7 +32,7 @@ test('메시 career data is valid: youth first, debut at 17 in 2004 with 딩요,
 });
 
 test('메시 has his own moves, passives and items: nothing of 날두 crosses over (and back)', () => {
-  for (const id of ['kick', 'knuckle', 'header', 'bicycle', 'stepover', 'scissors', 'siuu', 'rabona', 'trail']) assert.equal(RS.SKILLS[id].hero, 'ronaldo', id + ' is 날두-only');
+  for (const id of ['kick', 'knuckle', 'header', 'bicycle', 'stepover', 'scissors', 'siuu', 'rabona', 'trail']) assert.ok(!RS.skillFor(id, 'messi'), id + ' is not a 메시 weapon');
   for (const id of Object.keys(RS.SKILLS)) assert.ok(RS.SKILLS[id].hero, id + ' belongs to one hero');
   assert.equal(RS.passiveFor('jump', 'messi'), false);
   assert.equal(RS.passiveFor('flex', 'messi'), false);
@@ -50,12 +50,12 @@ test('메시 has his own moves, passives and items: nothing of 날두 crosses ov
   for (let i = 0; i < 80; i++) {
     for (const c of RS.makeChoices(m, rng, 4)) {
       seen.add(c.id);
-      if (c.kind === 'skill') assert.equal(RS.SKILLS[c.id].hero, 'messi', '메시 offered ' + c.id);
+      if (c.kind === 'weapon') assert.ok(RS.skillFor(c.id, 'messi'), '메시 offered ' + c.id);
       if (c.kind === 'passive') assert.ok(RS.passiveFor(c.id, 'messi'), '메시 offered ' + c.id);
       assert.notEqual(c.id, 'elastico', 'a gift move is never dealt');
     }
     for (const c of RS.makeChoices(r, rng, 4)) {
-      if (c.kind === 'skill') assert.equal(RS.SKILLS[c.id].hero, 'ronaldo', '날두 offered ' + c.id);
+      if (c.kind === 'weapon') assert.ok(RS.skillFor(c.id, 'ronaldo'), '날두 offered ' + c.id);
       if (c.kind === 'passive') assert.ok(RS.passiveFor(c.id, 'ronaldo'), '날두 offered ' + c.id);
     }
     const sp = RS.drawRelic(m, rng, { super: 1 }, true);
@@ -102,14 +102,14 @@ test("딩요's tutoring teaches 엘라스티코 (never dealt at level-ups) and h
   assert.equal(cards[0].id, 'dy_elastico');
   RS.applyEvent(save, di, cards[0]);
   const b = save.career.build;
-  assert.ok(b.skills.elastico === 1 && b.skillOrder.includes('elastico'));
+  assert.ok([b.weapon, ...b.armory].some(w => w.id === 'elastico' && w.g === 2));
   assert.ok(RS.allMates(b).some((m) => m.id === 'dingyo'), '딩요 joined');
   const full = RS.newSave(); full.career.build = RS.newBuild('messi'); full.career.yearIdx = di;
-  for (const id of ['tiki', 'curler', 'solo', 'bobo', 'killpass']) RS.applyChoice(full.career.build, { kind: 'skill', id });
+  RS.gainWeapon(full.career.build, { id: 'elastico', g: 2, p: 1 }, false);
   const alt = RS.eventChoices(full, di)[0];
-  assert.equal(alt.id, 'dy_touch', 'a full skill bar gets the other lesson');
+  assert.equal(alt.id, 'dy_touch', 'an owned gift gets the other lesson');
   RS.applyEvent(full, di, alt);
-  assert.ok(full.career.build.skillOrder.every((id) => full.career.build.skills[id] === 2));
+  assert.ok(full.career.build.weapon.p > 1);
   const b2 = RS.newBuild('messi'); b2.hgh = true;
   const before = RS.computeStats(b2, {}).teamDmg;
   b2.coachCards.push('dy_nolook');
@@ -131,7 +131,7 @@ test('youth seasons play like the debut year; 메시 and 날두 share the pro di
 test("메시's moves work: 감아차기 bends onto its target, 칩슛 lands on the toughest enemy, the glare is no SIUU", () => {
   RS.selectHero('messi');
   const mk = (id) => {
-    const b = RS.newBuild('messi'); b.hgh = true; b.skills = { [id]: 1 }; b.skillOrder = [id];
+    const b = RS.newBuild('messi'); b.hgh = true; b.weapon = { id, g: 0, p: 1 }; RS.syncWeapon(b);
     const w = new RS.World({ yearIdx: 4, seed: 3, build: b }); w.debug.godMode = true; return w;
   };
   const wc = mk('curler');
@@ -198,60 +198,31 @@ test('메시 is faster, slides every 3 s, and his golden balls hit without proje
   RS.selectHero('ronaldo');
 });
 
-test('with all eight 발롱도르 won the orbit evolves two ways: 8 balls (8발롱도르공) or one ball 8× (8발롱도르)', () => {
-  RS.selectHero('messi');
-  const mk = () => {
-    const b = RS.newBuild('messi'); b.skills.orbit = RS.SKILL_MAX; RS.applyChoice(b, { kind: 'passive', id: 'ballon' });
-    b.ballons = RS.YEARS_MESSI.filter((y) => y.ballon).map((y) => y.year);
-    return b;
-  };
-  const b = mk();
-  const choices = RS.makeChoices(b, RS.makeRng(1), 2);
-  const evos = choices.filter((c) => c.kind === 'evolve').map((c) => c.variant).sort();
-  assert.deepEqual(evos, ['count', 'size'], 'both paths offered');
-  assert.ok(choices.some((c) => c.name === '8발롱도르공') && choices.some((c) => c.name === '8발롱도르'));
-  assert.ok(RS.applyChoice(b, { kind: 'evolve', id: 'orbit', variant: 'count' }));
-  assert.equal(RS.skillStats('orbit', b.skills.orbit, b.evolved.orbit).count, 8);
-  const b2 = mk();
-  assert.ok(RS.applyChoice(b2, { kind: 'evolve', id: 'orbit', variant: 'size' }));
-  const st = RS.skillStats('orbit', b2.skills.orbit, b2.evolved.orbit);
-  assert.equal(st.size, 8);
-  const w = new RS.World({ yearIdx: 5, seed: 3, build: b2 });
-  w.debug.godMode = true;
-  for (let i = 0; i < 8; i++) w.spawnEnemy('grunt', 40 + i * 6, (i % 2 ? 1 : -1) * 20);
-  for (let i = 0; i < 120; i++) w.update(1 / 60, { x: 0, y: 0 });
-  assert.equal(w.orbs.length, 1);
-  assert.equal(w.orbs[0].r, 32, 'ball radius 8× of 4 px');
-  assert.ok(w.kills >= 4, 'the big ball sweeps grunts: ' + w.kills);
-  RS.selectHero('ronaldo');
-});
-
-test('메시\'s ball looks white at Lv.1-2, golden from Lv.3, the 발롱도르 once evolved after his first one', () => {
+test('메시 weapon grades change the ball from white to golden to an earned trophy', () => {
   const b = RS.newBuild('messi');
   assert.equal(RS.orbitLook(b), 'white');
-  b.skills.orbit = 2;
+  b.weapon.g = 1; RS.syncWeapon(b);
   assert.equal(RS.orbitLook(b), 'white');
-  b.skills.orbit = 3;
+  b.weapon.g = 2; RS.syncWeapon(b);
   assert.equal(RS.orbitLook(b), 'gold');
-  b.skills.orbit = RS.SKILL_MAX;
-  RS.applyChoice(b, { kind: 'passive', id: 'ballon' });
-  assert.equal(RS.applyChoice(b, { kind: 'evolve', id: 'orbit', variant: 'count' }), false, 'no 발롱도르 won yet: no evolution');
+  b.weapon.g = 5; RS.syncWeapon(b);
+  assert.equal(RS.orbitLook(b), 'gold');
   b.ballons = [2009];
-  assert.ok(RS.applyChoice(b, { kind: 'evolve', id: 'orbit', variant: 'count' }));
+  RS.syncWeapon(b);
   assert.equal(RS.orbitLook(b), 'ballon');
 });
 
-test('메시\'s first level-up hands are varied: the ball upgrade is one card among new moves', () => {
+test('메시 first level-up hands offer a weapon among other training choices', () => {
   RS.selectHero('messi');
   const N = 400;
   let shown = 0, fresh = 0;
   for (let s = 1; s <= N; s++) {
     const hand = RS.levelChoices(RS.newBuild('messi'), RS.makeRng(s), 0, 0, 0);
-    if (hand.some((c) => c.kind === 'skillUp' && c.id === 'orbit')) shown++;
-    if (hand.some((c) => c.kind === 'skill')) fresh++;
+    if (hand.some((c) => c.kind === 'weapon' && c.id === 'orbit')) shown++;
+    if (hand.some((c) => c.kind === 'weapon')) fresh++;
   }
   assert.ok(shown / N <= 0.4, 'ball upgrade in ' + shown + '/' + N + ' hands');
-  assert.ok(fresh / N >= 0.85, 'a new move in ' + fresh + '/' + N + ' hands');
+  assert.ok(fresh > 0 && fresh < N, 'weapons and other training both get room in the hand');
   RS.selectHero('ronaldo');
 });
 
@@ -300,7 +271,7 @@ test('a bot clears the first 메시 seasons and 날두 is a two-phase final boss
   const save = RS.newSave(); save.career.build = RS.newBuild('messi');
   const c = simCareer({ seed: 5, to: 4, save });
   assert.equal(c.stoppedAt, null, 'cleared the youth and 2004-2005: ' + JSON.stringify(c.years.map((y) => y.phase)));
-  assert.ok(c.years.every((y) => y.skills.startsWith('orbit')), c.years[0].skills);
+  assert.ok(RS.skillFor(c.save.career.build.weapon.id, 'messi'));
   assert.equal(c.save.career.build.hgh, true, 'the bot took the treatment');
   const hard = RS.newSave(); hard.career.build = RS.newBuild('messi');
   const h = simCareer({ seed: 5, to: 4, save: hard, events: { hgh: 1 } });

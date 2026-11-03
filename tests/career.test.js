@@ -40,8 +40,9 @@ test('recruit and train coach cards affect teammates', () => {
   const rng = RS.makeRng(2);
   RS.applyCoach(save, 0, RS.COACH_EXTRA.recruit, rng);
   assert.equal(save.career.build.teammates.length, 1);
+  const before = save.career.build.teammates[0].lv;
   RS.applyCoach(save, 1, RS.COACH_EXTRA.train, rng);
-  assert.equal(save.career.build.teammates[0].lv, 2);
+  assert.equal(save.career.build.teammates[0].lv, Math.min(10, before + 1));
 });
 
 test('clearing a year advances the career, keeps the build and saves/loads', () => {
@@ -52,14 +53,14 @@ test('clearing a year advances the career, keeps the build and saves/loads', () 
   const w = RS.startYear(save, 0, { seed: 2 });
   w.gainXp(200);
   w.levelQueue = 0;
-  RS.applyChoice(w.build, { kind: 'skill', id: 'siuu' });
+  RS.gainWeapon(w.build, { id: 'siuu', g: 2, p: 1 }, true);
   fakeClear(w);
   const out = RS.finishYear(save, w);
   assert.equal(out.cleared, true);
   assert.equal(save.career.yearIdx, 1);
   assert.equal(save.career.cleared[0], true);
   assert.ok(save.career.build.level > 1);
-  assert.equal(save.career.build.skills.siuu, 1, 'build carries to next year');
+  assert.deepEqual(save.career.build.weapon, { id: 'siuu', g: 2, p: 1 }, 'build carries to next year');
   assert.ok(save.meta.coins > 0);
   RS.writeSave(store, save);
   const loaded = RS.loadSave(store);

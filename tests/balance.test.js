@@ -144,35 +144,39 @@ test('early season bosses can land hits on a perfect kiter', () => {
   assert.ok(hitters >= 2, hitters + ' of the first 6 season bosses dealt damage');
 });
 
-test('every owned skill ends the career evolved, or is a fused move still growing from Lv.1', () => {
-  const b = getCareer().save.career.build;
-  // fusions free slots late in the career, so one late pick may still be short of its passive at the end
-  const late = b.skillOrder.filter((id) => !b.evolved[id] && !RS.SKILLS[id].fusion);
-  assert.ok(late.length <= 1, 'not evolved: ' + late.join(','));
-  assert.ok(b.skillOrder.some((id) => RS.SKILLS[id].fusion), 'the bot fused nothing in a whole career');
-});
+// Round 11: with one weapon the final build is a draw of the career (a 무지개 weapon hits ×3.71, a 에픽 ×2.2), so the
+// duel is judged over the final builds of four careers instead of one.
+let finalSaves = null;
+function getFinalSaves() {
+  if (!finalSaves) finalSaves = [getCareer().save].concat([3, 5, 9].map((seed) => onEasy(() => simCareer({ seed, to: LAST - 1 })).save));
+  return finalSaves;
+}
 
-test('메시 takes the strong bot below half HP at least once', () => {
-  const save = getCareer().save;
-  let below = 0, wins = 0;
-  for (const seed of [1, 2, 3, 4]) {
-    const w = messiRun(save, seed, RS.botInput);
-    if (w.minHp < w.stats.maxHp / 2) below++;
-    if (w.phase === 'victory') wins++;
+test('메시 takes the strong bot below half HP in a quarter of the finals while it still wins most', () => {
+  let below = 0, wins = 0, n = 0;
+  for (const save of getFinalSaves()) {
+    for (const seed of [1, 2, 3, 4]) {
+      const w = messiRun(save, seed, RS.botInput);
+      n++;
+      if (w.minHp < w.stats.maxHp / 2) below++;
+      if (w.phase === 'victory') wins++;
+    }
   }
-  assert.ok(below >= 1, 'below half in ' + below + '/4');
-  assert.ok(wins >= 2, 'strong bot still beats 메시 most of the time: ' + wins + '/4');
+  assert.ok(below >= n / 4, 'below half in ' + below + '/' + n);
+  assert.ok(wins >= n / 2, 'strong bot still beats 메시 most of the time: ' + wins + '/' + n);
 });
 
 test('a weaker bot (reaction delay + aim noise) sometimes loses to 메시 without meta upgrades', () => {
-  const save = getCareer().save;
-  assert.deepEqual(save.meta.upgrades, {});
-  let losses = 0, wins = 0;
-  for (const seed of [1, 2, 3, 4, 5, 6]) {
-    const w = messiRun(save, seed, RS.makeBot(Object.assign({ seed }, RS.WEAK_BOT)));
-    if (w.phase === 'dead') losses++;
-    if (w.phase === 'victory') wins++;
+  let losses = 0, wins = 0, n = 0;
+  for (const save of getFinalSaves()) {
+    assert.deepEqual(save.meta.upgrades, {});
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const w = messiRun(save, seed, RS.makeBot(Object.assign({ seed }, RS.WEAK_BOT)));
+      n++;
+      if (w.phase === 'dead') losses++;
+      if (w.phase === 'victory') wins++;
+    }
   }
-  assert.ok(losses >= 1, 'weak bot losses ' + losses + '/6');
-  assert.ok(wins >= 1, 'weak bot wins ' + wins + '/6 (hard but fair)');
+  assert.ok(losses >= 1, 'weak bot losses ' + losses + '/' + n);
+  assert.ok(wins >= 1, 'weak bot wins ' + wins + '/' + n + ' (hard but fair)');
 });

@@ -8,16 +8,18 @@
   RS.newBuild = function (hero) {
     hero = RS.HEROES[hero] ? hero : 'ronaldo';
     const start = RS.HEROES[hero].startSkill;
-    return {
+    return RS.syncWeapon({
       level: 1, xp: 0, rivalry: { w: 0, l: 0 },
-      skills: { [start]: 1 }, skillOrder: [start],
+      // round 11: the one weapon in hand ({id, g: grade index into RS.GRADES, p: 강화 +1 … +10, v: evolution
+      // variant}) and the 무기고 of the other weapons owned (one copy per move, the best kept)
+      weapon: { id: start, g: 0, p: 1 }, armory: [],
+      // runtime mirror of the weapon (RS.syncWeapon): World and Renderer read these as one move at a level
+      skills: {}, skillOrder: [], evolved: {}, stars: {},
       passives: {}, passiveOrder: [],
-      evolved: {}, // id -> true, or the evolution variant name for skills with several (orbit: 'count' | 'size')
-      teammates: [], // on the pitch [{id, lv}], at most MAX_MATES
+      teammates: [], // on the pitch [{id, lv}], at most MAX_MATES (lv = the teammate's 강화 +1 … +10)
       bench: [], // bench warmers [{id, lv}], at most MAX_BENCH (weak passive synergy)
       coachCards: [], // card ids, stack for the career
       relics: {}, relicOrder: [], // 특수 카드 items (id -> 1), kept for the career
-      stars: {}, // 각성 stars of evolved moves (id -> 1..STAR_MAX)
       drills: {}, // 개인 훈련 cards taken (id -> count, no cap)
       bonusHp: 0, bonusReroll: 0, // boss rewards (permanent for the career)
       hgh: null, // 메시 growth hormone: null = not decided yet (small body), true = treated, false = small for good
@@ -25,24 +27,133 @@
       flags: {}, // story marks left by press answers (e.g. fatherJail)
       ballons: [], // years of the 발롱도르 won in this career (RS.ballonCount): trophy balls need them
       hero
-    };
+    });
   };
-  // Skills / passives / items a hero may take (hero-locked entries name their hero). A passive without a hero
-  // follows the moves it pairs with: one paired only with the other hero's moves is never offered.
-  RS.skillFor = (id, hero) => { const h = RS.SKILLS[id].hero; return !h || h === hero; };
+  // Skills / passives / items a hero may take: hero-locked entries name their hero (or a list of heroes). A passive
+  // without a hero follows the moves it pairs with: one paired only with the other heroes' moves is never offered.
+  const heroOk = (h, hero) => !h || (Array.isArray(h) ? h.includes(hero) : h === hero);
+  RS.skillFor = (id, hero) => heroOk(RS.SKILLS[id].hero, hero);
   RS.passiveFor = (id, hero) => {
     const h = RS.PASSIVES[id].hero;
-    if (h) return h === hero;
+    if (h) return heroOk(h, hero);
     const pairs = Object.keys(RS.SKILLS).filter((k) => RS.SKILLS[k].passive === id);
     return !pairs.length || pairs.some((k) => RS.skillFor(k, hero));
   };
-  RS.relicFor = (id, hero) => { const h = RS.RELICS[id].hero; return !h || h === (hero || 'ronaldo'); };
+  RS.relicFor = (id, hero) => heroOk(RS.RELICS[id].hero, hero || 'ronaldo');
   // Can this build be offered the item? Its hero, and its story condition (need 'hgh': only after the treatment).
   RS.relicOk = (id, b) => RS.relicFor(id, b.hero) && (RS.RELICS[id].need !== 'hgh' || b.hgh === true);
   // A stacking item (약물 꽂기): doses taken and the multiplier on its mods (first dose 1, each more + STIM.step).
   RS.stimDoses = (b) => (b.relics && b.relics.doping) || 0;
   RS.stackMul = (n) => (n > 0 ? 1 + RS.STIM.step * (n - 1) : 0);
   RS.skillUse = (id) => RS.SKILLS[id].use || id; // runtime behaviour of a move
+
+  // ================================================================ Round 11: one weapon (RS.GRADES, 강화)
+  RS.clampGrade = (g) => Math.max(0, Math.min(RS.GRADES.length - 1, g | 0));
+  RS.gradeOf = (g) => RS.GRADES[RS.clampGrade(g)];
+  RS.plusOf = (p) => Math.max(1, Math.min(RS.PLUS_MAX, p | 0));
+  // Damage multiplier of a weapon: its grade × (1 + PLUS_STEP per 강화 step), so 일반 +10 (1.27) < 고급 +1 (1.3).
+  RS.weaponMul = (w) => (w ? RS.gradeOf(w.g).mul * (1 + RS.PLUS_STEP * (RS.plusOf(w.p) - 1)) : 1);
+  RS.weaponPower = (w) => Math.round(100 * RS.weaponMul(w)); // 무기 공격력 on the cards (일반 +1 = 100)
+  RS.weaponBetter = (a, b) => !b || RS.weaponMul(a) > RS.weaponMul(b) + 1e-9;
+  // Moves a hero can wield at grade g: his own, no story gifts (RS.EVENTS teach those), 합체 moves from 황금 up.
+  RS.weaponIds = (hero, g) => Object.keys(RS.SKILLS).filter((id) => RS.skillFor(id, hero) && !RS.SKILLS[id].gift && (!RS.SKILLS[id].fusion || g >= RS.FUSED_FROM));
+  // The mirror the World and the Renderer read: one move at the grade's table row (RS.GRADES lv); 무지개 is its
+  // evolved form (the 회전 공 only once a 발롱도르 is won), with the variant w.v for moves that have several.
+  RS.syncWeapon = function (b) {
+    const w = b.weapon, s = RS.SKILLS[w.id], G = RS.gradeOf(w.g);
+    b.skills = { [w.id]: G.lv }; b.skillOrder = [w.id]; b.evolved = {}; b.stars = {};
+    if (G.evo && (!s.needBallon || RS.ballonCount(b))) b.evolved[w.id] = s.evos ? (s.evos[w.v] ? w.v : Object.keys(s.evos)[0]) : true;
+    return b;
+  };
+  RS.ownedWeapon = (b, id) => (b.weapon && b.weapon.id === id ? b.weapon : b.armory.find((x) => x.id === id)) || null;
+  // Worth taking: a move not owned yet, or a better copy of one (the hand and the 무기고 keep one copy per move).
+  RS.weaponNew = (b, w) => RS.weaponBetter(w, RS.ownedWeapon(b, w.id));
+  // Gain a weapon. It replaces the owned copy of its move (a copy in hand stays in hand); equip: take it in hand,
+  // the one held goes to the 무기고. False when it is no better than the copy owned.
+  RS.gainWeapon = function (b, w, equip) {
+    if (!RS.SKILLS[w.id] || !RS.weaponNew(b, w)) return false;
+    const nw = { id: w.id, g: RS.clampGrade(w.g), p: RS.plusOf(w.p) };
+    if (w.v) nw.v = w.v;
+    const held = b.weapon.id === w.id;
+    b.armory = b.armory.filter((x) => x.id !== w.id);
+    if (held || equip) { if (!held) b.armory.push(b.weapon); b.weapon = nw; } else b.armory.push(nw);
+    RS.syncWeapon(b);
+    return true;
+  };
+  // Take a 무기고 weapon in hand (훈련장, between seasons): the two trade places.
+  RS.equipFromArmory = function (b, id) {
+    const i = b.armory.findIndex((x) => x.id === id);
+    if (i < 0) return false;
+    const w = b.armory.splice(i, 1)[0];
+    b.armory.push(b.weapon);
+    b.weapon = w;
+    RS.syncWeapon(b);
+    return true;
+  };
+  // 강화 of the weapon in hand by n steps (capped at +PLUS_MAX). False when it is maxed.
+  RS.enhanceWeapon = function (b, n) {
+    if (b.weapon.p >= RS.PLUS_MAX) return false;
+    b.weapon.p = RS.plusOf(b.weapon.p + (n || 1));
+    return true;
+  };
+  RS.rollGrade = function (rng, odds) {
+    let r = rng();
+    for (let g = 0; g < odds.length; g++) { if (r < odds[g]) return g; r -= odds[g]; }
+    return 0;
+  };
+  RS.rollPlus = function (rng, weights) {
+    let r = rng() * weights.reduce((a, x) => a + x, 0);
+    for (let i = 0; i < weights.length; i++) { if (r < weights[i]) return i + 1; r -= weights[i]; }
+    return 1;
+  };
+  // luck (행운 부적, items): × (1 + luck) on the odds of 레어 and up, taken from 일반
+  RS.luckOdds = function (odds, luck) {
+    if (!luck) return odds;
+    const o = odds.map((p, g) => (g >= 2 ? p * (1 + luck) : p));
+    o[0] = Math.max(0, o[0] - (o.reduce((a, x) => a + x, 0) - 1));
+    return o;
+  };
+  // A random weapon: a grade from `odds` (RS.GRADE_ODDS or a 무기 상자), a move of this hero for that grade, a 강화.
+  RS.rollWeapon = function (b, rng, odds) {
+    const g = RS.rollGrade(rng, odds || RS.GRADE_ODDS), ids = RS.weaponIds(b.hero, g);
+    const id = ids[Math.floor(rng() * ids.length)], evos = RS.SKILLS[id].evos;
+    const w = { id, g, p: RS.rollPlus(rng, RS.WEAPON_PLUS_W) };
+    if (evos) { const ks = Object.keys(evos); w.v = ks[Math.floor(rng() * ks.length)]; }
+    return w;
+  };
+  // Grade odds of the level-up weapon card at pro season idx (RS.GRADE_STAGES).
+  RS.gradeOddsAt = function (idx) {
+    let o = RS.GRADE_STAGES[0].odds;
+    for (const s of RS.GRADE_STAGES) if ((idx || 0) >= s.from) o = s.odds;
+    return o;
+  };
+  // The weapon card of a level-up: a few rolls for one worth taking (a move not owned, or a better copy).
+  RS.offerWeapon = function (b, rng, luck, idx) {
+    const odds = RS.luckOdds(RS.gradeOddsAt(idx), luck);
+    for (let i = 0; i < 6; i++) { const w = RS.rollWeapon(b, rng, odds); if (RS.weaponNew(b, w)) return w; }
+    return null;
+  };
+  // A 무기 상자: the weapon goes straight into the hand when it beats the one held, else to the 무기고; a copy no
+  // better than the one owned turns into coins (RS.SELL_BACK of the price). Returns { w, kept, refund }.
+  RS.openBox = function (b, w, box) {
+    const hand = RS.weaponBetter(w, b.weapon);
+    if (RS.gainWeapon(b, w, hand)) return { w, kept: hand ? 'hand' : 'armory', refund: 0 };
+    return { w, kept: false, refund: Math.round(box.cost * RS.SELL_BACK) };
+  };
+  RS.gradeTag = (w) => RS.gradeOf(w.g).name + ' +' + RS.plusOf(w.p);
+  RS.weaponName = (b, w) => (RS.gradeOf(w.g).evo ? RS.evoTitle(b, w.id, w.v) : RS.SKILLS[w.id].name);
+  RS.weaponIcon = (w) => { const s = RS.SKILLS[w.id], v = s.evos && s.evos[w.v]; return RS.gradeOf(w.g).evo ? (v ? v.icon : s.evoIcon) : s.icon; };
+  RS.weaponDesc = (b, w) => (RS.gradeOf(w.g).evo ? RS.evoDescFor(b, w.id, w.v) : RS.SKILLS[w.id].desc);
+  // Old saves held up to six moves: each becomes a weapon of the grade its level earned (Lv.1 일반, Lv.2–3 고급,
+  // Lv.4–5 레어, Lv.6 에픽, evolved 황금 with +2 per 각성 star; a 합체 move at least 황금).
+  RS.weaponFromSkill = function (b, id) {
+    const lv = b.skills[id] || 1, ev = b.evolved && b.evolved[id], st = (b.stars && b.stars[id]) || 0;
+    let g = ev ? 4 : lv >= 6 ? 3 : lv >= 4 ? 2 : lv >= 2 ? 1 : 0;
+    if (RS.SKILLS[id].fusion) g = Math.max(g, RS.FUSED_FROM);
+    const w = { id, g, p: RS.plusOf(1 + 2 * st) };
+    if (typeof ev === 'string') w.v = ev;
+    return w;
+  };
   // 발롱도르 the hero has won in this career (build.ballons): only these may show as trophy balls (RS.BALLON_MAX).
   RS.ballonCount = (b) => Math.min(RS.BALLON_MAX, ((b && b.ballons) || []).length);
   // Look of 메시's ball moves (회전 공, 드리볼, 드롭볼, 위성 군단; Renderer): a plain white ball, golden from the skill's
@@ -79,6 +190,7 @@
   RS.normalizeBuild = function (b) {
     const d = RS.newBuild(b && b.hero);
     if (!b || typeof b !== 'object') return d;
+    const hadWeapon = !!(b.weapon && typeof b.weapon === 'object' && RS.SKILLS[b.weapon.id]);
     for (const k of Object.keys(d)) if (b[k] === undefined) b[k] = d[k];
     b.skillOrder = b.skillOrder.filter((id) => RS.SKILLS[id] && b.skills[id]);
     b.passiveOrder = b.passiveOrder.filter((id) => RS.PASSIVES[id] && b.passives[id]);
@@ -92,7 +204,19 @@
     if (!RS.HEROES || !RS.HEROES[b.hero]) b.hero = 'ronaldo';
     if (b.hero === 'messi') RS.toMessiMoves(b);
     for (const k of ['stars', 'drills', 'flags']) if (!b[k] || typeof b[k] !== 'object') b[k] = {};
-    for (const id of Object.keys(b.stars)) if (!b.evolved[id] || !b.skills[id]) delete b.stars[id];
+    // round 11: the weapon in hand and the 무기고 (old saves: from their moves, RS.weaponFromSkill), one copy per move
+    const mine = (w) => w && typeof w === 'object' && RS.SKILLS[w.id] && RS.skillFor(w.id, b.hero);
+    let arm = (Array.isArray(b.armory) ? b.armory : []).filter(mine);
+    if (!hadWeapon || !mine(b.weapon)) {
+      const old = b.skillOrder.filter((id) => RS.skillFor(id, b.hero)).map((id) => RS.weaponFromSkill(b, id));
+      old.sort((x, y) => RS.weaponMul(y) - RS.weaponMul(x));
+      b.weapon = old.shift() || { id: RS.HEROES[b.hero].startSkill, g: 0, p: 1 };
+      arm = arm.concat(old);
+    }
+    b.weapon = Object.assign({}, b.weapon, { g: RS.clampGrade(b.weapon.g), p: RS.plusOf(b.weapon.p) });
+    b.armory = [];
+    for (const w of arm) RS.gainWeapon(b, Object.assign({}, w), false);
+    RS.syncWeapon(b);
     for (const id of Object.keys(b.drills)) if (!RS.DRILLS[id]) delete b.drills[id];
     b.fans = RS.clampFans(typeof b.fans === 'number' ? b.fans : RS.FANS.start);
     if (!b.rivalry || typeof b.rivalry !== 'object') b.rivalry = { w: 0, l: 0 }; // 엘 클라시코 record
@@ -144,15 +268,22 @@
   RS.mateOvr = (id) => (RS.TEAMMATES[id] && RS.TEAMMATES[id].ovr) || 75;
   RS.mateMul = (id, youth) => 1 + (RS.mateOvr(id) - RS.MATE_OVR_PIVOT[youth ? 'youth' : 'pro']) * RS.MATE_OVR_STEP;
   RS.mateTier = (id) => { const o = RS.mateOvr(id); return RS.MATE_TIERS.find((t) => o >= t.min); };
-  RS.mateBadge = (id) => 'OVR ' + RS.mateOvr(id) + ' ' + RS.mateTier(id).name;
+  RS.mateBadge = (id, lv) => 'OVR ' + RS.mateOvr(id) + ' ' + RS.mateTier(id).name + (lv ? ' +' + lv : '');
   RS.samePerson = (a, b) => (RS.TEAMMATES[a].same || a) === (RS.TEAMMATES[b].same || b);
-  // Transfer verdict: the newcomer inherits the level, so OVR (and the position) is the whole difference.
-  RS.swapVerdict = function (outId, newId) {
-    const a = RS.mateOvr(outId), n = RS.mateOvr(newId), d = n - a;
+  // Teammates sign already trained: 강화 +1 … +10 (RS.MATE_PLUS_W: +1 common, +10 rare).
+  RS.rollMatePlus = (rng) => RS.rollPlus(rng, RS.MATE_PLUS_W);
+  // A teammate's card colour on the RS.GRADES scale: his OVR tier, one grade more from +8.
+  RS.mateGrade = (id, lv) => RS.clampGrade(RS.MATE_GRADE[RS.mateTier(id).key] + ((lv || 1) >= 8 ? 1 : 0));
+  // His strength in one number (OVR power × 강화), used to compare a transfer.
+  RS.mateValue = (id, lv) => RS.mateMul(id) * (1 + RS.ROLE_PLUS * ((lv || 1) - 1));
+  // Transfer verdict: OVR and 강화 of the newcomer against the man he replaces, and the position change.
+  RS.swapVerdict = function (outId, newId, outLv, newLv) {
+    const a = RS.mateValue(outId, outLv), n = RS.mateValue(newId, newLv), d = Math.round((n / a - 1) * 100);
     const ro = RS.TEAMMATES[outId].role, rn = RS.TEAMMATES[newId].role;
     const pos = ro !== rn ? ' · 포지션 ' + RS.ROLES[ro].name + '→' + RS.ROLES[rn].name : '';
-    if (!d) return '= OVR ' + a + ' 같은 급' + pos;
-    return (d > 0 ? '▲' : '▼') + ' OVR ' + a + '→' + n + ' (' + (d > 0 ? '+' : '') + d + ') ' + (d > 0 ? '더 강해짐' : '약해짐') + pos;
+    const who = 'OVR ' + RS.mateOvr(outId) + ' +' + (outLv || 1) + ' → OVR ' + RS.mateOvr(newId) + ' +' + (newLv || 1);
+    if (!d) return '= ' + who + ' 같은 급' + pos;
+    return (d > 0 ? '▲ ' : '▼ ') + who + ' (' + (d > 0 ? '+' : '') + d + '%)' + pos;
   };
   // Named partnership of the two on the pitch (null with fewer than two): a named pair (RS.NAMED_PAIRS, e.g. the
   // 티키타카 trio) beats the role pair.
@@ -166,10 +297,9 @@
   };
   RS.trioReady = (b) => { const s = RS.pairSynergy(b); return !!(s && s.named); };
 
-  // One number the player can watch grow: skills, evolutions, passives, teammates and level.
+  // One number the player can watch grow: the weapon (grade and 강화), passives, teammates and level.
   RS.powerScore = function (b, youth) {
-    let s = b.level * 2;
-    for (const id of b.skillOrder) s += b.skills[id] * 10 + (b.evolved[id] ? 40 : 0) + ((b.stars && b.stars[id]) || 0) * 8;
+    let s = b.level * 2 + RS.weaponMul(b.weapon) * 40;
     for (const id of b.passiveOrder) s += b.passives[id] * 8;
     for (const m of b.teammates) s += (6 + m.lv * 5) * RS.mateMul(m.id, youth);
     for (const id of b.relicOrder || []) s += RS.TIER_POWER[RS.RELICS[id].tier] * (RS.RELICS[id].stack ? RS.stackMul(b.relics[id]) : 1);
@@ -184,9 +314,10 @@
     return Math.max(1, Math.min(5, Math.ceil((Math.log10(t.hpMul * t.dmgMul) + 0.5) * 1.25)));
   };
 
-  // About a quarter less XP per level than round 2: level-ups keep coming.
+  // Round 11: about 2.8 × the XP per level of round 10 (the debut season gave eight level-ups): a level-up is an
+  // event again, about four in the debut season.
   RS.xpToNext = function (level) {
-    return Math.floor(5 + level * 4 + Math.max(0, level - 12) * 4 + Math.max(0, level - 30) * 10 + Math.max(0, level - 50) * 22);
+    return Math.floor(14 + level * 11 + Math.max(0, level - 12) * 11 + Math.max(0, level - 30) * 28 + Math.max(0, level - 50) * 60);
   };
 
   let COACH_CARDS = null;
@@ -221,9 +352,10 @@
     for (const cid of build.coachCards) { const c = RS.coachCard(cid); if (c) add(c.mods, 1); }
     for (const id in build.drills || {}) if (RS.DRILLS[id]) add(RS.DRILLS[id].mods, build.drills[id]);
     if (metaUpgrades) for (const id in metaUpgrades) if (RS.META[id]) add(RS.META[id].mods, metaUpgrades[id]);
-    // squad: role buffs (pitch full, bench weak) scaled by each player's OVR, and the partnership on the pitch
-    for (const m of build.teammates) add(RS.ROLE_BUFF[RS.TEAMMATES[m.id].role].mods, RS.mateMul(m.id, youth));
-    for (const m of build.bench || []) add(RS.ROLE_BUFF[RS.TEAMMATES[m.id].role].mods, RS.BENCH_FACTOR * RS.mateMul(m.id, youth));
+    // squad: role buffs (pitch full, bench weak) scaled by each player's OVR and 강화, and the partnership on the pitch
+    const plus = (m) => 1 + RS.ROLE_PLUS * ((m.lv || 1) - 1);
+    for (const m of build.teammates) add(RS.ROLE_BUFF[RS.TEAMMATES[m.id].role].mods, RS.mateMul(m.id, youth) * plus(m));
+    for (const m of build.bench || []) add(RS.ROLE_BUFF[RS.TEAMMATES[m.id].role].mods, RS.BENCH_FACTOR * RS.mateMul(m.id, youth) * plus(m));
     const pair = RS.pairSynergy(build);
     if (pair) add(pair.mods, 1);
     add(RS.fanTier(build).mods, 1); // 민심
@@ -269,58 +401,47 @@
     return { dmg: Math.max(1, Math.round(d)), crit };
   };
 
-  // ================================================================ Evolutions
-  RS.availableEvolutions = function (build) {
-    const out = [];
-    for (const id of build.skillOrder) {
-      const s = RS.SKILLS[id];
-      // needBallon (회전 공): the evolution is the 발롱도르 he has won, so it waits for the first one
-      if (!build.evolved[id] && build.skills[id] >= RS.SKILL_MAX && (build.passives[s.passive] || 0) >= 1 && (!s.needBallon || RS.ballonCount(build))) out.push(id);
-    }
-    return out;
-  };
-
-  // 합체 (RS.SKILLS[*].fusion): both parts owned and evolved → the fused move can be taken.
-  RS.availableFusions = function (build) {
-    const out = [];
-    for (const id in RS.SKILLS) {
-      const f = RS.SKILLS[id].fusion;
-      if (!f || build.skills[id] || !RS.skillFor(id, build.hero || 'ronaldo')) continue;
-      if (f.every((p) => build.skills[p] && build.evolved[p])) out.push(id);
-    }
-    return out;
-  };
+  // 합체 depth of a move (a fused move of fused moves counts twice): the final rival answers it (World.recalc).
   RS.fuseDepth = (id) => { const f = RS.SKILLS[id] && RS.SKILLS[id].fusion; return f ? 1 + Math.max(...f.map(RS.fuseDepth)) : 0; };
-  // Fuse: the parts leave (levels, evolution, stars), the fused move takes the first part's slot at Lv.1.
-  RS.fuse = function (build, id) {
-    const f = RS.SKILLS[id] && RS.SKILLS[id].fusion;
-    if (!f || build.skills[id] || !f.every((p) => build.skills[p] && build.evolved[p])) return false;
-    const at = build.skillOrder.indexOf(f[0]);
-    for (const p of f) { delete build.skills[p]; delete build.evolved[p]; if (build.stars) delete build.stars[p]; }
-    build.skillOrder = build.skillOrder.filter((s) => !f.includes(s));
-    build.skillOrder.splice(Math.max(0, at), 0, id);
-    build.skills[id] = 1;
-    build.fusions = (build.fusions || 0) + 1;
-    return true;
-  };
 
   // ================================================================ Teammates
-  RS.erasUpTo = function (idx) {
-    const set = [];
-    for (let i = 0; i <= Math.min(idx, RS.YEARS.length - 1); i++) if (!set.includes(RS.YEARS[i].era)) set.push(RS.YEARS[i].era);
-    return set;
-  };
-  RS.mateCandidates = function (build, yearIdx, onlyCurrentEra) {
+  // Who can sign in season yearIdx: the hero's own teammates at that club in that very season (RS.TEAMMATES yrs),
+  // nobody who is the same person as a man in the squad, never a reward-only player (special).
+  RS.mateCandidates = function (build, yearIdx) {
     const owned = RS.allMates(build).map((m) => m.id);
-    const eras = onlyCurrentEra ? [RS.YEARS[yearIdx].era] : RS.erasUpTo(yearIdx);
-    return Object.keys(RS.TEAMMATES).filter((id) => !owned.some((o) => RS.samePerson(o, id)) && eras.includes(RS.TEAMMATES[id].era));
+    return Object.keys(RS.TEAMMATES).filter((id) => !RS.TEAMMATES[id].special && RS.mateInSeason(id, yearIdx) && !owned.some((o) => RS.samePerson(o, id)));
+  };
+  // Did he play beside the hero in season yearIdx (that club, that year)? A reward-only player (special) always does.
+  RS.mateInSeason = function (id, yearIdx) {
+    const t = RS.TEAMMATES[id], y = RS.YEARS[yearIdx];
+    return !!t && !!y && (!!t.special || (t.era === y.era && (!t.yrs || (y.year >= t.yrs[0] && y.year <= t.yrs[1]))));
+  };
+  // A new season (RS.finishYear, an old save, a hero switch): whoever did not play beside the hero that season
+  // leaves the squad (round 11: 리버풀 still fielded the whole 줄무늬단 squad), and the best free man of that club and
+  // season takes his place at the same 강화 — the squad's training is kept, only the faces change. With nobody left
+  // to sign the place stays empty and the bench fills the pitch. Returns { gone: [ids], joined: [{ id, lv }] }.
+  RS.releaseOffSeason = function (build, yearIdx) {
+    const out = { gone: [], joined: [] };
+    build.bench = build.bench || [];
+    for (const list of [build.teammates, build.bench]) {
+      for (let i = 0; i < list.length; i++) {
+        if (RS.mateInSeason(list[i].id, yearIdx)) continue;
+        out.gone.push(list[i].id);
+        const next = RS.mateCandidates(build, yearIdx).sort((a, b) => RS.TEAMMATES[b].ovr - RS.TEAMMATES[a].ovr)[0];
+        if (next) { list[i] = { id: next, lv: list[i].lv }; out.joined.push(list[i]); } else list.splice(i--, 1);
+      }
+    }
+    while (build.teammates.length < RS.MAX_MATES && build.bench.length) build.teammates.push(build.bench.shift());
+    return out;
   };
   RS.squadFull = (build) => build.teammates.length >= RS.MAX_MATES && (build.bench || []).length >= RS.MAX_BENCH;
-  // A new teammate goes on the pitch if there is room, else on the bench. Returns 'pitch' | 'bench' | false.
-  RS.addMate = function (build, id) {
+  // A new teammate (강화 lv, default +1) goes on the pitch if there is room, else on the bench.
+  // Returns 'pitch' | 'bench' | false.
+  RS.addMate = function (build, id, lv) {
     if (!RS.TEAMMATES[id] || RS.allMates(build).some((m) => RS.samePerson(m.id, id))) return false;
-    if (build.teammates.length < RS.MAX_MATES) { build.teammates.push({ id, lv: 1 }); return 'pitch'; }
-    if (build.bench.length < RS.MAX_BENCH) { build.bench.push({ id, lv: 1 }); return 'bench'; }
+    const m = { id, lv: Math.max(1, Math.min(RS.MATE_MAX_LV, lv | 0 || 1)) };
+    if (build.teammates.length < RS.MAX_MATES) { build.teammates.push(m); return 'pitch'; }
+    if (build.bench.length < RS.MAX_BENCH) { build.bench.push(m); return 'bench'; }
     return false;
   };
   // 뻽's 티키타카 (RS.EVENTS.pep): 챠비 and 니에미스타 take the two pitch places (keeping their level when already in
@@ -372,28 +493,13 @@
   };
 
   // ================================================================ Level-up choices
-  // A passive that pairs with an owned skill can always be taken (it ignores the passive slot cap),
-  // so every owned skill can reach its evolution.
-  RS.isPairPassive = (build, pid) => build.skillOrder.some((sid) => RS.SKILLS[sid].passive === pid);
-  RS.canTakePassive = (build, pid) => !build.passives[pid] && !!RS.PASSIVES[pid] &&
-    (build.passiveOrder.length < RS.MAX_PASSIVES || RS.isPairPassive(build, pid));
-  RS.evoHint = function (build, sid) {
-    const s = RS.SKILLS[sid];
-    if (build.evolved[sid]) return '진화 완료';
-    const p = RS.PASSIVES[s.passive];
-    const wait = s.needBallon && !RS.ballonCount(build) ? ' · 첫 발롱도르를 받아야 진화' : '';
-    return (build.passives[s.passive] ? '진화: Lv.6 + ' + p.name + ' ✓' : '진화: Lv.6 + ' + p.name + ' 패시브 필요') + wait;
-  };
-  RS.passiveHint = function (build, pid) {
-    const sid = Object.keys(RS.SKILLS).find((k) => RS.SKILLS[k].passive === pid);
-    if (!sid) return '';
-    const s = RS.SKILLS[sid];
-    return build.skills[sid] ? '진화 짝: ' + s.name + ' → ' + RS.evoTitle(build, sid) : '진화 짝: ' + s.name + ' (스킬 필요)';
-  };
+  // Passives are plain stat boosts (round 11: no evolution pairs any more): MAX_PASSIVES slots, Lv.PASSIVE_MAX each.
+  RS.canTakePassive = (build, pid) => !build.passives[pid] && !!RS.PASSIVES[pid] && build.passiveOrder.length < RS.MAX_PASSIVES;
+  // A teammate's one job with its icon, and what he lends the team (cards and the squad panel).
   RS.mateLine = function (id) {
     const m = RS.TEAMMATES[id], r = RS.ROLES[m.role];
     const desc = (RS.HERO === 'messi' && r.descMessi) || r.desc;
-    return r.name + ': ' + desc.replace(/\{hero\}/g, RS.HEROES[RS.HERO].short) + ' · 팀 효과 ' + RS.ROLE_BUFF[m.role].text;
+    return r.icon + ' ' + r.name + ' — ' + desc.replace(/\{hero\}/g, RS.HEROES[RS.HERO].short) + ' · 팀 효과: ' + RS.ROLE_BUFF[m.role].text;
   };
   // What signing this player would do to the partnership (shown on recruit cards).
   RS.synergyHint = function (build, id) {
@@ -409,35 +515,29 @@
 
   function describe(c, build) {
     switch (c.kind) {
-      case 'skill': { const s = RS.SKILLS[c.id]; return Object.assign(c, { name: s.name, icon: s.icon, desc: s.desc, tag: '새 스킬', hint: RS.evoHint(build, c.id) }); }
-      case 'skillUp': { const s = RS.SKILLS[c.id]; const nl = build.skills[c.id] + 1;
-        return Object.assign(c, { name: s.name, icon: s.icon, desc: s.ups[nl - 1], tag: 'Lv.' + nl + (nl === RS.SKILL_MAX ? ' MAX' : ''), hint: RS.evoHint(build, c.id) }); }
-      case 'evolve': { const s = RS.SKILLS[c.id]; const v = c.variant && s.evos && s.evos[c.variant];
-        return Object.assign(c, { name: RS.evoTitle(build, c.id, c.variant), icon: v ? v.icon : s.evoIcon, desc: RS.evoDescFor(build, c.id, c.variant), tag: '진화!', hint: s.name + ' + ' + RS.PASSIVES[s.passive].name }); }
-      case 'fuse': { const s = RS.SKILLS[c.id], fa = s.fusion[0], fb = s.fusion[1];
-        return Object.assign(c, { name: s.name, icon: s.icon, desc: s.desc, tag: '합체!', tier: 'super',
-          hint: RS.evoTitle(build, fa, build.evolved[fa]) + ' + ' + RS.evoTitle(build, fb, build.evolved[fb]) + ' → 두 기술이 하나가 되고 스킬 칸 1개가 비워진다 (Lv.1부터 다시 키운다)' }); }
-      case 'passive': { const p = RS.PASSIVES[c.id]; return Object.assign(c, { name: p.name, icon: p.icon, desc: p.desc, tag: '새 패시브', hint: RS.passiveHint(build, c.id) }); }
+      case 'weapon': { const w = c.wpn, cur = build.weapon, a = RS.weaponPower(cur), n = RS.weaponPower(w);
+        return Object.assign(c, { name: RS.weaponName(build, w), icon: RS.weaponIcon(w), desc: RS.weaponDesc(build, w), tag: RS.gradeTag(w), g: w.g,
+          hint: (n > a ? '▲ ' : n < a ? '▼ ' : '= ') + '무기 공격력 ' + a + ' → ' + n + (w.id === cur.id ? ' · 같은 무기 업그레이드' : ' · 무기 교체 (지금 무기는 무기고로)') }); }
+      case 'enhance': { const w = build.weapon, nw = Object.assign({}, w, { p: w.p + 1 });
+        return Object.assign(c, { name: RS.weaponName(build, w) + ' 강화', icon: '🔨', desc: RS.gradeTag(w) + ' → +' + nw.p + ' · 무기 공격력 ' + RS.weaponPower(w) + ' → ' + RS.weaponPower(nw),
+          tag: '강화 +' + nw.p, g: w.g, hint: '강화는 +' + RS.PLUS_MAX + '까지 · 등급이 한 단계 오르는 것이 +10보다 세다' }); }
+      case 'passive': { const p = RS.PASSIVES[c.id];
+        return Object.assign(c, { name: p.name, icon: p.icon, desc: p.desc, tag: '새 패시브', hint: '패시브 칸 ' + (build.passiveOrder.length + 1) + '/' + RS.MAX_PASSIVES + ' · 레벨마다 같은 효과가 더해진다' }); }
       case 'passiveUp': { const p = RS.PASSIVES[c.id]; const nl = build.passives[c.id] + 1;
-        return Object.assign(c, { name: p.name, icon: p.icon, desc: p.desc, tag: 'Lv.' + nl + (nl === RS.PASSIVE_MAX ? ' MAX' : ''), hint: RS.passiveHint(build, c.id) }); }
+        return Object.assign(c, { name: p.name, icon: p.icon, desc: p.desc, tag: 'Lv.' + nl + (nl === RS.PASSIVE_MAX ? ' MAX' : '') }); }
       case 'mate': { const m = RS.TEAMMATES[c.id]; const toBench = build.teammates.length >= RS.MAX_MATES; const syn = RS.synergyHint(build, c.id);
-        return Object.assign(c, { name: m.name, icon: toBench ? '🪑' : '🤝', desc: RS.mateLine(c.id), tag: RS.mateBadge(c.id), mtier: RS.mateTier(c.id).key,
+        return Object.assign(c, { name: m.name, icon: RS.ROLES[m.role].icon, desc: RS.mateLine(c.id), tag: RS.mateBadge(c.id, c.lv), g: RS.mateGrade(c.id, c.lv),
           hint: (toBench ? '벤치 합류' : '선발 합류') + (syn ? ' · ' + syn : '') }); }
       case 'mateUp': { const m = RS.TEAMMATES[c.id]; const cur = RS.allMates(build).find((x) => x.id === c.id).lv;
-        return Object.assign(c, { name: m.name + ' Lv.' + (cur + 1), icon: '📈', desc: RS.mateLine(c.id), tag: RS.mateBadge(c.id), mtier: RS.mateTier(c.id).key, hint: '동료 레벨 업 · 피해 증가' }); }
-      case 'star': { const s = RS.SKILLS[c.id]; const n = ((build.stars && build.stars[c.id]) || 0) + 1;
-        const v = s.evos && s.evos[build.evolved[c.id]];
-        return Object.assign(c, { name: RS.evoTitle(build, c.id, build.evolved[c.id]) + ' ★' + n, icon: v ? v.icon : s.evoIcon,
-          desc: '각성: 이 기술의 피해 +' + Math.round(RS.STAR_STEP.dmg * 100) + '%, 쿨타임 ' + Math.round(RS.STAR_STEP.cd * 100) + '%',
-          tag: '각성' + (n === RS.STAR_MAX ? ' MAX' : ''), hint: '진화한 기술을 ★' + RS.STAR_MAX + '까지 더 키운다' }); }
+        return Object.assign(c, { name: m.name + ' 강화', icon: '📈', desc: RS.mateLine(c.id), tag: '+' + cur + ' → +' + (cur + 1), g: RS.mateGrade(c.id, cur + 1), hint: '동료 강화 · 피해와 팀 효과가 커진다' }); }
       case 'drill': { const d = RS.DRILLS[c.id]; const n = ((build.drills && build.drills[c.id]) || 0) + 1;
         return Object.assign(c, { name: d.name + (n > 1 ? ' ' + n + '회차' : ''), icon: d.icon, desc: d.desc + ' (영구)', tag: '개인 훈련', hint: '횟수 제한 없음 · 커리어 내내 유지' }); }
       case 'gold': return Object.assign(c, { name: '스폰서 보너스', icon: '💰', desc: '코인 +30', tag: '보너스' });
       case 'heal': return Object.assign(c, { name: '에그타르트', icon: '🥧', desc: '체력 40% 회복', tag: '보너스' });
       case 'relic': { const r = RS.RELICS[c.id];
-        return Object.assign(c, { name: r.name, icon: r.icon, desc: r.desc, tag: RS.TIERS[r.tier].name, tier: r.tier, hint: r.stack ? '스팀팩 1/' + RS.STIM.max + ' · 커리어 내내 유지' : '특수 아이템 · 커리어 내내 유지' }); }
+        return Object.assign(c, { name: r.name, icon: r.icon, desc: r.desc, tag: RS.TIERS[r.tier].name, tier: r.tier, g: RS.TIER_GRADE[r.tier], hint: r.stack ? '스팀팩 1/' + RS.STIM.max + ' · 커리어 내내 유지' : '특수 아이템 · 커리어 내내 유지' }); }
       case 'stim': { const r = RS.RELICS.doping, n = RS.stimDoses(build) + 1;
-        return Object.assign(c, { name: r.name + ' ' + n + '회차', icon: r.icon, tier: 'ultra', tag: '스팀팩 ' + n + '/' + RS.STIM.max,
+        return Object.assign(c, { name: r.name + ' ' + n + '회차', icon: r.icon, tier: 'ultra', g: RS.TIER_GRADE.ultra, tag: '스팀팩 ' + n + '/' + RS.STIM.max,
           desc: n === 1 ? r.desc : '한 방 더! 첫 투여 효과의 ' + Math.round(RS.STIM.step * 100) + '%가 더해진다 (지금까지 ' + (n - 1) + '번 투여)',
           hint: n === RS.STIM.max ? '마지막 투여 · 풀강' : '최대 ' + RS.STIM.max + '번까지 · 커리어 내내 유지' }); }
       case 'gamble': { const g = RS.GAMBLES[c.id];
@@ -446,41 +546,28 @@
     return c;
   }
 
-  RS.makeChoices = function (build, rng, yearIdx, n) {
+  // A hand of n cards. The weapon gets one card for a new weapon (another move to swap to, or a better copy) and
+  // one for a 강화 step of the one held; new passives share one weight between them, so they never crowd it out.
+  RS.makeChoices = function (build, rng, yearIdx, n, luck) {
     n = n || 3;
-    const pool = [];
-    const out = [];
+    const pool = [], out = [];
     const hero = build.hero || 'ronaldo';
-    for (const id of RS.availableEvolutions(build)) if (out.length < 1) {
-      const evos = RS.SKILLS[id].evos;
-      if (evos) for (const v in evos) out.push({ kind: 'evolve', id, variant: v }); // the player picks the path
-      else out.push({ kind: 'evolve', id });
-    }
-    for (const id of RS.availableFusions(build)) if (out.length < 2) out.push({ kind: 'fuse', id }); // 합체: always on the table
-    for (const id of build.skillOrder) if (build.skills[id] < RS.SKILL_MAX) pool.push({ kind: 'skillUp', id, w: 3 * (RS.SKILLS[id].upW || 1) });
-    if (build.skillOrder.length < RS.MAX_SKILLS) {
-      for (const id in RS.SKILLS) if (!build.skills[id] && RS.skillFor(id, hero) && !RS.SKILLS[id].gift && !RS.SKILLS[id].fusion) pool.push({ kind: 'skill', id, w: 1.7 });
-    }
-    for (const id of build.passiveOrder) if (build.passives[id] < RS.PASSIVE_MAX) pool.push({ kind: 'passiveUp', id, w: 2 });
-    for (const id in RS.PASSIVES) if (RS.canTakePassive(build, id) && RS.passiveFor(id, hero)) {
-      // Paired passives come up much more often once the skill is high level (evolution path).
-      const sid = build.skillOrder.find((k) => RS.SKILLS[k].passive === id);
-      const w = sid ? (build.skills[sid] >= RS.SKILL_MAX - 1 ? 6 : 2.4) : 0.9;
-      pool.push({ kind: 'passive', id, w });
-    }
+    const wpn = RS.offerWeapon(build, rng, luck, RS.tuneIdx(Math.min(yearIdx || 0, RS.YEARS.length - 1)));
+    if (wpn) pool.push({ kind: 'weapon', id: wpn.id, wpn, w: 2.4 });
+    if (build.weapon.p < RS.PLUS_MAX) pool.push({ kind: 'enhance', id: build.weapon.id, w: 2.6 });
+    for (const id of build.passiveOrder) if (build.passives[id] < RS.PASSIVE_MAX) pool.push({ kind: 'passiveUp', id, w: 1.2 });
+    const fresh = Object.keys(RS.PASSIVES).filter((id) => RS.canTakePassive(build, id) && RS.passiveFor(id, hero));
+    for (const id of fresh) pool.push({ kind: 'passive', id, w: 3 / fresh.length });
     if (!RS.squadFull(build)) {
-      const cands = RS.mateCandidates(build, yearIdx || 0, false);
+      const cands = RS.mateCandidates(build, yearIdx || 0);
       for (const id of cands) pool.push({ kind: 'mate', id, w: 1.6 / Math.max(1, cands.length / 2) });
     }
-    for (const m of RS.allMates(build)) if (m.lv < RS.MATE_MAX_LV) pool.push({ kind: 'mateUp', id: m.id, w: 1.2 });
-    // 각성: an evolved move keeps growing up to ★STAR_MAX
-    for (const id of build.skillOrder) if (build.evolved[id] && ((build.stars && build.stars[id]) || 0) < RS.STAR_MAX) pool.push({ kind: 'star', id, w: 2.2 });
+    for (const m of RS.allMates(build)) if (m.lv < RS.MATE_MAX_LV) pool.push({ kind: 'mateUp', id: m.id, w: 1 });
     while (out.length < n && pool.length) {
       const c = RS.pickWeighted(rng, pool);
       pool.splice(pool.indexOf(c), 1);
-      out.push({ kind: c.kind, id: c.id });
+      out.push(c.kind === 'weapon' ? { kind: 'weapon', id: c.id, wpn: c.wpn } : c.kind === 'mate' ? { kind: 'mate', id: c.id, lv: RS.rollMatePlus(rng) } : { kind: c.kind, id: c.id });
     }
-    out.length = Math.min(out.length, Math.max(n, 2));
     // The offer ran short (a maxed build): 개인 훈련 cards (no cap) keep the hand a real choice; a heal stays last.
     if (out.length < n) {
       const drills = Object.keys(RS.DRILLS);
@@ -531,40 +618,28 @@
     }
     return r < acc + RS.SPECIAL_ODDS.gamble ? RS.gambleCard(build, rng, coins) : null;
   };
-  // Level-up hand: four cards; the 4th is replaced by a special card when one is rolled.
-  RS.LEVEL_CARDS = 4;
+  // Level-up hand (round 11): three cards; a graded item, 약물 or gamble card, when one is rolled, comes as a 4th.
+  RS.LEVEL_CARDS = 3;
   RS.levelChoices = function (build, rng, yearIdx, luck, coins) {
-    const out = RS.makeChoices(build, rng, yearIdx, RS.LEVEL_CARDS);
+    const out = RS.makeChoices(build, rng, yearIdx, RS.LEVEL_CARDS, luck);
     const sp = RS.rollSpecial(build, rng, luck, coins);
-    if (sp) { if (out.length >= RS.LEVEL_CARDS) out[RS.LEVEL_CARDS - 1] = sp; else out.push(sp); }
+    if (sp) out.push(sp);
     return out;
   };
 
   // Applies a choice to the build. Returns false if it could not apply.
   RS.applyChoice = function (build, c) {
     switch (c.kind) {
-      case 'fuse': return RS.fuse(build, c.id);
-      case 'skill':
-        if (build.skills[c.id] || build.skillOrder.length >= RS.MAX_SKILLS) return false;
-        build.skills[c.id] = 1; build.skillOrder.push(c.id); return true;
-      case 'skillUp':
-        if (!build.skills[c.id] || build.skills[c.id] >= RS.SKILL_MAX) return false;
-        build.skills[c.id]++; return true;
-      case 'evolve': {
-        if (!RS.availableEvolutions(build).includes(c.id)) return false;
-        const evos = RS.SKILLS[c.id].evos;
-        build.evolved[c.id] = evos ? (evos[c.variant] ? c.variant : Object.keys(evos)[0]) : true; return true; }
+      case 'weapon': return !!c.wpn && RS.gainWeapon(build, c.wpn, true);
+      case 'enhance': return RS.enhanceWeapon(build, 1);
       case 'passive':
         if (!RS.canTakePassive(build, c.id)) return false;
         build.passives[c.id] = 1; build.passiveOrder.push(c.id); return true;
       case 'passiveUp':
         if (!build.passives[c.id] || build.passives[c.id] >= RS.PASSIVE_MAX) return false;
         build.passives[c.id]++; return true;
-      case 'mate': return !!RS.addMate(build, c.id);
+      case 'mate': return !!RS.addMate(build, c.id, c.lv);
       case 'mateUp': return RS.levelMate(build, c.id, 1);
-      case 'star':
-        if (!build.evolved[c.id] || !build.skills[c.id] || (build.stars[c.id] || 0) >= RS.STAR_MAX) return false;
-        build.stars[c.id] = (build.stars[c.id] || 0) + 1; return true;
       case 'drill':
         if (!RS.DRILLS[c.id]) return false;
         build.drills[c.id] = (build.drills[c.id] || 0) + 1; return true;
@@ -583,17 +658,23 @@
     return false;
   };
 
-  // Transfer swap: newId replaces outId (pitch or bench) and inherits its level (the squad follows the career).
-  RS.swapMate = function (build, outId, newId) {
+  // Transfer swap: newId takes outId's place (pitch or bench) with his own 강화 lv (none given: outId's level).
+  RS.swapMate = function (build, outId, newId, lv) {
     if (!RS.TEAMMATES[newId] || RS.allMates(build).some((m) => m.id !== outId && RS.samePerson(m.id, newId)) || outId === newId) return false;
     for (const list of [build.teammates, build.bench]) {
       const i = list.findIndex((m) => m.id === outId);
-      if (i >= 0) { list[i] = { id: newId, lv: list[i].lv }; return true; }
+      if (i >= 0) { list[i] = { id: newId, lv: lv ? Math.max(1, Math.min(RS.MATE_MAX_LV, lv | 0)) : list[i].lv }; return true; }
     }
     return false;
   };
 
   // ================================================================ World
+  // Moves with a radius that still strike far away (lobs, slams, drops, burning turf): the bot keeps its distance.
+  const BOT_REMOTE = { chip: 1, hand: 1, dropball: 1, meteor: 1, trail: 1 };
+  const STEP_REACH = 46; // 스텝오버 / 솔로 dash at a man this close (px beyond both bodies)
+  const STEP_BURST = 26; // radius of the burst a 스텝오버 / 솔로 dash leaves behind (px, × area)
+  // 토레쓰 runs on after 드록빠 (RS.TORRES) — in any season with that boss, but never in his own career.
+  RS.torresDue = (w) => w.yearDef.boss.type === 'drogba' && !w.yearDef.final && w.hero !== 'torres';
   // 신의 손: the hand lands HAND_T s after it appears; repeated slams come HAND_GAP s apart.
   const HAND_T = 0.42, HAND_GAP = 0.4;
   // 드롭볼: rise (s), fall (s) and the height it falls from (world px, drawn above the landing spot).
@@ -641,6 +722,8 @@
       this.kills = 0; this.coinsPicked = 0; this.dmgDealt = 0;
       this.boss = null; this.bossSpawned = false;
       this.rival = null; this.rivalResult = null; // 엘 클라시코: 'win' | 'loss' once decided
+      // 토레쓰 (RS.TORRES): cleared = the season boss (드록빠) is down, the special boss may still be on
+      this.cleared = false; this.torres = null; this.torresResult = null;
       this.pfxQ = []; // pixelfx effects queued for the renderer (World.pfx)
       this.levelQueue = 0; this.choices = null; this.chestResult = null;
       this.spawnAcc = 0;
@@ -663,6 +746,8 @@
     recalc() {
       const prevMax = this.stats ? this.stats.maxHp : null;
       this.stats = RS.computeStats(this.build, this.metaUp, this.youth);
+      this.wmul = RS.weaponMul(this.build.weapon); // the weapon's grade and 강화 (World.weaponStats)
+      this.botR = this.weaponReach();
       if (prevMax != null && this.stats.maxHp > prevMax) this.player.hp += this.stats.maxHp - prevMax;
       this.player.hp = Math.min(this.player.hp, this.stats.maxHp);
       // The final stays a duel. 메시/날두 hit harder by exactly the toughness the graded items added (max HP + a
@@ -720,7 +805,7 @@
       if (idx >= 4) s.push({ t: T * 0.82, kind: 'press' });
       // the season's own pressure (RS.YEARS twist / foe): the 첼씨 버스 or a defensive wall, more 기자단, 연장전
       const yd = this.yearDef, tw = yd.twist || {};
-      if (yd.foe || tw.wall) for (const f of yd.foe ? [0.3, 0.55, 0.8] : [0.36, 0.72]) s.push({ t: T * f, kind: 'bus' });
+      if (yd.foe || tw.wall) for (const f of yd.foe ? [0.4, 0.75] : [0.36, 0.72]) s.push({ t: T * f, kind: 'bus' });
       for (let i = 0; i < (tw.press || 0); i++) s.push({ t: T * (0.55 + 0.3 * i), kind: 'press' });
       if (tw.extra) s.push({ t: T - tw.extra, kind: 'extra' });
       s.push({ t: T, kind: 'boss' });
@@ -737,7 +822,7 @@
       this.t += dt;
       this._boomBudget = 6; // 폭발 슈팅 chains: at most this many blasts start per step
       const p = this.player;
-      if (this.bossSpawned && this.boss && this.boss.alive) this.bossT += dt;
+      if (this.bossSpawned && this.boss && this.boss.alive && !this.boss.special) this.bossT += dt; // the season boss only
       if (Math.floor(this.t) !== this._lastSec) { // damage per second over the last 20 s (boss HP scaling)
         this._lastSec = Math.floor(this.t);
         this.dpsHist.push(this.dmgDealt - this._lastDmg);
@@ -808,7 +893,7 @@
         this.spawnEnemy(type, this.player.x + Math.cos(a) * R, this.player.y + Math.sin(a) * R, { elite: true });
         this.emit('elite');
       } else if (kind === 'circle') {
-        const n = 14 + Math.min(26, idx);
+        const n = 8 + Math.min(24, idx); // round 11: was 14 + idx
         this.makeRoom(n);
         const R = this.spawnRadius() * 0.85;
         for (let i = 0; i < n; i++) {
@@ -817,7 +902,7 @@
         }
         this.emit('banner', { text: '포위 진형!' });
       } else if (kind === 'press') {
-        const n = 8 + Math.min(12, Math.floor(idx / 2));
+        const n = 6 + Math.min(10, Math.floor(idx / 2));
         this.makeRoom(n);
         const a = this.rng() * TAU;
         const R = this.spawnRadius();
@@ -843,7 +928,7 @@
         this.emit('banner', { text: n > 1 ? '⚠️ 준보스 ' + n + '명 등장!' : '⚠️ 준보스 등장!' });
       } else if (kind === 'bus') { // 버스 수비 / 철벽: two rows of heavy defenders sweep straight across the pitch —
         // break a gap through the line or run around its end
-        const n = 7 + Math.min(6, Math.floor(idx / 3)); // per row
+        const n = 5 + Math.min(5, Math.floor(idx / 4)); // per row (round 11: was 7 + idx / 3, the 첼씨 seasons were a wall of men)
         this.makeRoom(n * 2);
         const a = this.rng() * TAU, R = this.spawnRadius(), p = this.player;
         const vx = -Math.cos(a), vy = -Math.sin(a), px = -vy, py = vx; // marching direction, along the row
@@ -873,15 +958,19 @@
       const e = this.spawnEnemy('grunt', this.player.x + Math.cos(a) * D, this.player.y + Math.sin(a) * D);
       e.type = 'rival'; e.sprite = bt.sprite; e.boss = true; e.rival = true; e.elite = false;
       e.r = bt.r; e.speed = bt.speed * this.tune.speedMul * (1 + 0.03 * lv);
-      // a single running target takes about an eighth of a crowd build's output (RS.RIVAL_HIT_SHARE); the first two
-      // checkpoints (World.calibrateBoss) then set the fight to secs[0] + secs[1] × lv windows from the damage that
-      // really lands, and after that his HP is fixed: late burst, focus and a stronger build decide the window
-      e.maxHp = e.hp = Math.round(Math.max(RS.bossHp(bt, this.tune) * (1 + R.hp * lv), this.recentDps() * RS.RIVAL_HIT_SHARE * this.bossTarget({ rival: true, rivalLv: lv })));
-      e.bossDmgIn = 0; e.calibrated = 0; e.baseHp = Math.round(RS.bossHp(bt, this.tune) * (1 + R.hp * lv));
+      // a single running target takes about an eighth of a crowd build's output (RS.RIVAL_HIT_SHARE); the checkpoints
+      // of RS.RIVAL_CALIBRATE_AT (World.calibrateBoss) then set the fight to secs[0] + secs[1] × lv windows of the
+      // damage that really lands, and after that his HP is fixed: late burst, focus and a stronger build decide the
+      // window. His floor is only RS.RIVAL_FLOOR of a boss (round 11: the full boss HP as a floor kept a one-weapon
+      // build from ever catching him — 130 damage landed on 2797 HP)
+      e.baseHp = Math.round(RS.bossHp(bt, this.tune) * (1 + R.hp * lv) * RS.RIVAL_FLOOR);
+      e.maxHp = e.hp = Math.round(Math.max(e.baseHp, this.recentDps() * RS.RIVAL_HIT_SHARE * this.bossTarget({ rival: true, rivalLv: lv })));
+      e.bossDmgIn = 0; e.calibrated = 0;
       e.dmg = Math.round(bt.dmg * this.tune.bossDmgMul * (1 + R.dmg * lv));
       e.xp = 40; e.name = R.name; e.leaveAt = this.t + RS.RIVAL_WINDOW; e.rivalLv = lv;
       e.ai = { kind, cool: 1.5, act: null, last: null, phase: 1, keep: 70, strafe: 1, history: [], rival: true, lv };
       this.rival = e;
+      this.clearCrowd(RS.BOSS_CROWD.rivalKeep);
       this.emit('rival', { name: e.name, lv, secs: RS.RIVAL_WINDOW });
       return e;
     }
@@ -892,14 +981,62 @@
       this.emit('rivalEnd', { win: false, name: e.name });
     }
 
+    // 토레쓰 (RS.TORRES): 드록빠 is down, the season is cleared, and he runs on at once for RS.TORRES.window seconds.
+    // Like the rival his HP follows the damage that really lands at the first two checkpoints (a fight of
+    // window × secs), then stays: keep hitting him and he falls. He leaves when the window closes.
+    spawnTorres() {
+      if (this.torres || this.phase !== 'play') return null;
+      const bt = RS.BOSS_TYPES.torres, a = this.rng() * TAU, D = this.spawnRadius() * 0.8;
+      const e = this.spawnEnemy('grunt', this.player.x + Math.cos(a) * D, this.player.y + Math.sin(a) * D);
+      e.type = 'torres'; e.sprite = bt.sprite; e.boss = true; e.special = true; e.elite = false;
+      e.r = bt.r; e.speed = bt.speed * this.tune.speedMul;
+      e.baseHp = Math.round(RS.bossHp(bt, this.tune) * RS.RIVAL_FLOOR);
+      e.maxHp = e.hp = Math.round(Math.max(e.baseHp, this.recentDps() * RS.RIVAL_HIT_SHARE * this.bossTarget(e)));
+      e.bossDmgIn = 0; e.calibrated = 0;
+      e.dmg = Math.round(bt.dmg * this.tune.bossDmgMul);
+      e.xp = 0; e.name = RS.TORRES.name; e.leaveAt = this.t + RS.TORRES.window;
+      e.ai = { kind: 'torres', cool: 1.2, act: null, last: null, phase: 1, keep: 0, strafe: 1, history: [] };
+      this.torres = e; this.boss = e; // the boss bar follows him
+      this.clearCrowd(RS.BOSS_CROWD.keep);
+      this.emit('torres', { name: e.name, secs: RS.TORRES.window });
+      return e;
+    }
+    // The window closed (or the hero went down): the season stays cleared, without the extra reward.
+    torresLeave(e) {
+      e.alive = false; e.tele = null;
+      this.torres = null; this.boss = null; this.torresResult = 'loss';
+      this.addFx('poof', e.x, e.y, { dur: 0.4, big: true, seed: 0 });
+      this.emit('torresEnd', { win: false, name: e.name });
+      this.phase = 'clear';
+      this.emit('clear');
+    }
+
+    // The season boss, the 클라시코 rival and 토레쓰 get the stage (RS.BOSS_CROWD): the ordinary crowd but the `keep`
+    // nearest walks off in a puff (elites, 준보스 and bosses stay), so shots reach the big man. The final stays a
+    // duel: there the elites and 준보스 walk off too and only `duelKeep` men stay (round 11: six 준보스 left on with
+    // 메시 decided most finals).
+    clearCrowd(keep) {
+      const p = this.player, list = [], duel = !!this.yearDef.final;
+      if (duel) keep = Math.min(keep, RS.BOSS_CROWD.duelKeep);
+      for (const e of this.enemies) if (e.alive && !e.boss && (duel || (!e.mini && !e.elite))) list.push(e);
+      if (list.length <= keep) return;
+      list.sort((a, b) => ((a.x - p.x) ** 2 + (a.y - p.y) ** 2) - ((b.x - p.x) ** 2 + (b.y - p.y) ** 2));
+      for (let i = keep; i < list.length; i++) {
+        list[i].alive = false;
+        if (i < keep + 20) this.addFx('poof', list[i].x, list[i].y, { dur: 0.35, seed: i });
+      }
+    }
+
     updateSpawns(dt) {
-      const prog = Math.min(1, this.t / this.stageTime);
-      const rate = this.tune.spawnRate * (0.9 + 1.8 * prog) * (this.bossSpawned ? 0.3 : 1); // the boss fight stays about the boss
+      const prog = Math.min(1, this.t / this.stageTime), C = RS.BOSS_CROWD;
+      // the boss fight stays about the boss; the 클라시코 window too, a little less
+      const rate = this.tune.spawnRate * (0.9 + 1.8 * prog) * (this.bossSpawned ? 0.3 : this.rival ? C.rivalRate : 1);
+      const cap = this.bossSpawned || this.rival ? Math.min(this.tune.maxAlive, this.bossSpawned && this.yearDef.final ? C.duelMax : C.max) : this.tune.maxAlive;
       this.spawnAcc = Math.min(6, this.spawnAcc + rate * dt);
       const R = this.spawnRadius();
       while (this.spawnAcc >= 1) {
         this.spawnAcc -= 1;
-        if (this.enemies.length >= this.tune.maxAlive) break;
+        if (this.enemies.length >= cap) break;
         const type = RS.pickWeighted(this.rng, this.tune.mix).type;
         // bias spawns toward the movement direction so running away still meets enemies
         let a = this.rng() * TAU;
@@ -926,6 +1063,7 @@
       e.anim = this.rng() * 10; e.minion = !!opt.minion;
       e.mini = !!def.mini; e.name = def.name;
       e.rival = false; e.leaveAt = 0; e.rivalLv = 0; // pooled objects: a past 클라시코 rival must not linger
+      e.special = false; e.numAcc = 0; e.numT = -9; e.numCrit = false; // nor 토레쓰, nor a damage number pending
       if (e.elite) { e.maxHp = e.hp = e.hp * 9; e.r = Math.round(e.r * 1.5); e.dmg = Math.round(e.dmg * 1.4); e.xp *= 12; e.speed *= RS.ELITE_SPEED; e.pace = 'slow'; }
       if (e.mini) { // 준보스: scales with the year (not with the wall), acts like a small boss (telegraphed charge / slam)
         e.maxHp = e.hp = Math.round(e.hp / tu.wallHp * (1 + 0.25 * this.lvl));
@@ -955,6 +1093,7 @@
       e.name = yd.boss.name;
       e.ai = { kind: yd.boss.type, cool: 1.8, act: null, last: null, phase: 1, keep: RS.FINAL[yd.boss.type] ? 70 : 0, strafe: 1, history: [] };
       this.boss = e;
+      this.clearCrowd(RS.BOSS_CROWD.keep);
       this.emit('boss', { name: e.name, final: !!yd.final });
       return e;
     }
@@ -969,15 +1108,14 @@
 
     spawnRescue() {
       const full = RS.squadFull(this.build);
-      let cands = RS.mateCandidates(this.build, this.yearIdx, true);
-      // With a full squad only era players appear: reaching them opens a transfer swap.
-      if (!cands.length && !full) cands = RS.mateCandidates(this.build, this.yearIdx, false);
+      // this season's teammates only; with a full squad reaching him opens a transfer swap
+      const cands = RS.mateCandidates(this.build, this.yearIdx);
       if (!cands.length) return;
-      const id = this.rng.pick(cands);
+      const id = this.rng.pick(cands), lv = RS.rollMatePlus(this.rng);
       const a = this.rng() * TAU;
       const d = Math.min(this.view.w, this.view.h) * 0.42 + 40;
-      this.rescue = { id, x: this.player.x + Math.cos(a) * d, y: this.player.y + Math.sin(a) * d, progress: 0, need: 1.0, swap: full };
-      this.emit('rescueSpawn', { id, swap: full });
+      this.rescue = { id, lv, x: this.player.x + Math.cos(a) * d, y: this.player.y + Math.sin(a) * d, progress: 0, need: 1.0, swap: full };
+      this.emit('rescueSpawn', { id, lv, swap: full });
     }
 
     updateRescue(dt) {
@@ -989,23 +1127,23 @@
       if (r.progress >= r.need) {
         this.rescue = null;
         this.addFx('shock', r.x, r.y, { r: 30, dur: 0.4, color: '#7fe0ff' });
-        const where = RS.addMate(this.build, r.id);
+        const where = RS.addMate(this.build, r.id, r.lv);
         if (where) {
           if (where === 'pitch') this.spawnMateRuntime(this.build.teammates[this.build.teammates.length - 1], r.x, r.y);
           this.recalc();
           this.recruitedThisRun.push(r.id);
-          this.emit('recruit', { id: r.id, bench: where === 'bench' });
-        } else this.openSwap(r.id);
+          this.emit('recruit', { id: r.id, lv: r.lv, bench: where === 'bench' });
+        } else this.openSwap(r.id, r.lv);
       }
     }
 
-    // Transfer offer during a run: replace one teammate (the newcomer keeps that level) or keep the squad.
-    openSwap(newId) {
+    // Transfer offer during a run: replace one teammate (the newcomer brings his own 강화) or keep the squad.
+    openSwap(newId, lv) {
       const nm = RS.TEAMMATES[newId];
       this.swapChoices = RS.allMates(this.build).map((m) => ({
-        kind: 'swap', id: newId, out: m.id, icon: '🔄', name: RS.TEAMMATES[m.id].name + ' → ' + nm.name,
-        desc: RS.TEAMMATES[m.id].name + ' 방출 · Lv.' + m.lv + ' 승계' + (this.build.bench.some((b) => b.id === m.id) ? ' (벤치)' : ' (선발)'),
-        tag: RS.mateBadge(newId), mtier: RS.mateTier(newId).key, hint: RS.swapVerdict(m.id, newId)
+        kind: 'swap', id: newId, lv, out: m.id, icon: '🔄', name: RS.TEAMMATES[m.id].name + ' → ' + nm.name,
+        desc: RS.TEAMMATES[m.id].name + ' +' + m.lv + ' 방출' + (this.build.bench.some((b) => b.id === m.id) ? ' (벤치)' : ' (선발)') + ' · ' + RS.mateLine(newId),
+        tag: RS.mateBadge(newId, lv), g: RS.mateGrade(newId, lv), hint: RS.swapVerdict(m.id, newId, m.lv, lv)
       }));
       this.swapChoices.push({ kind: 'keep', id: newId, icon: '✋', name: '지금 스쿼드 유지', desc: nm.name + ' 영입을 거절한다.', tag: '거절' });
       this.phase = 'swap';
@@ -1015,7 +1153,7 @@
     chooseSwap(i) {
       if (this.phase !== 'swap' || !this.swapChoices || !this.swapChoices[i]) return false;
       const c = this.swapChoices[i];
-      if (c.kind === 'swap' && RS.swapMate(this.build, c.out, c.id)) {
+      if (c.kind === 'swap' && RS.swapMate(this.build, c.out, c.id, c.lv)) {
         const m = this.mates.find((x) => x.id === c.out); // null when the released player sat on the bench
         if (m) {
           const ref = this.build.teammates.find((x) => x.id === c.id);
@@ -1103,7 +1241,9 @@
     hurtPlayer(dmg, src) {
       const p = this.player;
       if (p.iframe > 0 || p.dash || this.debug.godMode || this.phase !== 'play') return;
-      const d = Math.max(1, Math.round(dmg * (this.bossSpawned ? this.finalScale : 1) - this.stats.armor));
+      // armor takes a flat bite off every hit, never more than RS.ARMOR_CAP of it (stacked armor made 1-damage hits)
+      const raw = dmg * (this.bossSpawned ? this.finalScale : 1);
+      const d = Math.max(1, Math.round(raw - Math.min(this.stats.armor, raw * RS.ARMOR_CAP)));
       p.hp -= d;
       this.dmgTaken += d;
       this.hits++;
@@ -1116,6 +1256,11 @@
 
     onPlayerDown() {
       const p = this.player;
+      if (this.cleared) { // 드록빠 is already down: falling to 토레쓰 just ends the clear
+        if (this.torres) this.torresLeave(this.torres);
+        else { this.phase = 'clear'; this.emit('clear'); }
+        return;
+      }
       if (this.stats.revive > 0 && !p.revived) {
         p.revived = true;
         p.hp = Math.round(this.stats.maxHp * 0.6);
@@ -1169,12 +1314,37 @@
     }
 
     // ------------------------------------------------------------ weapons
+    // The weapon's stats this step: its table row or evolved form (the variant name picks the path), with every
+    // damage number × the grade and 강화 multiplier (RS.weaponMul). Cached until the move or the multiplier changes.
+    weaponStats(id) {
+      const b = this.build, base = RS.skillStats(id, b.skills[id], b.evolved[id], b.stars[id]);
+      if (this._wsBase !== base || this._wsMul !== this.wmul) {
+        const s = Object.assign({}, base), m = this.wmul * (RS.WEAPON_SOLO[id] || 1);
+        for (const k of ['dmg', 'boomDmg', 'zdmg']) if (s[k]) s[k] *= m;
+        if (s.cd && RS.WEAPON_CD[id]) s.cd *= RS.WEAPON_CD[id];
+        this._wsBase = base; this._wsMul = this.wmul; this._ws = s;
+      }
+      return this._ws;
+    }
+    // How close the bot (RS.botInput) lets the crowd come: a close-range weapon (회전 공, 바이시클 킥, 함성 …) only
+    // hits what stands inside its radius, so the bot holds the crowd at that edge instead of the usual 75 px.
+    weaponReach() {
+      const id = this.build.weapon.id, s = this.weaponStats(id), use = RS.skillUse(id);
+      if (use === 'stepover') return STEP_REACH + 12; // the dash fires at a man this close
+      if (!s.radius || BOT_REMOTE[use]) return 75;
+      return Math.max(26, Math.min(75, s.radius * this.stats.area * 0.85));
+    }
+    // The weapon in hand changed mid-match: its runtime state and the balls of the old move go.
+    weaponChanged() {
+      this.wstate = {}; this.orbs = null; this.dribs.length = 0; this.drops.length = 0;
+      this._wsBase = null;
+    }
     updateWeapons(dt) {
       const b = this.build, st = this.stats;
       for (const id of b.skillOrder) {
         const ws = this.wstate[id] || (this.wstate[id] = { timer: 0.3 + this.rng() * 0.5, tick: 0 });
         const evo = !!b.evolved[id], use = RS.skillUse(id);
-        const s = RS.skillStats(id, b.skills[id], b.evolved[id], b.stars[id]); // the variant name picks the evolution path
+        const s = this.weaponStats(id);
         if (s.aura) { // permanent tornado aura (바이시클 킥 / 엘라스티코 evolved)
           ws.tick -= dt;
           ws.angle = (ws.angle || 0) + dt * 9;
@@ -1213,7 +1383,7 @@
         nTro = big ? Math.min(1, nb) : nb;
         n = nTro + Math.max(0, RS.ORBIT_RING - nb);
         fillR = 4 * O.evos.count.stats.size;
-        fillDmg = O.lv[RS.SKILL_MAX - 1].dmg * (1 + RS.STAR_STEP.dmg * ((b.stars && b.stars.orbit) || 0));
+        fillDmg = O.lv[RS.SKILL_MAX - 1].dmg * this.wmul;
         if (big) { troR = 4 * Math.max(2, nb); troDmg = s.dmg * (0.7 + 0.3 * k); speed = 4.4 - 1.8 * Math.max(0, nb - 1) / 7; knock = s.knock * (0.25 + 0.75 * k); }
       }
       ws.angle = (ws.angle || 0) + dt * speed;
@@ -1505,7 +1675,8 @@
               });
             });
           }
-          if (s.guard) p.iframe = Math.max(p.iframe, s.guard + (s.count - 1) * HAND_GAP);
+          // round 11: the palm guards the first slam only (it covered every slam: 황금 신의 분노 was untouchable)
+          if (s.guard) p.iframe = Math.max(p.iframe, Math.min(RS.GUARD_MAX, s.guard));
           this.addFx('martial', p.x, p.y, { dur: 0.9, ch: '신의 손!', n: 0, center: true, follow: true });
           this.emit('sfx', { name: 'drop' });
           return true;
@@ -1632,27 +1803,26 @@
       }
     }
 
+    // 스텝오버 / 솔로 드리블 (round 11, now a weapon on its own): when an enemy comes within STEP_REACH the hero
+    // slips through him — the dash runs at the nearest man and past him, untouchable, hitting all it crosses.
     updateStepover(ws, s, evo, dt) {
       const p = this.player;
       ws.timer -= dt;
       if (ws.timer > 0 || p.dash) return;
-      // trigger when an enemy is about to touch
-      this.grid.query(p.x, p.y, 34, this._q);
+      this.grid.query(p.x, p.y, STEP_REACH + 12, this._q);
       let threat = null, bd = 1e9;
       for (const e of this._q) {
         if (!e.alive) continue;
         const d = (e.x - p.x) ** 2 + (e.y - p.y) ** 2;
-        const rr = e.r + p.r + 14;
+        const rr = e.r + p.r + STEP_REACH;
         if (d < rr * rr && d < bd) { bd = d; threat = e; }
       }
       if (!threat) return;
-      let dx, dy;
-      if (p.moving) { dx = p.dirx; dy = p.diry; } else {
-        dx = p.x - threat.x; dy = p.y - threat.y;
-        const n = Math.hypot(dx, dy) || 1; dx /= n; dy /= n;
-      }
+      let dx = threat.x - p.x, dy = threat.y - p.y;
+      const n = Math.hypot(dx, dy) || 1; dx /= n; dy /= n;
       const dur = 0.16;
-      p.dash = { dx, dy, t: 0, dur, speed: s.dist / dur, dmg: s.dmg, hits: new Set(), burst: s.burst || 0, sx: p.x, sy: p.y };
+      // every grade leaves the afterimage burst where the dash began (the evolved 무지개 form a bigger one)
+      p.dash = { dx, dy, t: 0, dur, speed: s.dist / dur, dmg: s.dmg, hits: new Set(), burst: s.burst || STEP_BURST, sx: p.x, sy: p.y };
       p.iframe = Math.max(p.iframe, dur + 0.04);
       ws.timer = s.cd * this.stats.cd;
       this.emit('sfx', { name: 'dash' });
@@ -1796,10 +1966,14 @@
         e.stun = Math.max(e.stun, o.stun * (e.elite || e.mini ? 0.5 : 1) * this.tune.poise);
         if ((e.mini || e.elite) && was <= 0 && e.stun >= 0.6) this.pfx('stunStars', e.x, e.y, { follow: e, life: e.stun, dy: -e.r });
       }
-      // damage numbers only where they matter (crits, bosses, 준보스, elites) — plain hits show the spark only
-      if (res.crit || e.boss || e.mini || e.elite) this.addText(e.x, e.y - e.r, res.dmg, res.crit);
+      // damage numbers only on the big ones (bosses, 준보스, elites), at most one every RS.NUM_GAP s per target with
+      // the hits in between summed into it — the crowd's hits show the spark only (round 11: a readable screen)
+      if (e.boss || e.mini || e.elite) {
+        e.numAcc += res.dmg; e.numCrit = e.numCrit || res.crit;
+        if (this.t - e.numT >= RS.NUM_GAP) { this.addText(e.x, e.y - e.r, e.numAcc, e.numCrit); e.numAcc = 0; e.numCrit = false; e.numT = this.t; }
+      }
       // impact spark: a few shards flying away from the hit direction (crits bigger and golden); burns stay quiet
-      if (!o.dot && this.fx.length < 120) this.addFx('hit', e.x, e.y - 2, { dur: res.crit ? 0.3 : 0.2, kx: o.kx || 0, ky: o.ky || 0, crit: res.crit, seed: this.rng() * 6.28 });
+      if (!o.dot && this.fx.length < 70) this.addFx('hit', e.x, e.y - 2, { dur: res.crit ? 0.3 : 0.2, kx: o.kx || 0, ky: o.ky || 0, crit: res.crit, seed: this.rng() * 6.28 });
       if (res.crit && !o.dot) {
         this.emit('sfx', { name: 'crit' });
         if (e.boss) { this.emit('shake', { k: 0.08 }); this.emit('hitstop', { t: RS.HIT_STOP.crit }); }
@@ -1824,6 +1998,18 @@
         this.emit('siuu');
         return;
       }
+      if (e.special) { // 토레쓰 beaten inside his window: the extra reward and his career (RS.finishYear)
+        this.torres = null; this.boss = null; this.torresResult = 'win';
+        this.addFx('boom', e.x, e.y, { r: 60, dur: 0.8 });
+        this.pfx('bigExplosion', e.x, e.y + 6);
+        this.emit('hitstop', { t: RS.HIT_STOP.boss });
+        for (let i = 0; i < 12; i++) this.dropPickup('coin', e.x + (this.rng() - 0.5) * 50, e.y + (this.rng() - 0.5) * 50, 0);
+        this.emit('torresEnd', { win: true, name: e.name });
+        this.phase = 'clear';
+        this.emit('clear');
+        this.emit('siuu');
+        return;
+      }
       if (e.boss) {
         this.addFx('boom', e.x, e.y, { r: 60, dur: 0.8 });
         this.pfx('bigExplosion', e.x, e.y + 6);
@@ -1832,6 +2018,13 @@
         this.bossCoins = 30 + 6 * this.lvl;
         this.coinsPicked += this.bossCoins;
         for (let i = 0; i < 12; i++) this.dropPickup('coin', e.x + (this.rng() - 0.5) * 50, e.y + (this.rng() - 0.5) * 50, 0);
+        if (RS.torresDue(this)) { // 드록빠 is down: the season is cleared and 토레쓰 runs on
+          this.cleared = true; this.boss = null;
+          this.emit('banner', { text: e.name + ' 격파! 시즌 클리어 — ⚡ ' + RS.TORRES.name + ' 난입!' });
+          this.emit('siuu');
+          this.later(1, () => this.spawnTorres());
+          return;
+        }
         if (this.yearDef.final) {
           this.phase = 'victory';
           this.emit('victory');
@@ -2047,6 +2240,7 @@
         const d2 = dx * dx + dy * dy;
         const d = Math.sqrt(d2) || 1;
         if (e.rival && e === this.rival && this.t >= e.leaveAt) { this.rivalLeave(e); continue; }
+        if (e.special && this.t >= e.leaveAt) { this.torresLeave(e); continue; }
         if (e.stun > 0) e.stun -= dt;
         else if (e.boss) this.bossAI(e, dt, dx, dy, d);
         else if (e.mini) this.miniAI(e, dt, dx, dy, d);
@@ -2157,15 +2351,19 @@
       const since = e.lastCalT != null ? e.lastCalT : e.firstHitT;
       const dealt = e.bossDmgIn - (e.lastCalDmg || 0);
       e.lastCalT = now; e.lastCalDmg = e.bossDmgIn;
-      const rate = dealt / Math.max(0.5, now - since);
+      // the rival and 토레쓰 run about: the average since the first hit (one burst or one dry spell must not set him)
+      const rate = e.rival || e.special ? e.bossDmgIn / Math.max(1, now - e.firstHitT) : dealt / Math.max(0.5, now - since);
       const want = Math.max(e.baseHp, rate * this.bossTarget(e));
       if (Math.abs(want - e.maxHp) / e.maxHp < 0.1) return;
       const k = want / e.maxHp; // keep the HP-bar fraction: the change is invisible
       e.maxHp = Math.round(e.maxHp * k);
       e.hp = Math.max(1, Math.round(e.hp * k));
     }
+    // Seconds of the player's measured damage rate a boss is worth. The rival and 토레쓰 aim inside their window
+    // (at most RS.RIVAL_MAX_SHARE of it: a build that keeps hitting him wins).
     bossTarget(e) {
-      if (e.rival) { const R = RS.RIVAL[this.yearDef.rival]; return RS.RIVAL_WINDOW * (R.secs[0] + R.secs[1] * (e.rivalLv || 0)); }
+      if (e.special) return RS.TORRES.window * RS.TORRES.secs;
+      if (e.rival) { const R = RS.RIVAL[this.yearDef.rival]; return RS.RIVAL_WINDOW * Math.min(RS.RIVAL_MAX_SHARE, R.secs[0] + R.secs[1] * (e.rivalLv || 0)); }
       return RS.BOSS_FIGHT_SECONDS * RS.BOSS_TYPES[this.yearDef.boss.type].fight * this.tune.bossFight;
     }
 
@@ -2190,8 +2388,8 @@
         this.emit('rage');
         this.emit('banner', { text: fin.rageText });
       }
-      const cals = e.rival ? RS.RIVAL_CALIBRATIONS : RS.BOSS_CALIBRATE_AT.length;
-      if (e.bossDmgIn && e.calibrated < cals && this.t - e.firstHitT >= RS.BOSS_CALIBRATE_AT[e.calibrated]) { e.calibrated++; this.calibrateBoss(e); }
+      const cal = e.rival || e.special ? RS.RIVAL_CALIBRATE_AT : RS.BOSS_CALIBRATE_AT;
+      if (e.bossDmgIn && e.calibrated < cal.length && this.t - e.firstHitT >= cal[e.calibrated]) { e.calibrated++; this.calibrateBoss(e); }
       if (ai.act) { this.runBossAct(e, ai.act, dt, dx, dy, d); return; }
       // movement between attacks
       const sp = e.speed * this.finalPace;
@@ -2537,7 +2735,7 @@
     // ------------------------------------------------------------ level-up / chest
     openLevelUp() {
       this.phase = 'levelup';
-      this.diceUsed = false; this.drawUsed = false; this.lastDraw = null;
+      this.diceUsed = false; this.drawUsed = false; this.lastDraw = null; this.boxUsed = false; this.lastBox = null;
       this.deal();
       this.addFx('levelburst', this.player.x, this.player.y, { dur: 0.7, follow: true });
       this.emit('levelup', { level: this.build.level });
@@ -2604,6 +2802,22 @@
       return c;
     }
 
+    // 무기 상자 at a level-up (the small box, once per screen): bought from this match's coins, then the wallet.
+    // The weapon goes into the hand when it beats the one held, else to the 무기고; a copy no better than one owned
+    // pays RS.SELL_BACK of the price back. The hand of cards stays to pick from.
+    coinBox() {
+      const d = RS.WEAPON_BOXES[0];
+      if (this.phase !== 'levelup' || this.boxUsed || !this.spend(d.cost)) return null;
+      this.boxUsed = true;
+      const res = RS.openBox(this.build, RS.rollWeapon(this.build, this.rng, d.odds), d);
+      if (res.refund) this.coinsPicked += res.refund;
+      if (res.kept === 'hand') { this.weaponSwapped(); this.recalc(); }
+      this.lastBox = res;
+      // the hand was dealt for the old weapon: its weapon and 강화 cards are dealt again
+      if (res.kept) this.choices = this.choices.map((c) => (c.kind === 'weapon' || c.kind === 'enhance' ? RS.makeChoices(this.build, this.rng, this.yearIdx, 1, this.stats.luck)[0] : c));
+      return res;
+    }
+
     // 도박 카드: roll the printed odds now and apply the outcome.
     resolveGamble(c) {
       const g = RS.GAMBLES[c.id];
@@ -2645,28 +2859,27 @@
       if (c.kind === 'gold') this.coinsPicked += 30;
       if (c.kind === 'heal') this.player.hp = Math.min(this.stats.maxHp, this.player.hp + this.stats.maxHp * 0.4);
       if (c.kind === 'mate' && this.build.teammates.some((m) => m.id === c.id)) this.spawnMateRuntime(this.build.teammates.find((m) => m.id === c.id));
-      if (c.kind === 'evolve') { this.emit('evolve', { id: c.id }); this.emit('siuu'); this.emit('banner', { text: '진화! ' + RS.evoTitle(this.build, c.id, this.build.evolved[c.id]) }); }
-      if (c.kind === 'fuse') { this.emit('evolve', { id: c.id }); this.emit('siuu'); this.emit('banner', { text: '⚡ 합체! ' + RS.SKILLS[c.id].name }); }
-      if (c.kind === 'evolve' || c.kind === 'fuse') this.pfx('goldBurst', this.player.x, this.player.y, { follow: this.player, dy: 8 });
+      if (c.kind === 'weapon') this.weaponSwapped();
+      if (c.kind === 'enhance') this.emit('enhance', { p: this.build.weapon.p });
       this.recalc();
       return true;
     }
+    // A new weapon in hand (level-up card or 무기 상자): the old move's balls go, a banner names it, 황금+ shines.
+    weaponSwapped() {
+      const w = this.build.weapon;
+      this.weaponChanged();
+      this.emit('weapon', { id: w.id, g: w.g, p: w.p });
+      if (w.g >= 4) { this.emit('siuu'); this.pfx('goldBurst', this.player.x, this.player.y, { follow: this.player, dy: 8 }); }
+    }
 
+    // A chest: one plain card from a hand, sometimes three (never a weapon swap or a teammate, nothing to decide).
     openChest() {
       const res = [];
-      const evos = RS.availableEvolutions(this.build);
-      if (evos.length) {
-        const c = { kind: 'evolve', id: evos[0] };
-        const v = RS.SKILLS[c.id].evos && Object.keys(RS.SKILLS[c.id].evos)[0]; // a chest takes the first path
-        this.applyChoiceRuntime(Object.assign(c, { name: RS.evoTitle(this.build, c.id, v), icon: RS.SKILLS[c.id].evoIcon, desc: RS.evoDescFor(this.build, c.id, v), tag: '진화!' }));
-        res.push(c);
-      } else {
-        const n = this.rng() < 0.25 ? 3 : 1;
-        for (let i = 0; i < n; i++) {
-          const opts = RS.makeChoices(this.build, this.rng, this.yearIdx, 3).filter((c) => c.kind !== 'mate');
-          const c = opts[0] || { kind: 'gold', id: 'gold', name: '스폰서 보너스', icon: '💰', desc: '코인 +30', tag: '보너스' };
-          if (this.applyChoiceRuntime(c)) res.push(c);
-        }
+      const n = this.rng() < 0.25 ? 3 : 1;
+      for (let i = 0; i < n; i++) {
+        const opts = RS.makeChoices(this.build, this.rng, this.yearIdx, 3).filter((c) => c.kind !== 'mate' && c.kind !== 'weapon');
+        const c = opts[0] || { kind: 'gold', id: 'gold', name: '스폰서 보너스', icon: '💰', desc: '코인 +30', tag: '보너스' };
+        if (this.applyChoiceRuntime(c)) res.push(c);
       }
       if (this.rng() < RS.CHEST_RELIC.chance && RS.relicsLeft(this.build)) { // sometimes a graded item sits in the chest
         const rc = RS.drawRelic(this.build, this.rng, RS.CHEST_RELIC.odds, false);
@@ -2865,24 +3078,30 @@
       const cleared = this.phase === 'clear' || this.phase === 'victory';
       const base = this.coinsPicked + this.kills / 8 + (cleared ? 40 + 8 * this.lvl : 0);
       return { cleared, kills: this.kills, time: this.t, level: this.build.level, coins: Math.round(base * this.stats.gold), recruited: this.recruitedThisRun.slice(),
-        rival: this.rivalResult, rivalName: this.yearDef.rival ? RS.RIVAL[this.yearDef.rival].name : null };
+        rival: this.rivalResult, rivalName: this.yearDef.rival ? RS.RIVAL[this.yearDef.rival].name : null, torres: this.torresResult };
     }
   }
   RS.World = World;
 
   // ================================================================ Simple bot (tests, attract mode)
+  const BOT_RUNS = { charge: 1, dash: 1, cut: 1, dribble: 1, dribble3: 1 }; // attacks that run along a locked line
   RS.botInput = function (w) {
     const p = w.player;
-    let vx = 0, vy = 0;
+    let vx = 0, vy = 0, bx = 0, by = 0; // bx/by: the extra berth from hard hitters (left out of `danger` below)
+    const gruntDmg = RS.ENEMIES.grunt.dmg * w.tune.dmgMul;
     for (const e of w.enemies) {
       if (!e.alive) continue;
       const dx = p.x - e.x, dy = p.y - e.y;
       const d2 = dx * dx + dy * dy;
-      const R = e.boss ? 130 : 75;
+      // close-range weapons: the crowd (and the boss, a little further) may come to their edge
+      const near = w.botR || 75, R = e.boss ? (near < 75 ? near + 14 : 130) : near;
       if (d2 > R * R) continue;
       const d = Math.sqrt(d2) || 1;
-      const k = (e.boss ? 3 : 1) / (d * d) * 400;
-      vx += dx / d * k; vy += dy / d * k;
+      const k = (e.boss ? 3 : 1) / (d * d) * 400 * (75 / near);
+      // the harder a man hits, the wider the berth (round 11: the bot brushed past 거구 and 준보스 for 30 a touch)
+      const extra = e.boss ? 0 : k * (Math.min(3, Math.max(1, e.dmg / gruntDmg)) - 1);
+      vx += dx / d * (k + extra); vy += dy / d * (k + extra);
+      bx += dx / d * extra; by += dy / d * extra;
     }
     for (const ep of w.eprojs) {
       if (!ep.alive) continue;
@@ -2898,7 +3117,33 @@
       if (t.kind === 'circles') for (const c of t.spots) { const dx = p.x - c.x, dy = p.y - c.y, d = Math.hypot(dx, dy) || 1; if (d < t.r + 20) { vx += dx / d * 6; vy += dy / d * 6; } }
       if (t.kind === 'line') { vx += -Math.sin(t.a) * 5; vy += Math.cos(t.a) * 5; }
     }
-    const danger = Math.hypot(vx, vy);
+    // every other telegraph as well — 준보스, the 클라시코 rival, 토레쓰 (round 11: with one weapon they live long
+    // enough to act; seven of the nine hits that ended a strong bot's 2007 were 준보스 charges and slams it walked
+    // into, and in 2010 the rival's dribbles): out of the slam circle, off the line to the side the hero stands on —
+    // and still off it while the charge or dash runs (the line is gone then, the direction is not)
+    for (const e of w.enemies) {
+      if (!e.alive || e === w.boss) continue;
+      const a = e.ai && e.ai.act;
+      const t = e.tele || (a && a.stage === 1 && a.dir != null && BOT_RUNS[a.kind] ? { kind: 'line', x: e.x, y: e.y, a: a.dir, len: 200 } : null);
+      if (!t) continue;
+      if (t.kind === 'circles') for (const c of t.spots) { const dx = p.x - c.x, dy = p.y - c.y, d = Math.hypot(dx, dy) || 1; if (d < t.r + 20) { vx += dx / d * 6; vy += dy / d * 6; } }
+      else if (t.kind === 'line') {
+        const ux = Math.cos(t.a), uy = Math.sin(t.a), rx = p.x - t.x, ry = p.y - t.y;
+        const along = rx * ux + ry * uy, side = ry * ux - rx * uy; // side: along the normal (-uy, ux)
+        if (along > -10 && along < t.len + 40 && Math.abs(side) < e.r + p.r + 24) { const s = side < 0 ? -1 : 1; vx += -uy * s * 6; vy += ux * s * 6; }
+      }
+    }
+    // the berth steers but does not hold the bot back from a boss (counted in, it doubled the boss fights)
+    const danger = Math.hypot(vx - bx, vy - by);
+    // a boss on the pitch (season boss, 클라시코 rival, 토레쓰): close in until the one weapon reaches him — a
+    // close-range move to its edge, a shot inside the auto-aim range (round 11: with one weapon, a 바이시클 킥 bot
+    // that only backed away never touched the boss and the match ran 14 minutes)
+    const bs = w.boss && w.boss.alive ? w.boss : w.rival && w.rival.alive ? w.rival : null;
+    if (bs) {
+      const near = w.botR || 75, want = near < 75 ? near : 180;
+      const dx = bs.x - p.x, dy = bs.y - p.y, d = Math.hypot(dx, dy) || 1;
+      if (d > want) { const k = danger > 2 ? 0.5 : 1.2; vx += dx / d * k; vy += dy / d * k; }
+    }
     // attraction: rescue marker, chests, gems
     let target = null;
     if (w.rescue) target = w.rescue;
@@ -2925,19 +3170,17 @@
   };
 
   // Strong default bot, also the 완전 오토 picker. Order: graded items by grade (히든 and up, a 약물 꽂기 dose like
-  // 초히든) > evolution > whatever links with the build now (a passive that unlocks an evolution path, a move whose
-  // passive is already owned, a teammate completing a named partnership) > skill upgrade > ... The bot never gambles.
+  // 초히든) > a better weapon (a higher grade first) > a teammate completing a named partnership > 강화 > a
+  // teammate > passives > ... It never takes a weaker weapon and never gambles.
   RS.botChoose = function (choices, build) {
-    const pr = { fuse: -0.5, evolve: 0, skillUp: 2, star: 2.5, mate: 3, skill: 4, passive: 5, passiveUp: 6, mateUp: 7, drill: 7.5, heal: 8, gold: 9, gamble: 10, stim: -2 };
+    const pr = { enhance: 2, mate: 3, passive: 4, passiveUp: 5, mateUp: 6, drill: 7.5, heal: 8, gold: 9, gamble: 10, stim: -2 };
     const tierScore = { super: -3, ultra: -2, hidden: -1, rare: 1.5 };
-    const links = (c) => {
-      if (!build) return false;
-      if (c.kind === 'passive') return RS.isPairPassive(build, c.id);
-      if (c.kind === 'skill') return !!build.passives[RS.SKILLS[c.id].passive];
-      if (c.kind === 'mate') return build.teammates.length === 1 && !!RS.NAMED_PAIRS[[build.teammates[0].id, c.id].sort().join('+')];
-      return false;
+    const score = (c) => {
+      if (c.kind === 'relic') return tierScore[c.tier];
+      if (c.kind === 'weapon') return !build || !RS.weaponBetter(c.wpn, build.weapon) ? 11 : c.wpn.g > build.weapon.g ? 0 : 1;
+      if (c.kind === 'mate' && build && build.teammates.length === 1 && RS.NAMED_PAIRS[[build.teammates[0].id, c.id].sort().join('+')]) return 1.2;
+      return pr[c.kind];
     };
-    const score = (c) => (c.kind === 'relic' ? tierScore[c.tier] : links(c) ? (c.kind === 'passive' ? 1 : 1.2) : pr[c.kind]);
     let bi = 0;
     for (let i = 1; i < choices.length; i++) if (score(choices[i]) < score(choices[bi])) bi = i;
     return bi;

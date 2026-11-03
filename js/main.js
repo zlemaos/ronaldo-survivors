@@ -117,7 +117,11 @@
       $('title-progress').textContent = (c.over ? (RS.ENDINGS[c.over] || { title: '배드 엔딩' }).title : c.finished ? hero.rival + '를 꺾은 전설 · ' + (c.laps + 1) + '회차' : hero.name + ' · ' + yd.year + '년 · ' + RS.yearAge(c.yearIdx) + '세 · ' + RS.ERAS[yd.era].club) +
         (RS.hardMode(c.build) ? ' · 🧒 작은 몸 도전' : '');
       this.updateOptions();
-      for (const b of document.querySelectorAll('#hero-pick .hero')) b.classList.toggle('on', b.dataset.hero === c.build.hero);
+      for (const b of document.querySelectorAll('#hero-pick .hero')) {
+        b.classList.toggle('on', b.dataset.hero === c.build.hero);
+        b.classList.toggle('lock', RS.heroLocked(this.save.meta, b.dataset.hero));
+      }
+      $('hero-torres-desc').textContent = RS.heroLocked(this.save.meta, 'torres') ? '🔒 드록빠 다음에 나오는 토레쓰를 잡으면 해금' : RS.HEROES.torres.desc;
       this.renderWallet($('title-wallet'));
       $('title-pk').textContent = this.pkLine();
       const ts = $('title-sprite'); ts.innerHTML = '';
@@ -128,6 +132,11 @@
     // Title screen hero buttons: each hero keeps his own career; meta progress is shared.
     pickHero(hero) {
       if (hero === this.save.career.build.hero) return;
+      if (RS.heroLocked(this.save.meta, hero)) { // 토레쓰: beat him after 드록빠 first
+        RS.Audio.sfx('lose');
+        this.toast('🔒 드록빠를 잡으면 토레쓰가 난입! 30초 안에 잡으면 해금');
+        return;
+      }
       RS.switchHero(this.save, hero);
       this.persist();
       RS.Audio.sfx('click');
@@ -173,10 +182,78 @@
       });
     },
 
+    // 훈련장: the weapon in hand (강화 with coins, odds falling with every step), the 무기고 (take another in hand),
+    // the three 무기 상자, teammate training — all for this career — then the permanent upgrades shared by all.
     showShop() {
       this.show('shop');
       this.renderWallet($('shop-wallet'));
       const list = $('shop-list'); list.innerHTML = '';
+      const save = this.save, b = save.career.build, coins = save.meta.coins;
+      const redo = () => { this.persist(); this.showShop(); };
+      const head = (text, dim) => {
+        const h = document.createElement('div'); h.className = 'shop-h'; h.textContent = text;
+        if (dim) { const s = document.createElement('span'); s.className = 'dim'; s.textContent = ' · ' + dim; h.appendChild(s); }
+        list.appendChild(h);
+      };
+      const item = (icon, name, desc, g, cls) => {
+        const row = document.createElement('div');
+        row.className = 'shop-item' + (g != null ? ' g-' + g : '') + (cls ? ' ' + cls : '');
+        row.innerHTML = '<div class="ic"></div><div class="tx"><div class="nm"></div><div class="ds"></div></div>';
+        row.querySelector('.ic').textContent = icon;
+        const nm = row.querySelector('.nm'); nm.textContent = name;
+        if (g != null) nm.classList.add('g-text', 'g-' + g);
+        row.querySelector('.ds').textContent = desc;
+        list.appendChild(row);
+        return row;
+      };
+      const btn = (row, label, off, onClick) => {
+        const x = document.createElement('button');
+        x.className = 'btn small'; x.textContent = label; x.disabled = !!off;
+        if (onClick) x.onclick = onClick;
+        row.appendChild(x);
+      };
+      const w = b.weapon, ec = RS.enhanceCost(w);
+      head('⚔️ 지금 무기', '등급 한 단계가 강화 +10보다 세다');
+      const hand = item(RS.weaponIcon(w), RS.weaponName(b, w) + ' · ' + RS.gradeTag(w), '무기 공격력 ' + RS.weaponPower(w) + ' · ' + RS.weaponDesc(b, w), w.g, 'hand');
+      if (ec == null) btn(hand, '강화 최대', true);
+      else btn(hand, '🔨 +' + (w.p + 1) + ' (' + Math.round(RS.enhanceOdds(w) * 100) + '%) 💰' + ec, coins < ec, () => {
+        const res = RS.buyEnhance(save, this.rng);
+        if (!res) return;
+        RS.Audio.sfx(res.ok ? 'levelup' : 'lose');
+        this.toast(res.ok ? '🔨 강화 성공! +' + res.p : '💥 강화 실패 — 코인만 쓰고 +' + res.p + ' 그대로');
+        redo();
+      });
+      if (b.armory.length) {
+        head('🗄️ 무기고', '들고 있는 무기와 바꿔 든다');
+        for (const a of b.armory.slice().sort((x, y) => RS.weaponMul(y) - RS.weaponMul(x))) {
+          const row = item(RS.weaponIcon(a), RS.weaponName(b, a) + ' · ' + RS.gradeTag(a), '무기 공격력 ' + RS.weaponPower(a) + ' · ' + RS.weaponDesc(b, a), a.g);
+          btn(row, '장착', false, () => { if (RS.equipFromArmory(b, a.id)) { RS.Audio.sfx('click'); this.toast('무기 교체: ' + RS.weaponName(b, b.weapon)); redo(); } });
+        }
+      }
+      head('🎁 무기 상자', '지금 무기보다 세면 바로 장착, 아니면 무기고로');
+      for (const d of RS.WEAPON_BOXES) {
+        const odds = d.odds.map((p, g) => [p, g]).filter((x) => x[0] > 0).map(([p, g]) => RS.GRADES[g].name + ' ' + (p < 0.01 ? (p * 100).toFixed(1) : Math.round(p * 100)) + '%');
+        const row = item(d.icon, d.name, odds.join(' · '), { box1: 1, box2: 3, box3: 4 }[d.id]);
+        btn(row, '💰 ' + d.cost, coins < d.cost, () => {
+          const res = RS.buyBox(save, d.id, this.rng);
+          if (!res) return;
+          RS.Audio.sfx(res.w.g >= 4 ? 'jackpot' : res.kept ? 'chest' : 'coin');
+          const c = this.boxCard(b, res);
+          this.toast((res.w.g >= 4 ? '🎉 ' : '') + c.tag + ' ' + c.name + (res.kept === 'hand' ? ' 장착!' : res.kept ? ' → 무기고' : ' 중복 · 코인 +' + res.refund));
+          redo();
+        });
+      }
+      const mates = RS.allMates(b);
+      if (mates.length) {
+        head('🤝 동료 훈련', '강화할수록 피해와 팀 효과가 커진다');
+        for (const m of mates) {
+          const t = RS.TEAMMATES[m.id], mc = RS.mateTrainCost(m);
+          const row = item(RS.ROLES[t.role].icon, t.name + ' · ' + RS.mateBadge(m.id, m.lv), RS.mateLine(m.id), RS.mateGrade(m.id, m.lv));
+          if (mc == null) btn(row, '최대', true);
+          else btn(row, '📈 +' + (m.lv + 1) + ' 💰' + mc, coins < mc, () => { if (RS.buyMateTrain(save, m.id)) { RS.Audio.sfx('levelup'); redo(); } });
+        }
+      }
+      head('🏋️ 영구 강화', '모든 커리어에 적용');
       for (const id of Object.keys(RS.META)) {
         const m = RS.META[id];
         const lv = this.save.meta.upgrades[id] || 0;
@@ -205,6 +282,8 @@
     // season flow: story event (메시) → coach card → transfer window → intro → kick-off
     startYear(idx) {
       if (!RS.canPlay(this.save, idx)) return;
+      const pending = RS.pendingRewards(this.save); // left unpicked before a reload
+      if (pending.length) { this.showPendingRewards(pending, () => this.startYear(idx)); return; }
       if (RS.needsEvent(this.save, idx)) this.showEvent(idx);
       else this.afterEvent(idx);
     },
@@ -294,7 +373,7 @@
       const r = $('pr-result');
       r.className = 'press-result ' + out.mood;
       $('pr-res-text').textContent = out.text;
-      const sk = { learned: ' · 새 스킬!', up: ' · 스킬 Lv.+1', full: ' · 스킬 칸이 가득 차 공격력 +5%로 대신' }[out.skill] || '';
+      const sk = { learned: ' · 새 무기 (레어 +1)!', up: ' · 그 무기 강화 +1', full: ' · 그 무기가 이미 +10이라 공격력 +5%로 대신' }[out.skill] || '';
       $('pr-res-note').textContent = out.ending ? '⚖️ 커리어가 여기서 멈춘다…' : (out.win ? '🎉 ' : out.mood === 'bad' ? '💥 ' : '') + out.note + sk;
       if (out.mood === 'bad') { const h = $('pr-hero'); h.classList.remove('hit'); void h.offsetWidth; h.classList.add('hit'); }
       RS.Audio.sfx(out.ending ? 'gavel' : out.mood === 'bad' ? 'lose' : out.mood === 'sad' ? 'heart' : 'recruit');
@@ -362,30 +441,30 @@
       else this.showIntro(idx);
     },
 
-    // Club changed: era players offer to join (free slot) or swap with a teammate (who passes on his level).
+    // Club changed: players of the new club offer to join (free slot) or swap with a teammate, each with his own 강화.
     showTransfer(idx, offers, k) {
       if (k >= offers.length) { RS.finishTransfers(this.save, idx); this.persist(); this.showIntro(idx); return; }
       this.show('transfer');
       const yd = RS.YEARS[idx];
-      const id = offers[k];
+      const { id, lv } = offers[k];
       const nm = RS.TEAMMATES[id];
       const b = this.save.career.build;
       $('tr-club').textContent = yd.year + ' · ' + RS.ERAS[yd.era].club + ' 이적 시장 (' + (k + 1) + '/' + offers.length + ')';
-      $('tr-name').textContent = nm.name + ' · ' + RS.mateBadge(id);
-      $('tr-name').className = 'mt-' + RS.mateTier(id).key;
+      $('tr-name').textContent = nm.name + ' · ' + RS.mateBadge(id, lv);
+      $('tr-name').className = 'g-text g-' + RS.mateGrade(id, lv);
       $('tr-role').textContent = RS.mateLine(id);
       const sp = $('tr-sprite'); sp.innerHTML = '';
       sp.appendChild(RS.Sprites.toCanvas(RS.Sprites.mate(id, idx), 0, 4));
-      const cards = [];
-      if (b.teammates.length < RS.MAX_MATES) cards.push({ kind: 'recruit', icon: '🤝', name: '선발로 영입', desc: nm.name + ' Lv.1 합류', tag: RS.mateBadge(id), mtier: RS.mateTier(id).key, hint: RS.synergyHint(b, id), out: null, take: true });
-      else if (b.bench.length < RS.MAX_BENCH) cards.push({ kind: 'recruit', icon: '🪑', name: '벤치로 영입', desc: nm.name + ' Lv.1 합류', tag: RS.mateBadge(id), mtier: RS.mateTier(id).key, hint: RS.synergyHint(b, id), out: null, take: true });
-      // swaps: the newcomer inherits the level, so the verdict (OVR before → after) says whether it pays off
-      for (const m of RS.allMates(b)) cards.push({ kind: 'swap', icon: '🔄', name: RS.TEAMMATES[m.id].name + ' 방출', desc: RS.TEAMMATES[m.id].name + ' (' + RS.mateBadge(m.id) + ') 대신 ' + nm.name + ' · Lv.' + m.lv + ' 승계' + (b.bench.includes(m) ? ' · 벤치' : ' · 선발'),
-        tag: RS.mateBadge(m.id), mtier: RS.mateTier(m.id).key, hint: RS.swapVerdict(m.id, id), out: m.id, take: true });
+      const cards = [], g = RS.mateGrade(id, lv);
+      if (b.teammates.length < RS.MAX_MATES) cards.push({ kind: 'recruit', icon: '🤝', name: '선발로 영입', desc: nm.name + ' 강화 +' + lv + ' 합류', tag: RS.mateBadge(id, lv), g, hint: RS.synergyHint(b, id), out: null, take: true });
+      else if (b.bench.length < RS.MAX_BENCH) cards.push({ kind: 'recruit', icon: '🪑', name: '벤치로 영입', desc: nm.name + ' 강화 +' + lv + ' 합류', tag: RS.mateBadge(id, lv), g, hint: RS.synergyHint(b, id), out: null, take: true });
+      // swaps: OVR and 강화 of both men, so the verdict says whether it pays off
+      for (const m of RS.allMates(b)) cards.push({ kind: 'swap', icon: '🔄', name: RS.TEAMMATES[m.id].name + ' 방출', desc: RS.TEAMMATES[m.id].name + ' (' + RS.mateBadge(m.id, m.lv) + ') 대신 ' + nm.name + ' +' + lv + (b.bench.includes(m) ? ' · 벤치' : ' · 선발'),
+        tag: RS.mateBadge(m.id, m.lv), g: RS.mateGrade(m.id, m.lv), hint: RS.swapVerdict(m.id, id, m.lv, lv), out: m.id, take: true });
       cards.push({ kind: 'keep', icon: '✋', name: '영입하지 않기', desc: '지금 스쿼드 그대로 간다.', tag: '유지', take: false });
       const pick = (i) => {
         const c = cards[i];
-        RS.applyTransfer(this.save, idx, c.take ? id : null, c.out);
+        RS.applyTransfer(this.save, idx, c.take ? id : null, c.out, lv);
         this.persist();
         if (c.take) this.toast(nm.name + ' 합류!');
         this.showTransfer(idx, offers, k + 1);
@@ -408,7 +487,7 @@
       const pick = (i) => {
         const info = RS.applyCoach(this.save, idx, cards[i], this.rng);
         this.persist();
-        if (info.mate) this.toast(RS.TEAMMATES[info.mate].name + ' 합류!');
+        if (info.mate) this.toast(RS.TEAMMATES[info.mate].name + ' 합류! (강화 +' + info.lv + ')');
         this.afterCoach(idx);
       };
       this.renderCards($('coach-cards'), cards.map((c) => ({
@@ -471,14 +550,12 @@
     buildChips(b) {
       const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
       let h = '<span class="chip">Lv.' + b.level + '</span>';
-      for (const id of b.skillOrder) {
-        const s = RS.SKILLS[id], v = s.evos && s.evos[b.evolved[id]], st = (b.stars && b.stars[id]) || 0;
-        h += b.evolved[id] ? '<span class="chip evo">' + (v ? v.icon : s.evoIcon) + ' ' + esc(RS.evoTitle(b, id, b.evolved[id])) + (st ? ' ★' + st : '') + '</span>'
-          : '<span class="chip">' + s.icon + ' ' + esc(s.name) + ' ' + b.skills[id] + '</span>';
-      }
+      const w = b.weapon; // the one weapon in hand, in its grade colour; the rest wait in the 무기고
+      h += '<span class="chip g-' + w.g + '"><b class="g-text g-' + w.g + '">' + RS.weaponIcon(w) + ' ' + esc(RS.weaponName(b, w)) + ' ' + esc(RS.gradeTag(w)) + '</b></span>';
+      if (b.armory.length) h += '<span class="chip">🗄️ 무기고 ' + b.armory.length + '개</span>';
       for (const id of b.passiveOrder) h += '<span class="chip">' + RS.PASSIVES[id].icon + ' ' + b.passives[id] + '</span>';
       for (const id in b.drills || {}) h += '<span class="chip">' + RS.DRILLS[id].icon + ' ' + esc(RS.DRILLS[id].name) + ' ×' + b.drills[id] + '</span>';
-      for (const id of b.relicOrder || []) { const r = RS.RELICS[id]; h += '<span class="chip t-' + r.tier + '">' + r.icon + ' ' + esc(r.name) + (r.stack ? ' ' + b.relics[id] + '/' + RS.STIM.max : '') + '</span>'; }
+      for (const id of b.relicOrder || []) { const r = RS.RELICS[id]; h += '<span class="chip g-' + RS.TIER_GRADE[r.tier] + '">' + r.icon + ' ' + esc(r.name) + (r.stack ? ' ' + b.relics[id] + '/' + RS.STIM.max : '') + '</span>'; }
       if (b.coachCards.length) h += '<span class="chip">👔 감독 카드 ' + b.coachCards.length + '</span>';
       // 발롱도르 won in this career: trophy balls come only from these (RS.ballonCount)
       h += '<span class="chip">🏆 발롱도르 ' + RS.ballonCount(b) + '회 수상</span>';
@@ -493,7 +570,7 @@
     squadLines(b) {
       const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
       if (!RS.allMates(b).length) return '<div class="squad"><div class="sq empty">동료 없음 — 필드의 ! 표시로 영입</div></div>';
-      const row = (m, onPitch) => '<div class="sq' + (onPitch ? '' : ' bench') + '"><b>' + esc(RS.TEAMMATES[m.id].name) + '</b> <span class="ovr mt-' + RS.mateTier(m.id).key + '">' + esc(RS.mateBadge(m.id)) + '</span> <span class="lv">Lv.' + m.lv + '</span>' +
+      const row = (m, onPitch) => '<div class="sq' + (onPitch ? '' : ' bench') + '"><b>' + esc(RS.TEAMMATES[m.id].name) + '</b> <span class="ovr g-text g-' + RS.mateGrade(m.id, m.lv) + '">' + esc(RS.mateBadge(m.id)) + '</span> <span class="lv">강화 +' + m.lv + '</span>' +
         '<button class="sqbtn" data-sq="' + m.id + '">' + (onPitch ? '벤치로' : '선발로') + '</button>' +
         '<div class="rl">' + esc(RS.mateLine(m.id)) + (onPitch ? '' : ' (벤치: 1/3)') + '</div></div>';
       let h = '<div class="squad"><div class="sqh">선발 ' + b.teammates.length + '/' + RS.MAX_MATES + '</div>';
@@ -550,7 +627,8 @@
       const shownAt = performance.now();
       cards.forEach((c, i) => {
         const b = document.createElement('button');
-        b.className = 'card k-' + c.kind + (c.tier ? ' t-' + c.tier : '') + (c.mtier ? ' mt-' + c.mtier : '');
+        // g: the grade colour (RS.GRADES) of a weapon, teammate or graded item — rarer, louder
+        b.className = 'card k-' + c.kind + (c.g != null ? ' g-' + c.g : '');
         b.innerHTML = '<div class="ic"></div><div class="tx"><div class="nm"><span class="n"></span><span class="tg"></span></div><div class="ds"></div><div class="hn"></div></div>';
         b.querySelector('.ic').textContent = c.icon || '⚽';
         b.querySelector('.n').textContent = c.name;
@@ -581,6 +659,7 @@
       $('lv-title').textContent = sp && sp.kind === 'stim' ? '💉 약물 꽂기 등장! 받을까, 말까?' :
         { super: '🌈 슈퍼히든 카드 등장!!', ultra: '🔥 초히든 카드 등장!', hidden: '🔮 히든 카드 등장!', rare: '💎 레어 카드 등장', gamble: '🎰 도박 카드 등장' }[tier] || '레벨 업!';
       $('lv-title').className = 'glow' + (tier ? ' t-' + tier : '');
+      this.renderWeaponLine($('lv-weapon'), w.build);
       $('reroll-n').textContent = w.rerolls;
       $('btn-reroll').classList.toggle('hidden', w.rerolls <= 0);
       const dice = $('btn-dice');
@@ -605,13 +684,30 @@
     },
     refreshLevelUp() { this.lvShown = false; this.showLevelUp(); },
 
-    // The item bought with the grade draw of this level-up, shown above the hand.
+    // "지금 무기": the one weapon in hand in its grade colour (level-up screen, HUD).
+    renderWeaponLine(el, b) {
+      const w = b.weapon;
+      el.innerHTML = '<span class="dim">지금 무기</span> <b class="g-text g-' + w.g + '"></b> <span class="dim"></span>';
+      el.querySelector('b').textContent = RS.weaponIcon(w) + ' ' + RS.weaponName(b, w) + ' · ' + RS.gradeTag(w);
+      el.lastChild.textContent = '· 무기 공격력 ' + RS.weaponPower(w) + (b.armory.length ? ' · 무기고 ' + b.armory.length + '개' : '');
+    },
+
+    // What the grade draw and the 무기 상자 of this level-up gave, shown above the hand.
     renderDraw() {
-      const w = this.world, el = $('lv-draw');
-      if (!w.lastDraw) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+      const w = this.world, el = $('lv-draw'), cards = [];
+      if (w.lastDraw) cards.push(Object.assign({}, w.lastDraw, { tag: RS.TIERS[w.lastDraw.tier].name + ' 획득!', hint: '뽑기 결과 · 바로 적용됨' }));
+      if (w.lastBox) cards.push(this.boxCard(w.build, w.lastBox));
+      if (!cards.length) { el.classList.add('hidden'); el.innerHTML = ''; return; }
       el.classList.remove('hidden');
-      this.renderCards(el, [Object.assign({}, w.lastDraw, { tag: RS.TIERS[w.lastDraw.tier].name + ' 획득!', hint: '뽑기 결과 · 바로 적용됨' })], () => {});
-      el.firstChild.classList.add('reveal');
+      this.renderCards(el, cards, () => {});
+      for (const c of el.children) c.classList.add('reveal');
+    },
+    // A 무기 상자 result as a card: into the hand, into the 무기고, or a copy no better than one owned (coins back).
+    boxCard(b, res) {
+      const w = res.w;
+      return { kind: 'weapon', g: w.g, icon: RS.weaponIcon(w), name: RS.weaponName(b, w), tag: RS.gradeTag(w),
+        desc: res.kept === 'hand' ? '🎉 지금 무기보다 세다 — 바로 장착!' : res.kept === 'armory' ? '무기고에 보관 (훈련장에서 바꿔 들 수 있다)' : '이미 더 좋은 같은 무기가 있다 — 코인 ' + res.refund + ' 돌려받음',
+        hint: '무기 공격력 ' + RS.weaponPower(w) };
     },
 
     // Coin shop on every level-up screen: paid rerolls, and one grade draw per level-up.
@@ -635,6 +731,11 @@
       for (const d of RS.COIN_DRAWS) {
         add(d.icon + ' ' + (left ? d.name : '모두 보유'), RS.drawCost(d, w.build), 'c-' + d.id, w.drawUsed || !left, () => { if (w.coinDraw(d.id)) this.refreshLevelUp(); });
       }
+      const box = RS.WEAPON_BOXES[0]; // one small 무기 상자 per level-up (the 훈련장 sells all three)
+      add(box.icon + ' ' + (w.boxUsed ? '무기 상자 열었음' : box.name + ' (무기 1개 · 등급 랜덤)'), box.cost, 'c-box', w.boxUsed, () => {
+        const res = w.coinBox();
+        if (res) { RS.Audio.sfx(res.w.g >= 4 ? 'jackpot' : res.kept ? 'chest' : 'coin'); this.refreshLevelUp(); }
+      });
     },
 
     // In-run transfer offer (rescue marker with a full squad).
@@ -710,7 +811,7 @@
       $('res-sub').textContent = out.cleared ? (out.replay ? '다시하기 클리어 (커리어 진행에는 영향 없음)' : yd.boss.name + ' 격파! ' + this.cheerText(w.hero)) : '괜찮아, 다시 일어나면 돼. 코인은 그대로 받는다.';
       const m = Math.floor(w.t / 60), s = Math.floor(w.t % 60);
       $('res-stats').innerHTML = '';
-      const add = (v, l) => { const d = document.createElement('div'); d.className = 'stat'; d.innerHTML = '<b></b><span></span>'; d.querySelector('b').textContent = v; d.querySelector('span').textContent = l; $('res-stats').appendChild(d); };
+      const add = (v, l, wide) => { const d = document.createElement('div'); d.className = 'stat' + (wide ? ' wide' : ''); d.innerHTML = '<b></b><span></span>'; d.querySelector('b').textContent = v; d.querySelector('span').textContent = l; $('res-stats').appendChild(d); };
       add(m + ':' + String(s).padStart(2, '0'), '경기 시간');
       add(out.kills, '처치');
       add('Lv.' + out.level, '레벨');
@@ -720,32 +821,25 @@
       if (out.rival) add(out.rival === 'win' ? '승 ⚔️' : '패 😤', '클라시코 vs ' + out.rivalName + (out.rival === 'win' ? ' · 민심 +' : ' · 민심 -') + RS.RIVAL_FANS);
       if (out.ballonStolen) add('🏆→' + out.rivalName, '발롱도르를 뺏겼다 · 다시 해서 되찾자');
       if (w.recruitedThisRun.length) add(w.recruitedThisRun.length + '명', '새 동료');
+      if (out.farewell) {
+        const f = out.farewell, name = (id) => RS.TEAMMATES[id].name;
+        add('👋 동료 교체 ' + f.gone.length + '명', '작별: ' + f.gone.map(name).join(', ') + (f.joined.length ? '\n같은 강화로 합류: ' + f.joined.map((m) => name(m.id) + ' +' + m.lv).join(', ') : ''), true);
+      }
+      if (out.torres) add(out.torres === 'win' ? '격파 ⚡' : '놓침', RS.TORRES.name + (out.torres === 'win' ? ' · 추가 보상' : ' · 30초 안에 잡으면 추가 보상'));
+      if (out.unlockTorres) add('🔓 토레쓰', '새 캐릭터 해금 · 메뉴에서 고를 수 있다');
       const next = $('btn-res-next'), retry = $('btn-res-retry');
       $('res-reward').classList.add('hidden');
+      // Rewards to pick before moving on: 토레쓰's (beaten after 드록빠) first, then the season boss's.
+      const steps = [];
+      if (out.cleared && RS.needsTorresReward(this.save)) steps.push('torres');
+      if (out.cleared && !out.replay && RS.needsBossReward(this.save, out.idx)) steps.push('boss');
+      const rewards = (done) => this.pickRewards(steps, out.idx, done);
       if (out.cleared && !out.replay) {
         next.classList.remove('hidden');
         next.textContent = '다음 시즌: ' + RS.YEARS[this.save.career.yearIdx].year + ' ▶';
         next.onclick = () => this.startYear(this.save.career.yearIdx);
         retry.classList.add('hidden');
-        const armNext = () => this.armAuto(() => this.startYear(this.save.career.yearIdx), 2400, '다음 시즌으로', 'semi');
-        if (RS.needsBossReward(this.save, out.idx)) {
-          // the boss reward must be picked before moving on
-          next.classList.add('hidden');
-          $('res-reward').classList.remove('hidden');
-          const cards = RS.bossRewardChoices(this.save, out.idx, this.rng);
-          const pick = (i) => {
-            this.cancelAuto();
-            const info = RS.applyBossReward(this.save, out.idx, cards[i], this.rng);
-            this.persist();
-            RS.Audio.sfx('recruit');
-            this.toast(cards[i].name + (info.coach ? ': ' + RS.coachCard(info.coach).name : '') + ' 획득!');
-            $('res-reward').classList.add('hidden');
-            next.classList.remove('hidden');
-            armNext();
-          };
-          this.renderCards($('res-reward-cards'), cards, pick);
-          this.armAuto(() => pick(RS.autoRewardPick(cards)), 2200, 'AI가 보상을 고른다', 'full');
-        } else armNext();
+        rewards(() => this.armAuto(() => this.startYear(this.save.career.yearIdx), 2400, '다음 시즌으로', 'semi'));
       } else if (out.cleared) {
         next.classList.remove('hidden');
         next.textContent = '연도 선택';
@@ -753,6 +847,7 @@
         retry.classList.remove('hidden');
         retry.textContent = '한 번 더';
         retry.onclick = () => this.startYear(out.idx);
+        rewards(() => {});
       } else {
         next.classList.remove('hidden');
         next.textContent = '재도전 ↺';
@@ -763,6 +858,48 @@
         this.armAuto(() => this.startYear(out.idx), 3000, '재도전', 'semi');
       }
       this.makeAttract();
+    },
+
+    // The result screen's reward panel: `steps` ('torres', 'boss') are offered one at a time, the boss reward being
+    // season `idx`'s; `done` runs after the last pick.
+    pickRewards(steps, idx, done) {
+      const next = $('btn-res-next'), kind = steps.shift();
+      if (!kind) { $('res-reward').classList.add('hidden'); next.classList.remove('hidden'); done(); return; }
+      next.classList.add('hidden');
+      $('res-reward').classList.remove('hidden');
+      const torres = kind === 'torres';
+      $('res-reward-sub').textContent = torres ? '⚡ 토레쓰 격파 보상 — 하나를 고르세요' : '🏆 보스 보상 — 하나를 고르세요 (커리어 내내 유지)';
+      const cards = torres ? RS.torresRewardChoices(this.save) : RS.bossRewardChoices(this.save, idx, this.rng);
+      const pick = (i) => {
+        this.cancelAuto();
+        const c = cards[i], b = this.save.career.build;
+        if (torres) {
+          const info = RS.applyTorresReward(this.save, c, this.rng);
+          const wp = info.weapon;
+          this.toast(wp ? (info.kept ? RS.gradeTag(wp) + ' ' + RS.weaponName(b, wp) + (info.kept === 'hand' ? ' 장착!' : ' → 무기고') : '같은 무기가 이미 있다 · 코인 +500') : c.name + '!');
+        } else {
+          const info = RS.applyBossReward(this.save, idx, c, this.rng);
+          this.toast(c.name + (info.coach ? ': ' + RS.coachCard(info.coach).name : '') + ' 획득!');
+        }
+        this.persist();
+        RS.Audio.sfx('recruit');
+        this.pickRewards(steps, idx, done);
+      };
+      this.renderCards($('res-reward-cards'), cards, pick);
+      // 완전 오토: 토레쓰's weapon (a 황금 or 무지개 one), the boss reward by RS.autoRewardPick
+      this.armAuto(() => pick(torres ? Math.max(0, cards.findIndex((c) => c.id === 'weapon')) : RS.autoRewardPick(cards)), 2200, 'AI가 보상을 고른다', 'full');
+    },
+
+    // Rewards left unpicked before a reload (RS.pendingRewards): the result screen comes back with only those, then
+    // the match the player asked for starts.
+    showPendingRewards(steps, done) {
+      this.show('result');
+      $('res-title').textContent = '아직 안 받은 보상';
+      $('res-title').className = 'glow';
+      $('res-sub').textContent = '지난 경기 보상을 고르면 바로 시작한다';
+      $('res-stats').innerHTML = '';
+      $('btn-res-retry').classList.add('hidden');
+      this.pickRewards(steps, this.save.career.yearIdx - 1, done);
     },
 
     showVictory(w, out) {
@@ -783,7 +920,7 @@
       add(D.icon, D.name + ' 클리어');
       if (RS.hardMode(w.build)) add('🧒', '작은 몸 도전 클리어');
       $('win-title').textContent = RS.HEROES[hero].rival + '를 꺾었다!';
-      $('win-cheer').textContent = hero === 'messi' ? '☝️ 메시! 메시!' : 'SIUUUU!';
+      $('win-cheer').textContent = hero === 'messi' ? '☝️ 메시! 메시!' : hero === 'torres' ? '⚡ 엘 니뇨!' : 'SIUUUU!';
       $('btn-win-new').textContent = '새 커리어 (' + (this.save.career.laps + 2) + '회차)';
       const conf = $('confetti'); conf.innerHTML = '';
       const cols = ['#ffd23a', '#c41e2a', '#1f7a3a', '#ffffff', '#7fe0ff'];
@@ -798,9 +935,9 @@
       this.celebrate(hero);
       setTimeout(() => this.celebrate(hero), 2700);
     },
-    // SIUU is 날두's: 메시 celebrates with the crowd and a finger to the sky.
-    celebrate(hero) { if (hero === 'messi') RS.Audio.sfx('cheer'); else RS.Audio.siuu(); },
-    cheerText(hero) { return hero === 'messi' ? '☝️' : 'SIUU!'; },
+    // SIUU is 날두's: 메시 and 토레쓰 celebrate with the crowd (a finger to the sky, 엘 니뇨).
+    celebrate(hero) { if (hero === 'ronaldo') RS.Audio.siuu(); else RS.Audio.sfx('cheer'); },
+    cheerText(hero) { return hero === 'messi' ? '☝️' : hero === 'torres' ? '⚡' : 'SIUU!'; },
 
     // ------------------------------------------------------------ main loop
     frame(ts) {
@@ -931,6 +1068,16 @@
             if (e.win) { RS.Audio.sfx('cheer'); this.banner('🏆 클라시코 승리! ' + e.name + ' 격파'); this.renderer.shake = 0.5; }
             else { RS.Audio.sfx('lose'); this.banner('😤 ' + e.name + '가 경기를 끝냈다 — 클라시코 패배'); }
             break;
+          case 'torres': // 드록빠 is down and the season cleared: 토레쓰 runs on (RS.TORRES)
+            RS.Audio.sfx('boss');
+            this.banner('⚡ ' + e.name + ' 난입! ' + e.secs + '초 안에 잡으면 추가 보상 · 캐릭터 해금');
+            $('bossbar').classList.remove('hidden');
+            this.renderer.shake = Math.max(this.renderer.shake, 0.3);
+            break;
+          case 'torresEnd': // the 'clear' that follows carries the banner
+            $('bossbar').classList.add('hidden');
+            RS.Audio.sfx(e.win ? 'jackpot' : 'lose');
+            break;
           case 'recruit': RS.Audio.sfx('recruit'); this.banner(RS.TEAMMATES[e.id].name + (e.bench ? ' 벤치 합류!' : ' 합류!') + (e.swap ? ' (' + RS.TEAMMATES[e.swap].name + ' 이적)' : '')); break;
           case 'rescueSpawn': this.banner((e.swap ? '이적 제안! ' : '동료 발견! ') + RS.TEAMMATES[e.id].name + ' 에게 가자'); break;
           case 'swap': RS.Audio.sfx('recruit'); break;
@@ -939,7 +1086,9 @@
           case 'elite': this.banner('엘리트 등장! 보물 상자를 노려라'); break;
           case 'revive': this.celebrate(w.hero); break;
           case 'dead': RS.Audio.sfx('dead'); break;
-          case 'clear': this.banner('시즌 클리어! ' + this.cheerText(w.hero)); RS.Audio.sfx('cheer'); this.renderer.shake = 0.5; break;
+          case 'clear':
+            this.banner(w.torresResult === 'win' ? '⚡ ' + RS.TORRES.name + ' 격파! 추가 보상 획득' : w.torresResult ? RS.TORRES.name + '가 빠져나갔다 · 시즌 클리어' : '시즌 클리어! ' + this.cheerText(w.hero));
+            RS.Audio.sfx('cheer'); this.renderer.shake = 0.5; break;
           case 'victory': this.banner(RS.HEROES[w.hero].rival + ' 격파!!!'); RS.Audio.sfx('cheer'); this.renderer.shake = 0.8; break;
         }
       }
@@ -965,6 +1114,15 @@
       this.setText('k', $('hud-kills'), String(w.kills));
       this.setText('c', $('hud-coins'), String(Math.round(w.coinsPicked)));
       this.setText('pw', $('hud-power'), String(w.power()));
+      const wp = b.weapon, wk = wp.id + '|' + wp.g + '|' + wp.p;
+      if (this.hud.wk !== wk) { // the one weapon in hand, in its grade colour
+        this.hud.wk = wk;
+        $('hud-weapon').className = 'hud-small hud-weapon g-text g-' + wp.g;
+        $('hud-weapon').textContent = RS.weaponIcon(wp) + ' ' + RS.weaponName(b, wp) + ' ';
+        const tag = document.createElement('span'); // the grade and its +N wrap as one piece on a narrow phone
+        tag.className = 'nw'; tag.textContent = RS.gradeTag(wp);
+        $('hud-weapon').appendChild(tag);
+      }
       const cdMax = w.slideCooldown(), cdLeft = w.player.slideCd;
       const cdPct = Math.round(cdLeft / cdMax * 100);
       if (this.hud.cd !== cdPct) { this.hud.cd = cdPct; $('slide-cd').style.height = cdPct + '%'; $('btn-slide').classList.toggle('ready', cdPct === 0); }
@@ -979,8 +1137,8 @@
       if (bb) {
         const r = Math.max(0, Math.round(bb.hp / bb.maxHp * 1000) / 10);
         if (this.hud.bh !== r) { this.hud.bh = r; $('boss-fill').style.width = r + '%'; }
-        // the rival's bar counts down the 클라시코 window
-        this.setText('bn', $('boss-name'), bb.rival ? '⚔️ ' + bb.name + ' · ' + Math.max(0, Math.ceil(bb.leaveAt - w.t)) + '초' : bb.name);
+        // the rival's and 토레쓰's bars count down their window
+        this.setText('bn', $('boss-name'), bb.rival || bb.special ? (bb.rival ? '⚔️ ' : '⚡ ') + bb.name + ' · ' + Math.max(0, Math.ceil(bb.leaveAt - w.t)) + '초' : bb.name);
       }
     },
 

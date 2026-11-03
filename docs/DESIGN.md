@@ -368,6 +368,57 @@ invisible. This removes the power creep of the carried-over build: late bosses n
     that bulges where the ball went in, a white flash, light and a gold firework for our goal, spark and shake on a
     save or the frame, `GOAL!!` / `SIUUU!` shouts, fireworks and confetti for a won shootout or five of five.
 
+### Round 11: 담백하게 — one weapon, grades, fewer and meaner enemies, 토레쓰
+Player feedback (31세 하드, Lv.90): the screen was unreadable (six moves, evolutions, 합체, damage numbers
+everywhere), level-ups came too fast, nobody could die (메시 bot: 0 hits a season from 2004 on), the rival never
+fell, coins had nothing left to buy, teammates did not fit the year (수아레즈 at the start), crowds were far too
+big in the 20s and the 첼씨 seasons.
+- **One weapon** (`build.weapon = {id, g, p, v}`): the moves of `RS.SKILLS` are now weapons. Grade
+  `RS.GRADES` 일반 · 고급 · 레어 · 에픽 · 황금 · 무지개 picks the move's table row (Lv.1/2/3/4/6) or its evolved form
+  (무지개) and multiplies its damage (×1, 1.3, 1.69, 2.2, 2.86, 3.71); 강화 +1 … +10 adds 3 % a step, so a +10
+  (×1.27) always stays below the next grade's +1. `RS.syncWeapon` mirrors the weapon into `skills / skillOrder /
+  evolved` so the World and the Renderer run the move as before (one entry). Owned weapons wait in the 무기고
+  (`build.armory`, one copy per move, the best kept); `RS.gainWeapon`, `RS.equipFromArmory`, `RS.enhanceWeapon`.
+- Level-up hand: three cards (a graded item / gamble is added as a 4th) from: one weapon card (`RS.offerWeapon`:
+  a move not owned or a better copy, grade odds `RS.GRADE_ODDS` 56 / 27 / 12 / 4 / 0.9 / 0.1 %, +1 … +4; taking it
+  swaps the weapon in hand, the old one goes to the 무기고), 강화 +1, passives (plain stat boosts, six slots),
+  teammates, 개인 훈련. Skills, skill levels, evolutions, 합체 and 각성 cards are gone; 합체 moves come as 황금+
+  weapons (`RS.FUSED_FROM`). Old saves: each move becomes a weapon by its level (`RS.weaponFromSkill`), the best in
+  hand.
+- Grade colours on every card (`g-0 … g-5` in css): grey, green, blue, purple, gold (shine) and an animated
+  rainbow; graded items share the scale (`RS.TIER_GRADE`: 레어 blue, 히든 purple, 초히든 gold, 슈퍼히든 rainbow),
+  teammates by OVR tier (`RS.MATE_GRADE`, one grade more from +8).
+- Teammates: only the hero's real teammates of that club and season (`RS.TEAMMATES[].yrs`, `RS.mateCandidates`).
+  Each signs already trained, 강화 +1 … +10 (`RS.MATE_PLUS_W`, +1 common, +10 rare); the team effect grows 6 % a
+  step (`RS.ROLE_PLUS`). Each role has one plain job and an icon (`RS.ROLES`), shown on the card and above the
+  player on the pitch. When a season ends, whoever does not play beside the hero next season (another club, his
+  years over) leaves, and the best free man of that club and year takes his place at the same 강화
+  (`RS.releaseOffSeason`, also run on old saves): the squad's training is kept, only the faces change; the result
+  screen names who left and who came. The 토레쓰 reward player stays for good.
+- 코인: 훈련장 sells 무기 상자 (90 / 320 / 1100 coins, `RS.WEAPON_BOXES`), weapon 강화 with falling odds
+  (`RS.ENHANCE`) and teammate training (`RS.MATE_ENHANCE`) — sinks that never run out. The level-up shop sells the
+  small box once per screen.
+- Survival: armor never takes more than half of a hit (`RS.ARMOR_CAP`); the 클라시코 rival's HP aims at most
+  `RS.RIVAL_MAX_SHARE` of his window, so a build that keeps hitting him wins.
+- Readability: enemy projectiles are red laser bolts (aim line while telegraphed); damage numbers only on bosses,
+  준보스 and elites, summed per `RS.NUM_GAP`.
+- 토레쓰 (`RS.TORRES`, `RS.BOSS_TYPES.torres`): when 드록빠 falls the season is cleared and 토레쓰 runs on for 30 s.
+  Beating him gives one of `RS.TORRES_REWARDS` (once per career season) and unlocks his career
+  (`meta.unlocked.torres`, `RS.HEROES.torres`, `RS.YEARS_TORRES`: 2001 debut at 17 → 리버풀 → 첼씨 → home → 사간
+  도스 2019, final duel with 메시). His weapons: 날두's shooting moves and his own 엘 니뇨 칩슛 (`nino`).
+  Rewards left unpicked when the game is closed on the result screen (토레쓰's, the season boss's) come back
+  before the next match starts (`RS.pendingRewards`), instead of waiting for — or being skipped by — a later clear.
+- Balance after the switch (enemies hit no harder per blow than in round 10; one weapon kills slower, so 준보스
+  and bosses act more often): the bot (also the auto-move) now side-steps every telegraph — 준보스 charges and slams,
+  the rival's and 토레쓰's dashes — and keeps a wider berth from men who hit hard (left out of its "danger", so it
+  still closes in on bosses); `RS.TRIAL` is about half (날두's four trial seasons in a row, 2004-07, walled the
+  half-trained bot at 2007); the final is a duel — when 메시/날두 comes on the 준보스 and elites walk off, 4 men
+  stay and at most 10 are on (`RS.BOSS_CROWD.duelKeep / duelMax`; the crowd used to refill to 30), and
+  `RS.FINAL_DMG` 0.11 → 0.065. Checked: strong bot with half the 훈련장 + coin purchases clears 노멀 2002-2010 in 9
+  seeds of 9 (메시 and 토레쓰 careers to the end in 3 of 3); 이지 career with no 훈련장 clears with no death;
+  하드 with the whole 훈련장 still stalls (2012); a motionless player still dies; over the final builds of four
+  이지 careers the strong bot wins 19 finals of 24 (15 below half HP), the weak bot 5.
+
 ### Hero readability (round 3)
 - The hero sprite alone has a gold double outline (`paint` `opt.glow`), a pulsing gold ring + soft light pool under
   the feet, a bobbing gold chevron above the head and a gold-framed HP bar.
@@ -376,12 +427,14 @@ invisible. This removes the power creep of the carried-over build: late bosses n
 
 ### Balance targets (checked by `tests/balance.test.js`)
 - A player who does not move survives the first 45 s of 2002 (5 seeds).
-- The repo bot clears 2002–2025 on 이지 without 훈련장 upgrades (and 노멀 with half of them, `round8`); the
+- The repo bot clears 2002–2025 on 이지 without 훈련장 upgrades (and 노멀 2002-2010 with half of them plus coin
+  purchases between seasons, `round8`); the
   final with 메시 and the single-season checks run on 노멀; median season-boss fight 28–90 s, ≥75 % of fights within 20–100 s.
 - At least 2 of the first 6 season bosses land hits on the bot.
-- 메시 takes the strong bot below half HP in at least 1 of 4 seeds while the bot still wins most.
+- Over the final builds of four 이지 careers (one weapon makes the build a draw), 메시 takes the strong bot below
+  half HP in at least a quarter of the finals while the bot still wins at least half.
 - The weak bot (`RS.WEAK_BOT`: 0.12 s reaction delay, ±0.3 rad steering noise, no meta) both loses and wins
-  against 메시 across 6 seeds.
+  against 메시 over the same builds.
 
 ### Round-2 tuning (before → after)
 

@@ -26,7 +26,7 @@
   // ---------------------------------------------------------------- the kicker
   // 골결정력 (1–99): the hero's own touch from the spot (날두 scored 84 % of his career penalties, 메시 78 %),
   // + the career level (up to +24 at Lv.120, the end of a career), + the 훈련장's penalty drill (RS.META.pkdrill, +3 a level).
-  RS.PK_BASE = { ronaldo: 62, messi: 54 };
+  RS.PK_BASE = { ronaldo: 62, messi: 54, torres: 58 }; // 토레쓰 (round 11): a game value between the two, not a record
   RS.pkFinishing = function (build, meta) {
     const hero = build && RS.PK_BASE[build.hero] != null ? build.hero : 'ronaldo';
     const drill = (meta && meta.upgrades && meta.upgrades.pkdrill) || 0;
@@ -85,7 +85,8 @@
   // the national teams' kits for their shootouts (RS.Sprites.pkHero / pkMate)
   RS.NAT_KITS = {
     ronaldo: { main: '#c41e2a', alt: '#1f7a3a', shorts: '#1f7a3a', socks: '#c41e2a', pattern: 'trim' },
-    messi: { main: '#8cc8f0', alt: '#f6f6f6', shorts: '#1a1a2e', socks: '#f6f6f6', pattern: 'stripes' }
+    messi: { main: '#8cc8f0', alt: '#f6f6f6', shorts: '#1a1a2e', socks: '#f6f6f6', pattern: 'stripes' },
+    torres: { main: '#c8102e', alt: '#f6c700', shorts: '#1c2c5b', socks: '#1c2c5b', pattern: 'trim' }
   };
   // The PK 챌린지 keeper grows with the career: 동네 수문장 in the first seasons, legends at the end.
   RS.PK_POOLS = [
@@ -293,7 +294,7 @@
   };
   // our side's name on the scoreboard: the national team or the season's club
   RS.soUsName = function (hero, idx, def) {
-    if (def && def.nat) return hero === 'messi' ? '아르헨티나' : '포르투갈';
+    if (def && def.nat) return hero === 'messi' ? '아르헨티나' : hero === 'torres' ? '스페인' : '포르투갈';
     const y = RS.HEROES[hero] && RS.HEROES[hero].years[idx];
     return (y && RS.ERAS[y.era] && RS.ERAS[y.era].club) || '우리 팀';
   };

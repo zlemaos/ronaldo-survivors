@@ -182,9 +182,7 @@
           L.strokeStyle = 'rgba(80,255,150,' + (m.punch > 0 ? 0.7 : 0.18) + ')';
           L.lineWidth = 1; L.beginPath(); L.arc(Math.round(sx), Math.round(sy), RS.keeperRadius(m.ref.lv), 0, TAU); L.stroke();
         }
-        // role pip
-        L.fillStyle = { defender: '#5aa0ff', keeper: '#3ce07a', winger: '#ffb03a', mid: '#c070ff', striker: '#ff4a5a' }[m.role];
-        L.fillRect(Math.round(sx - 1), Math.round(sy - spr.h / 2 - 3), 3, 2);
+        // (the role icon above the head is drawn crisp on the text layer, drawTexts)
       }
 
       // player
@@ -218,13 +216,7 @@
           L.drawImage(it.n, sx - (it.w >> 1), sy - (it.h >> 1));
         }
       }
-      for (const ep of w.eprojs) {
-        if (!ep.alive) continue;
-        const it = S.item(ep.kind === 'ball' ? 'eball' : ep.kind);
-        if (ep.wait > 0) L.globalAlpha = 0.35 + 0.35 * Math.sin(w.t * 30); // closing ring: telegraph
-        L.drawImage(it.n, H2(this.lx(ep) - camX) - (it.w >> 1), H2(this.ly(ep) - camY) - (it.h >> 1));
-        L.globalAlpha = 1;
-      }
+      this.drawEnemyShots(L, w, camX, camY);
 
       // fx
       this.drawFx(L, w, camX, camY);
@@ -479,6 +471,57 @@
       L.fillStyle = '#ffe14a';
       L.fillRect(sx - 1, sy - (spr.h >> 1) - 9 + by, 3, 5);
       L.fillRect(sx - 1, sy - (spr.h >> 1) - 3 + by, 3, 2);
+    }
+
+    // Enemy shots (round 11): red laser bolts — a glowing streak along the flight with a white-hot core, so theirs
+    // never read as our balls; a 강슛 or a red card burns orange and thicker. A shot still waiting to fly (a ring
+    // closing in) shows a pulsing aim line where it will go. Referee cards keep their card at the head.
+    // Batched: the glow, the beam and the core are one path each.
+    drawEnemyShots(L, w, camX, camY) {
+      const V = this.view, list = this._shots || (this._shots = []);
+      list.length = 0;
+      for (const ep of w.eprojs) {
+        if (!ep.alive) continue;
+        const x = ep.x - camX, y = ep.y - camY;
+        if (x < -40 || y < -40 || x > V.w + 40 || y > V.h + 40) continue;
+        list.push(ep);
+      }
+      if (!list.length) return;
+      L.lineCap = 'round';
+      const pulse = 0.5 + 0.3 * Math.sin(w.t * 30);
+      L.strokeStyle = 'rgba(255,30,30,' + pulse + ')'; L.lineWidth = 1.5;
+      L.beginPath();
+      for (const ep of list) {
+        if (!(ep.wait > 0)) continue;
+        const sp = Math.hypot(ep.vx, ep.vy) || 1, x = ep.x - camX, y = ep.y - camY;
+        L.moveTo(x, y); L.lineTo(x + ep.vx / sp * 70, y + ep.vy / sp * 70);
+      }
+      L.stroke();
+      // normal blending: added light turns red into yellow on the green turf (it read as our golden balls)
+      for (let h = 0; h < 2; h++) {
+        const hot = h === 1;
+        for (let pass = 0; pass < 3; pass++) {
+          let any = false;
+          L.beginPath();
+          for (const ep of list) {
+            if (!!(ep.power || ep.kind === 'redcard') !== hot) continue;
+            const sp = Math.hypot(ep.vx, ep.vy) || 1, ux = ep.vx / sp, uy = ep.vy / sp, x = ep.x - camX, y = ep.y - camY;
+            const len = Math.min(26, 6 + sp * 0.08) * (ep.wait > 0 ? 0.35 : 1) * (pass === 0 ? 1 : pass === 1 ? 0.8 : 0.55);
+            L.moveTo(x - ux * len, y - uy * len); L.lineTo(x, y);
+            any = true;
+          }
+          if (!any) break;
+          const r = hot ? 5 : 2.5;
+          L.lineWidth = pass === 0 ? r * 2 + 2 : pass === 1 ? r + 1 : Math.max(1, r * 0.45);
+          L.strokeStyle = pass === 0 ? 'rgba(70,0,0,0.6)' : pass === 1 ? (hot ? '#ff3a10' : '#ff2626') : '#ffe2dc';
+          L.stroke();
+        }
+      }
+      for (const ep of list) {
+        if (ep.kind !== 'card' && ep.kind !== 'redcard') continue;
+        const it = RS.Sprites.item(ep.kind);
+        L.drawImage(it.n, H2(ep.x - camX) - (it.w >> 1), H2(ep.y - camY) - (it.h >> 1));
+      }
     }
 
     drawTele(L, t, camX, camY, time) {
@@ -837,6 +880,12 @@
         C.fillText(str, x, y);
       }
       C.globalAlpha = 1;
+      // teammates: their role icon (RS.ROLES) above the head — what each one does, at a glance
+      C.font = Math.round(base * 1.05) + 'px system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+      for (const m of w.mates) {
+        const r = RS.ROLES[m.role];
+        if (r) C.fillText(r.icon, (this.lx(m) - camX) * s, (this.ly(m) - camY - 14) * s);
+      }
       // 호날도 syllables (호! 날! 도!, one per hit) and the 휘슬 call, above 날두
       for (const f of w.fx) {
         if ((f.kind !== 'martial' && f.kind !== 'whistle') || f.t >= f.dur) continue;

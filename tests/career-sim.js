@@ -9,6 +9,7 @@ module.exports = function simCareer(opt) {
   const years = [];
   let stoppedAt = null;
   for (let idx = 0; idx <= to; idx++) {
+    if (opt.train) opt.train(save, rng);
     let cleared = false;
     for (let attempt = 0; attempt < (opt.tries || 3) && !cleared; attempt++) {
       // story events: the first card unless opt.events names another ({ hgh: 1 } = 하드 모드)
@@ -26,6 +27,10 @@ module.exports = function simCareer(opt) {
         w.update(1 / 60, bot(w));
       }
       const r = RS.finishYear(save, w);
+      if (r.cleared && RS.needsBossReward(save, idx)) {
+        const rewards = RS.bossRewardChoices(save, idx, rng);
+        RS.applyBossReward(save, idx, rewards[0], rng);
+      }
       const b = w.build;
       const y = { idx, year: RS.YEARS[idx].year, attempt, phase: w.phase, t: w.t, bossT: w.bossT, bossHp: w.boss ? w.boss.maxHp : 0,
         minHp: Math.min(w.minHp, w.stats.maxHp), maxHp: w.stats.maxHp, hits: w.hits, bossDmgTaken: w.bossDmgTaken, dmgTaken: w.dmgTaken,

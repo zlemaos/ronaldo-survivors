@@ -8,14 +8,12 @@ const withHero = (hero, fn) => { RS.selectHero(hero); try { return fn(); } final
 const withDiff = (k, fn) => { RS.setDiff(k); try { return fn(); } finally { RS.setDiff('normal'); } };
 const memStore = (raw) => { const m = { [RS.SAVE_KEY]: raw }; return { get: (k) => m[k] || null, set: (k, v) => { m[k] = v; } }; };
 const years = (hero) => RS.HEROES[hero].years.filter((y) => y.ballon).map((y) => y.year);
-// a build with this move at Lv.6, its passive and `won` 발롱도르, evolved down `variant`
+// A rainbow weapon with only trophies actually won in this career.
 function evolvedBuild(hero, id, won, variant) {
   const b = RS.newBuild(hero);
-  if (!b.skills[id]) b.skillOrder.push(id);
-  b.skills[id] = RS.SKILL_MAX;
-  RS.applyChoice(b, { kind: 'passive', id: RS.SKILLS[id].passive });
+  b.weapon = { id, g: 5, p: 1, v: variant };
   b.ballons = years(hero).slice(0, won);
-  assert.ok(RS.applyChoice(b, { kind: 'evolve', id, variant }), id + ' evolves with ' + won + ' 발롱도르');
+  RS.syncWeapon(b);
   return b;
 }
 function crowdWorld(b, seed) {
@@ -25,17 +23,10 @@ function crowdWorld(b, seed) {
   return w;
 }
 
-test('메시\'s 회전 공 evolves only after his first 발롱도르; the ring holds as many trophies as he has won', () => withHero('messi', () => {
+test('rainbow 회전 공 shows only trophies won in the career', () => withHero('messi', () => {
   const b0 = RS.newBuild('messi');
-  b0.skills.orbit = RS.SKILL_MAX; RS.applyChoice(b0, { kind: 'passive', id: 'ballon' });
-  assert.deepEqual(RS.availableEvolutions(b0), [], 'no evolution before a 발롱도르');
-  assert.match(RS.evoHint(b0, 'orbit'), /첫 발롱도르/);
-  for (let s = 1; s <= 40; s++) assert.ok(!RS.makeChoices(b0, RS.makeRng(s), 3, 4).some((c) => c.kind === 'evolve'));
-  // three won: the cards say 3, the ring is three trophies and one golden ball (count) or one ×3 ball and one golden (size)
-  const b3 = RS.newBuild('messi');
-  b3.skills.orbit = RS.SKILL_MAX; RS.applyChoice(b3, { kind: 'passive', id: 'ballon' }); b3.ballons = years('messi').slice(0, 3);
-  const names = RS.makeChoices(b3, RS.makeRng(1), 12, 4).filter((c) => c.kind === 'evolve').map((c) => c.name).sort();
-  assert.deepEqual(names, ['3발롱도르', '3발롱도르공']);
+  b0.weapon.g = 5; RS.syncWeapon(b0);
+  assert.equal(RS.orbitLook(b0), 'gold');
   const ring = (variant, won) => { const w = crowdWorld(evolvedBuild('messi', 'orbit', won, variant)); for (let i = 0; i < 30; i++) w.update(1 / 60, { x: 0, y: 0 }); return w.orbs.map((o) => o.look + ':' + o.r.toFixed(1)); };
   assert.deepEqual(ring('count', 3), ['ballon:6.4', 'ballon:6.4', 'ballon:6.4', 'gold:6.4']);
   assert.deepEqual(ring('size', 3), ['ballon:12.0', 'gold:6.4']);
@@ -90,19 +81,19 @@ test('a cleared 발롱도르 season adds to the career\'s 발롱도르; a stolen
   assert.equal(RS.ballonCount(save.career.build), 2);
 }));
 
-test('old saves: a 회전 공 evolved before any 발롱도르 goes back to Lv.6; later careers get the 발롱도르 they cleared', () => withHero('messi', () => {
+test('legacy trophy saves convert to graded weapons and retain earned career trophies', () => withHero('messi', () => {
   const build = (extra) => Object.assign({ hero: 'messi', level: 12, hgh: true, skills: { orbit: 6 }, skillOrder: ['orbit'], passives: { ballon: 1 }, passiveOrder: ['ballon'],
     evolved: { orbit: 'size' }, stars: { orbit: 2 }, teammates: [], bench: [], relics: {}, relicOrder: [], coachCards: [] }, extra || {});
   const youth = RS.loadSave(memStore(JSON.stringify({ career: { v: 2, yearIdx: 1, cleared: [true], build: build(), snapshots: { 1: build() } }, meta: {} })));
   const b = youth.career.build;
-  assert.equal(b.skills.orbit, 6);
-  assert.ok(!b.evolved.orbit && !b.stars.orbit, 'evolution undone at 11');
-  assert.ok(!youth.career.snapshots[1].evolved.orbit);
+  assert.equal(b.weapon.id, 'orbit');
+  assert.equal(b.weapon.g, 4);
+  assert.equal(RS.orbitLook(b), 'gold', 'no trophy before earning one');
   const idx = RS.YEARS_MESSI.findIndex((y) => y.year === 2012);
   const cleared = new Array(idx).fill(true);
   const later = RS.loadSave(memStore(JSON.stringify({ career: { v: 2, yearIdx: idx, cleared, build: build(), snapshots: { [idx - 2]: build() } }, meta: {} })));
   assert.deepEqual(later.career.build.ballons, [2009, 2010, 2011]);
-  assert.equal(later.career.build.evolved.orbit, 'size', 'kept: he had won three');
+  assert.deepEqual(later.career.build.weapon, { id: 'orbit', g: 4, p: 5, v: 'size' });
   assert.deepEqual(later.career.snapshots[idx - 2].ballons, [2009]);
   assert.equal(later.career.v, RS.CAREER_V);
 }));
@@ -259,10 +250,11 @@ test('a penalty plays out by itself in auto mode (shooting and keeping), and by 
   assert.ok(sc.sfx.includes('kick'));
 });
 
-test('하드 메시 youth with the bot: varied moves and no 발롱도르 ball before 2009', () => withDiff('hard', () => withHero('messi', () => {
+test('하드 메시 youth keeps one equipped weapon and no unearned trophy ball', () => withDiff('hard', () => withHero('messi', () => {
   const save = RS.newSave(); RS.switchHero(save, 'messi');
   const c = simCareer({ seed: 2, save, to: 3 });
   const last = c.save.career.build;
   assert.ok(!last.evolved.orbit, 'the 회전 공 waits for 2009');
-  assert.ok(last.skillOrder.length >= 4, 'moves by the debut: ' + last.skillOrder.join());
+  assert.equal(last.skillOrder.length, 1);
+  assert.ok(RS.skillFor(last.weapon.id, 'messi'));
 })));
