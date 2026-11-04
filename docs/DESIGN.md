@@ -565,6 +565,9 @@ for passives, weapons and items alike.
   - 하드 = 2 × 노멀's crowd (`RS.DIFFS[].crowd`, `spawnRamp`): trickle, packs, the floor, the cap and the 공세 packs;
     `maxAlive` up to 120 on 하드. Measured average men alive (immortal men, no scripted waves, 5 seeds) 노멀 → 하드:
     season 3 15.5 → 30.2, 5 17.8 → 35.8, 8 22.7 → 45.1, 12 28.5 → 56.8.
+- **Round 13.3: a boss attacks only from the hero's screen** (`World.bossAI`, +24 px; "보스 사거리 무제한인 거
+  에바야"): off it he only walks in (and still catches up on a runner), so fleeing buys a breather. An attack already
+  under way finishes.
 
 ### Round-2 tuning (before → after)
 

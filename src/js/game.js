@@ -2532,7 +2532,10 @@
       // never let the player simply outrun the boss off-screen
       if (d > this.spawnRadius() * 0.9) { e.x += dx / d * sp * 1.5 * dt; e.y += dy / d * sp * 1.5 * dt; }
       ai.cool -= dt;
-      if (ai.cool <= 0) {
+      // round 13.3: a boss starts an attack only from the hero's screen (+24 px); farther off he first walks in (the
+      // user: "보스 사거리 무제한인 거 에바야", he kept attacking a hero fleeing for his life)
+      const inReach = Math.abs(dx) <= this.view.w / 2 + 24 && Math.abs(dy) <= this.view.h / 2 + 24;
+      if (ai.cool <= 0 && inReach) {
         const list = this.bossActions(e);
         let k = this.rng.pick(list);
         if (k === ai.last && list.length > 1) k = this.rng.pick(list.filter((x) => x !== ai.last));
@@ -3283,4 +3286,4 @@
     };
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).game = 'R13.2';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).game = 'R13.3';

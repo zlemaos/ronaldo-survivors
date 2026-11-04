@@ -81,6 +81,28 @@ test('every 공세 banner brings a pack, and a debut hit is felt', () => {
   assert.ok(w.spawnEnemy('grunt', 300, 0).dmg >= 6, 'a 2004 수비수 hit lost its newcomer discount');
 });
 
+// Round 13.3 (the user): "보스 사거리 무제한인 거 에바야 죽을 거같아서 피하는데 계속 공격하면 어떻게해".
+test('a boss off the hero\'s screen walks in instead of attacking', () => {
+  const w = new RS.World({ yearIdx: 2, seed: 3 }); w.debug.godMode = true;
+  const tick = () => {
+    if (w.phase === 'levelup') w.choose(0);
+    else if (w.phase === 'chest') w.closeChest();
+    else if (w.phase === 'swap') w.chooseSwap(0);
+    else w.update(1 / 60, { x: 0, y: 0 });
+  };
+  w.t = w.stageTime;
+  for (let i = 0; i < 60 * 30 && !w.bossSpawned; i++) tick();
+  const boss = w.enemies.find((e) => e.boss && e.alive);
+  assert.ok(boss, 'the season boss is on');
+  boss.x = w.player.x + w.view.w; boss.y = w.player.y; boss.ai.act = null; boss.ai.cool = 0;
+  while (w.phase !== 'play') tick();
+  w.update(1 / 60, { x: 0, y: 0 });
+  assert.equal(boss.ai.act, null, 'no attack from off screen');
+  let acted = false;
+  for (let i = 0; i < 60 * 10 && !acted; i++) { tick(); acted = !!boss.ai.act; }
+  assert.ok(acted, 'he attacks once he has walked onto the screen');
+});
+
 // Luck once took its extra share from 일반 alone: a late season has no 일반, the odds summed over 1 and the roll
 // never reached the top, so a 20 % 행운 부적 dealt no 전설 from season 10 on.
 test('luck never lowers the 영웅 or 전설 odds: a 행운 부적 still deals 전설 in late seasons', () => {
