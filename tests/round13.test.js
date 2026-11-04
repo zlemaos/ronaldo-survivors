@@ -52,6 +52,35 @@ test('an early stage always has a man or two on his way from the first seconds',
   }
 });
 
+// Round 13.2 (the user): "맞고 나서 1초간 깜박이며 무적 … 3초까지 연장 (1 ~ 2 ~ 3)".
+test('오뚝이 정신 keeps the hero untouchable after a hit: 1, 2, 3 s with 희귀 cards, never past 3 s', () => {
+  const guard = (gs) => {
+    const b = RS.newBuild();
+    b.passives.ironwill = gs.length; b.passiveOrder.push('ironwill'); b.passiveGrades.ironwill = gs;
+    const w = new RS.World({ yearIdx: 2, seed: 1, build: b });
+    w.player.iframe = 0;
+    w.hurtPlayer(5, null);
+    return w.player.iframe;
+  };
+  assert.deepEqual([[2], [2, 2], [2, 2, 2]].map(guard), [1, 2, 3]);
+  assert.equal(guard([4, 4, 4]), 3, 'never past 3 s');
+  assert.equal(RS.passiveMax('ironwill'), 3);
+});
+
+// "1차 공세라 할만큼 몹이 몰려오지도 않았는데 2차 공세 시작이라네": a banner used to come with no men.
+test('every 공세 banner brings a pack, and a debut hit is felt', () => {
+  const w = new RS.World({ yearIdx: 2, seed: 2 });
+  assert.ok(['wave1', 'wave2', 'wave3'].every((k) => w.schedule.some((ev) => ev.kind === k)));
+  for (const n of [1, 2, 3]) {
+    const before = w.enemies.length;
+    w.surge(n);
+    assert.ok(w.enemies.length - before >= 5, '공세 ' + n + ': ' + (w.enemies.length - before) + ' men');
+  }
+  const debut = new RS.World({ yearIdx: 0, seed: 2 });
+  assert.ok(debut.spawnEnemy('grunt', 300, 0).dmg >= 3, 'a debut 수비수 hit takes more than the old 2 of 100 HP');
+  assert.ok(w.spawnEnemy('grunt', 300, 0).dmg >= 6, 'a 2004 수비수 hit lost its newcomer discount');
+});
+
 // Luck once took its extra share from 일반 alone: a late season has no 일반, the odds summed over 1 and the roll
 // never reached the top, so a 20 % 행운 부적 dealt no 전설 from season 10 on.
 test('luck never lowers the 영웅 or 전설 odds: a 행운 부적 still deals 전설 in late seasons', () => {

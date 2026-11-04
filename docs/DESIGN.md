@@ -548,6 +548,23 @@ for passives, weapons and items alike.
   pitch, one steps in just off the screen edge (checked every 0.5 s), never ahead of a running hero. It counts the
   stragglers too: they are recycled back around the hero, and counting only the spawn ring kept adding men behind a
   runner until the crowd cap was full.
+- **Round 13.2** (the user: "몹 좀만 더 리젠", "공격 맞아도 체력이 별로 안 닳네", "1차 공세라 할만큼 몹이 몰려오지도
+  않았는데 2차 공세", a passive for 1 ~ 2 ~ 3 s of blinking invulnerability after a hit, "하드면 몹 2배"):
+  - Crowd (`RS.CROWD`): trickle 0.42 → 0.55, kick-off share 0.3 → 0.45, floor 2 → 3 men; each man's XP and coins
+    `value` 1.6 → 1.25 (with 1.6 the extra men levelled the strong bot so far that 메시 took it below half HP in 1
+    final of 16; the guard wants a quarter).
+  - 공세 (`World.surge`): a new 1차 공세 at 12 % of the stage; each of 1차 · 2차 · 총공세 brings a pack of 1.5 · 2.2 · 3
+    × the season's pack from one side, never ahead of a runner (the banners used to come with no men); half of that
+    in the debut.
+  - Crowd hits (`dmgMul`) lose the newcomer discount (×0.32 · 0.6 · 0.75 · 0.88 in seasons 0–3 → ×0.55 in the
+    debut only): a 수비수 hit 2 → 3 HP in the debut, 3 → 6 in 2004. Bosses keep theirs. With full surges and ×0.9 a
+    player who barely moves died at 41 s of the debut (5 seeds: 4 died); with half surges and ×0.55 all five see 45 s. Every hit shakes harder (0.12 → 0.25) and flashes the
+    screen edge red.
+  - 오뚝이 정신 (`RS.PASSIVES.ironwill`, `hitGuard`): after a hit the hero blinks, untouchable, 1 s per 희귀 card ×
+    its grade, three levels, at most 3 s (`RS.HIT_GUARD_MAX`, `RS.passiveMax`).
+  - 하드 = 2 × 노멀's crowd (`RS.DIFFS[].crowd`, `spawnRamp`): trickle, packs, the floor, the cap and the 공세 packs;
+    `maxAlive` up to 120 on 하드. Measured average men alive (immortal men, no scripted waves, 5 seeds) 노멀 → 하드:
+    season 3 15.5 → 30.2, 5 17.8 → 35.8, 8 22.7 → 45.1, 12 28.5 → 56.8.
 
 ### Round-2 tuning (before → after)
 

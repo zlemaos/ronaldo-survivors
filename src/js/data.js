@@ -74,8 +74,11 @@
   // used to): the user ran from men at one o'clock and found men already waiting at seven. Fewer men, each worth
   // `value` × the XP and coins, so levels and coins keep their pace. Round 13.1: from `nearFirst` s on, at least
   // `near` men are always on the pitch — every `nearEvery` s one more steps in just off the screen edge when fewer
-  // are (a youth stage showed its first man after 46 s: "저단계여도 한 두 마리는 계속 덤벼야지").
-  RS.CROWD = { trickle: 0.42, start: 0.3, packFirst: 8, packEvery: [13, 8], packN: [4, 0.35], packGrow: [0.6, 1.4], packArc: 0.9, cap: [12, 2.2, 60], room: 16, value: 1.6, near: 2, nearFirst: 1.5, nearEvery: 0.5 };
+  // are (a youth stage showed its first man after 46 s: "저단계여도 한 두 마리는 계속 덤벼야지"). Round 13.2 ("몹 좀만
+  // 더 리젠"): trickle 0.42 → 0.55, start 0.3 → 0.45, near 2 → 3, and value 1.6 → 1.25 so levels keep their pace
+  // with the extra men. `surge`: the 1차 · 2차 · 총공세 banners each bring a pack of surge[n − 1] × the season's
+  // pack (World.surge; the banners used to come with no men behind them).
+  RS.CROWD = { trickle: 0.55, start: 0.45, packFirst: 8, packEvery: [13, 8], packN: [4, 0.35], packGrow: [0.6, 1.4], packArc: 0.9, cap: [12, 2.2, 60], room: 16, value: 1.25, near: 3, nearFirst: 1.5, nearEvery: 0.5, surge: [1.5, 2.2, 3] };
   // The final duel keeps `duelKeep` of them and at most `duelMax` on (메시's / 날두's own summons included): during
   // the duel the crowd used to refill to 30 and decided the final for the close-range weapons.
   RS.BOSS_CROWD = { keep: 10, max: 30, rivalKeep: 16, rivalRate: 0.5, duelKeep: 4, duelMax: 10 };
@@ -706,7 +709,10 @@
     samba: { name: '삼바 리듬', icon: '💃', mods: { cd: -0.07 } },
     keepup: { name: '볼 키핑', icon: '🪀', mods: { moveSpeed: 0.05, area: 0.05 } },
     juggle: { name: '리프팅 묘기', icon: '🤹', mods: { area: 0.08, dur: 0.06 } },
-    trickster: { name: '능청 연기', icon: '🎭', mods: { dur: 0.12, crit: 0.03 } }
+    trickster: { name: '능청 연기', icon: '🎭', mods: { dur: 0.12, crit: 0.03 } },
+    // Round 13.2 (the user: 맞고 나서 1초간 깜박이며 무적, 1 ~ 2 ~ 3초): seconds of blinking invulnerability after a
+    // hit, × the card's grade, three levels, at most RS.HIT_GUARD_MAX (World.hurtPlayer).
+    ironwill: { name: '오뚝이 정신', icon: '🛡️', mods: { hitGuard: 1 }, max: 3 }
   };
   // A passive level saved before round 13 has no grade: it counts as 희귀, the old card's full value.
   RS.PASSIVE_OLD_G = 2;
@@ -714,7 +720,7 @@
   RS.MOD_TEXT = {
     dmg: ['공격력', '%'], cd: ['쿨타임', '%'], area: ['공격 범위', '%'], projSpeed: ['투사체 속도', '%'],
     dur: ['기절·지속시간', '%'], moveSpeed: ['이동속도', '%'], crit: ['치명타 확률', '%'], hp: ['최대 체력', ''],
-    magnet: ['아이템 흡수 범위', '%'], regen: ['초당 체력', ''], armor: ['받는 피해', '', -1]
+    magnet: ['아이템 흡수 범위', '%'], regen: ['초당 체력', ''], armor: ['받는 피해', '', -1], hitGuard: ['맞은 뒤 무적', '초']
   };
   RS.PASSIVE_MAX = 5;
 
@@ -1233,6 +1239,7 @@
   RS.BASE_MOVE = 78; // hero walking speed before bonuses (× the hero's moveMul)
   RS.FINAL_PACE = 1.2; // the final duel's patterns are tuned for a hero running at this × base speed (see World.recalc)
   RS.IFRAMES = 0.55; // seconds of invulnerability after a hit (crowds can hit at most this often)
+  RS.HIT_GUARD_MAX = 3; // 오뚝이 정신: never more than this many seconds of it
   RS.MINI_TYPES = ['brute', 'enforcer'];
   // manual slide (슬라이딩 버튼): invulnerable dash with a gradient trail; cooldown per hero
   RS.SLIDE = { speed: 420, dur: 0.28, dmg: 12, cd: { ronaldo: 5, messi: 3, torres: 4 } }; // 메시: quicker feet, shorter cooldown
@@ -1425,12 +1432,14 @@
   // × (1 + grow × pro season) more, so the gap widens as the career goes on. heal: × the heal drop chance.
   // 노멀 is the default; it sits well above the round-7 curve, which is now about 이지.
   // Round 9: both pro settings got much tougher after 완전 오토 cleared 하드. special: × the graded-card odds;
+  // crowd: × the ordinary crowd — trickle, packs, the minimum-men floor and the alive cap (RS.yearTuning, World.updateSpawns);
+  // 하드 fields twice 노멀's men at the same moment (spawn/spawnRamp are 노멀's, so the ratio holds from the first season on)
   // poise: × knockback and stun taken by the crowd; bossCool: × the rest between boss attacks; ramp: seasons over
   // which the extra toughness grows in (the debut on 노멀 still plays as it always did; 하드 bites from the start).
   RS.DIFFS = {
-    easy: { name: '이지', icon: '🙂', hp: 0.72, dmg: 0.65, spawn: 0.85, boss: 0.8, grow: 0, heal: 1.4, special: 1, poise: 1, bossCool: 1, ramp: 0, desc: '적이 약하고 회복이 자주 나온다. 처음이라면 여기서' },
+    easy: { name: '이지', icon: '🙂', hp: 0.72, dmg: 0.65, spawn: 0.85, spawnRamp: 0, crowd: 1, boss: 0.8, grow: 0, heal: 1.4, special: 1, poise: 1, bossCool: 1, ramp: 0, desc: '적이 약하고 회복이 자주 나온다. 처음이라면 여기서' },
     // round 11: grow 0.035 → 0.02 (normal), 0.08 → 0.045 (hard): one weapon grows far slower than six moves did
-    normal: { name: '노멀', icon: '⚽', hp: 1.6, dmg: 1.5, spawn: 1.25, boss: 1.5, grow: 0.02, heal: 0.9, special: 0.85, poise: 0.85, bossCool: 0.95, ramp: 3, desc: '기본 난이도. 중반부터는 벽이 느껴진다 · 훈련장 강화가 필요하다' },
+    normal: { name: '노멀', icon: '⚽', hp: 1.6, dmg: 1.5, spawn: 1.25, spawnRamp: 3, crowd: 1, boss: 1.5, grow: 0.02, heal: 0.9, special: 0.85, poise: 0.85, bossCool: 0.95, ramp: 3, desc: '기본 난이도. 중반부터는 벽이 느껴진다 · 훈련장 강화가 필요하다' },
     // grow 0.08 (round 10, was 0.05): with each match replayable from its seed, 완전 오토 with the whole 훈련장 still
     // cleared 하드 on 2 seeds of 8; now it stalls on every one between 2011 and 2017
     // top (round 13): × the 영웅 and 전설 share of the weapon and passive cards (RS.gradeOddsAt; the rest goes to
@@ -1438,7 +1447,7 @@
     // fixed, 완전 오토 with the whole 훈련장 cleared 하드 on seed 7 of 7 · 3 · 5 · 9 (×0.5: on 7 and 3). At ×0.25 its
     // season-10 hand is 영웅 8 % · 전설 2 %, near round 12's 에픽 7 % · no 황금, and it stalls on all six seeds tried
     // (7 · 3 · 5 · 9 · 11 · 13), between 2011 and 2022.
-    hard: { name: '하드', icon: '🔥', hp: 2.4, dmg: 2.1, spawn: 1.5, boss: 2.2, grow: 0.045, heal: 0.45, special: 0.5, top: 0.25, poise: 0.6, bossCool: 0.8, ramp: 1, desc: '적이 단단하고 아프며 잘 밀리지 않는다. 회복과 특수 아이템, 영웅·전설 카드도 드물다. 오토로는 못 깬다' }
+    hard: { name: '하드', icon: '🔥', hp: 2.4, dmg: 2.1, spawn: 1.25, spawnRamp: 3, crowd: 2, boss: 2.2, grow: 0.045, heal: 0.45, special: 0.5, top: 0.25, poise: 0.6, bossCool: 0.8, ramp: 1, desc: '적이 단단하고 아프며 잘 밀리지 않는다. 회복과 특수 아이템, 영웅·전설 카드도 드물다. 오토로는 못 깬다' }
   };
   RS.DIFF_ORDER = ['easy', 'normal', 'hard'];
   RS.DIFF = 'normal';
@@ -1753,14 +1762,17 @@
     const t = {
       hpMul: curve * wallHp * (1 + T.hp * L) * dv(D.hp) * g,
       wallHp, // 준보스 leave this out: they already scale with the season and must stay killable (World.spawnEnemy)
-      dmgMul: (1 + 0.08 * idx) * gentle * (1 + W.dmg * w) * (1 + T.dmg * L) * dv(D.dmg) * g,
+      // round 13.2: the crowd's hits no longer take the newcomer discount (a debut 수비수 hit for 2 of 100 HP: "맞은
+      // 줄도 모르겠음"); bosses keep it
+      dmgMul: (1 + 0.08 * idx) * (idx === 0 ? 0.55 : 1) * (1 + W.dmg * w) * (1 + T.dmg * L) * dv(D.dmg) * g,
       wallDmg: 1 + W.dmg * w, // 준보스 leave this out too
       speedMul: 1 + 0.008 * idx + W.speed * w,
       poise: dv(D.poise) / (1 + W.poise * w + T.poise * L), // × knockback and stun taken by ordinary enemies
       // round 11: far fewer in the 20s, the crowd grows late (was (2.3 + 0.18 idx) and up to 150 + 12 idx alive)
-      spawnRate: (1 + 0.04 * idx + 0.0025 * idx * idx) * (idx === 0 ? 0.7 : 1) * (1 + W.spawn * w) * (1 + T.spawn * L) * dv(D.spawn),
+      spawnRate: (1 + 0.04 * idx + 0.0025 * idx * idx) * (idx === 0 ? 0.7 : 1) * (1 + W.spawn * w) * (1 + T.spawn * L) * (1 + (D.spawn - 1) * (D.spawnRamp ? Math.min(1, idx / D.spawnRamp) : 1)) * D.crowd,
       healMul: dv(D.heal), // × the heal drop chance
-      maxAlive: Math.min(RS.CROWD.cap[2], Math.round(RS.CROWD.cap[0] + RS.CROWD.cap[1] * idx)), // round 12: was min(150, 40 + 5 idx)
+      crowd: D.crowd, // × the packs and the minimum-men floor (World.updateSpawns)
+      maxAlive: Math.round(Math.min(RS.CROWD.cap[2], Math.round(RS.CROWD.cap[0] + RS.CROWD.cap[1] * idx)) * D.crowd), // round 12: was min(150, 40 + 5 idx)
       duration: 60 + (tw.extra || 0), // one minute per season (+ 연장전), then the boss
       // inside a stage enemies visibly toughen: by the end they have this much more HP / damage / speed
       rampHp: 0.35, rampDmg: 0.12 * gentle, rampSpeed: 0.1, // speed ramp: normal-pace enemies only
@@ -1800,4 +1812,4 @@
     reroll: { name: '전술 보드', icon: '🔁', desc: '레벨업 리롤 +1', max: 3, ballon: [1, 1, 1], mods: { reroll: 1 } }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).data = 'R13.1';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).data = 'R13.2';

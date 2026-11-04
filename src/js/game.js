@@ -367,7 +367,7 @@
   // Derive runtime stats from build (passives + coach cards) and meta upgrades. youth: a youth season (RS.mateMul).
   RS.computeStats = function (build, metaUpgrades, youth) {
     const a = { dmg: 0, cd: 0, area: 0, projSpeed: 0, moveSpeed: 0, hp: 0, magnet: 0, crit: 0, dur: 0, regen: 0,
-      armor: 0, xp: 0, gold: 0, teamDmg: 0, teamCd: 0, bossDmg: 0, revive: 0, reroll: 0, luck: 0 };
+      armor: 0, xp: 0, gold: 0, teamDmg: 0, teamCd: 0, bossDmg: 0, revive: 0, reroll: 0, luck: 0, hitGuard: 0 };
     const add = (mods, times) => { for (const k in mods) if (k in a) a[k] += mods[k] * times; };
     for (const id in build.passives) if (RS.PASSIVES[id]) add(RS.PASSIVES[id].mods, RS.passivePow(build, id));
     for (const id in build.relics || {}) if (RS.RELICS[id] && RS.RELICS[id].mods) add(RS.RELICS[id].mods, RS.RELICS[id].stack ? RS.stackMul(build.relics[id]) : 1);
@@ -388,7 +388,8 @@
       move: RS.BASE_MOVE * hero.moveMul * (1 + a.moveSpeed), maxHp: Math.round(100 + a.hp + (build.bonusHp || 0)), magnet: 38 * (1 + a.magnet),
       crit: Math.min(0.9, 0.05 + a.crit), dur: 1 + a.dur, regen: a.regen, armor: a.armor, xp: 1 + a.xp,
       gold: 1 + a.gold, teamDmg: 1 + a.teamDmg, teamCd: Math.max(0.5, 1 + a.teamCd), bossDmg: 1 + a.bossDmg,
-      revive: a.revive, reroll: a.reroll + (build.bonusReroll || 0), armor: Math.round(a.armor), luck: a.luck
+      revive: a.revive, reroll: a.reroll + (build.bonusReroll || 0), armor: Math.round(a.armor), luck: a.luck,
+      hitGuard: Math.min(RS.HIT_GUARD_MAX, a.hitGuard)
     };
   };
 
@@ -517,6 +518,7 @@
   // ================================================================ Level-up choices
   // Passives are plain stat boosts (round 11: no evolution pairs any more): MAX_PASSIVES slots, Lv.PASSIVE_MAX each.
   // Round 13: every card (a new passive or a level) has a grade and adds the passive's mods × RS.GRADES[g].pmul.
+  RS.passiveMax = (id) => (RS.PASSIVES[id] && RS.PASSIVES[id].max) || RS.PASSIVE_MAX; // 오뚝이 정신 stops at Lv.3
   RS.canTakePassive = (build, pid) => !build.passives[pid] && !!RS.PASSIVES[pid] && build.passiveOrder.length < RS.MAX_PASSIVES;
   // The sum of pmul over a passive's levels (a level without a grade counts as RS.PASSIVE_OLD_G).
   RS.passivePow = function (b, id) {
@@ -566,7 +568,7 @@
         return Object.assign(c, { name: p.name, icon: p.icon, desc: RS.modsText(RS.scaleMods(p.mods, G.pmul)), tag: G.name + ' · 새 패시브',
           hint: '패시브 칸 ' + (build.passiveOrder.length + 1) + '/' + RS.MAX_PASSIVES + ' · 레벨 카드마다 등급만큼 더해진다' }); }
       case 'passiveUp': { const p = RS.PASSIVES[c.id], G = RS.gradeOf(c.g), nl = build.passives[c.id] + 1;
-        return Object.assign(c, { name: p.name, icon: p.icon, desc: RS.modsText(RS.scaleMods(p.mods, G.pmul)), tag: G.name + ' · Lv.' + nl + (nl === RS.PASSIVE_MAX ? ' MAX' : ''),
+        return Object.assign(c, { name: p.name, icon: p.icon, desc: RS.modsText(RS.scaleMods(p.mods, G.pmul)), tag: G.name + ' · Lv.' + nl + (nl === RS.passiveMax(c.id) ? ' MAX' : ''),
           hint: '지금까지 ' + RS.modsText(RS.scaleMods(p.mods, RS.passivePow(build, c.id))) }); }
       case 'mate': { const m = RS.TEAMMATES[c.id]; const toBench = build.teammates.length >= RS.MAX_MATES; const syn = RS.synergyHint(build, c.id);
         return Object.assign(c, { name: m.name, icon: RS.ROLES[m.role].icon, desc: RS.mateLine(c.id), tag: RS.mateBadge(c.id, c.lv), g: RS.mateGrade(c.id),
@@ -601,7 +603,7 @@
     const wpn = RS.offerWeapon(build, rng, luck, idx);
     if (wpn) pool.push({ kind: 'weapon', id: wpn.id, wpn, w: 2.4 });
     if (build.weapon.p < RS.PLUS_MAX) pool.push({ kind: 'enhance', id: build.weapon.id, w: 2.6 });
-    for (const id of build.passiveOrder) if (build.passives[id] < RS.PASSIVE_MAX) pool.push({ kind: 'passiveUp', id, w: 1.2 });
+    for (const id of build.passiveOrder) if (build.passives[id] < RS.passiveMax(id)) pool.push({ kind: 'passiveUp', id, w: 1.2 });
     const fresh = Object.keys(RS.PASSIVES).filter((id) => RS.canTakePassive(build, id) && RS.passiveFor(id, hero));
     for (const id of fresh) pool.push({ kind: 'passive', id, w: 3 / fresh.length });
     if (!RS.squadFull(build)) {
@@ -676,7 +678,7 @@
         if (!RS.canTakePassive(build, c.id)) return false;
         build.passives[c.id] = 1; build.passiveOrder.push(c.id); build.passiveGrades[c.id] = [RS.cardGrade(c)]; return true;
       case 'passiveUp':
-        if (!build.passives[c.id] || build.passives[c.id] >= RS.PASSIVE_MAX) return false;
+        if (!build.passives[c.id] || build.passives[c.id] >= RS.passiveMax(c.id)) return false;
         build.passives[c.id]++; (build.passiveGrades[c.id] = build.passiveGrades[c.id] || []).push(RS.cardGrade(c)); return true;
       case 'mate': return !!RS.addMate(build, c.id, c.lv);
       case 'mateUp': return RS.levelMate(build, c.id, 1);
@@ -834,6 +836,7 @@
       // mini-boss waves (the debut year gets two late ones so a newcomer can learn the controls first)
       for (const f of (idx === 0 ? [0.78, 0.95] : [0.2, 0.45, 0.7, 0.9])) s.push({ t: T * f, kind: 'mini' });
       if (idx >= 1) s.push({ t: T * 0.3, kind: 'press' });
+      s.push({ t: T * 0.12, kind: 'wave1' });
       s.push({ t: T / 3, kind: 'wave2' });
       s.push({ t: T * 0.4, kind: 'elite' });
       s.push({ t: T * 0.5, kind: 'circle' });
@@ -922,6 +925,26 @@
       for (let i = 0; i < cand.length && over > 0; i++, over--) cand[i].alive = false;
     }
 
+    // Round 13.2: a 공세 banner brings its men — a pack of RS.CROWD.surge[n − 1] × the season's pack from one side,
+    // never ahead of a runner ("1차 공세라 할만큼 몹이 몰려오지도 않았는데 2차 공세 시작이라네"). While a boss or the
+    // 클라시코 rival is on, only the banner.
+    surge(n) {
+      const K = RS.CROWD, p = this.player;
+      if (!this.bossSpawned && !this.rival) {
+        // 하드 ×2; the debut ×0.5, so a newcomer who barely moves still sees 45 s (full surges killed him at 41 s)
+        const m = Math.round((K.packN[0] + K.packN[1] * this.lvl) * K.surge[n - 1] * (this.tune.crowd || 1) * (this.lvl === 0 ? 0.5 : 1));
+        this.makeRoom(m);
+        const R = this.spawnRadius(), a0 = this.awayAngle(K.packArc / 2);
+        const room = Math.min(m, this.tune.maxAlive + K.room - this.enemies.length); // 준보스 and elites never make room
+        for (let i = 0; i < room; i++) {
+          const a = a0 + (this.rng() - 0.5) * K.packArc, d = R + this.rng() * 28;
+          this.spawnEnemy(RS.pickWeighted(this.rng, this.tune.mix).type, p.x + Math.cos(a) * d, p.y + Math.sin(a) * d);
+        }
+      }
+      this.emit('wave', { n });
+      this.emit('banner', { text: ['⚔️ 1차 공세 — 상대가 몰려온다', '⚡ 2차 공세 — 상대가 거세진다', '🔥 총공세 — 버텨라!'][n - 1] });
+    }
+
     runScheduled(kind) {
       const idx = this.lvl;
       if (kind === 'rescue') this.spawnRescue();
@@ -981,8 +1004,7 @@
         const yd = this.yearDef;
         this.emit('banner', { text: (yd.twist && yd.twist.wall) || RS.FOES[yd.foe].wall });
       } else if (kind === 'extra') this.emit('banner', { text: '⏱ 연장전! ' + this.yearDef.twist.extra + '초 더 버텨라' });
-      else if (kind === 'wave2') { this.emit('wave', { n: 2 }); this.emit('banner', { text: '⚡ 2차 공세 — 상대가 거세진다' }); }
-      else if (kind === 'wave3') { this.emit('wave', { n: 3 }); this.emit('banner', { text: '🔥 총공세 — 버텨라!' }); }
+      else if (kind === 'wave1' || kind === 'wave2' || kind === 'wave3') this.surge(+kind[4]);
       else if (kind === 'rival') this.spawnRival();
       else if (kind === 'boss') this.spawnBoss();
     }
@@ -1093,7 +1115,7 @@
         this.nearT = K.nearEvery;
         let n = 0;
         for (const e of this.enemies) if (e.alive && !e.boss) n++;
-        if (n < K.near && this.enemies.length < cap) {
+        if (n < Math.round(K.near * this.tune.crowd) && this.enemies.length < cap) {
           const a = this.awayAngle(0);
           const d = Math.min(this.view.w / 2 / Math.abs(Math.cos(a)), this.view.h / 2 / Math.abs(Math.sin(a))) + 16;
           this.spawnEnemy(RS.pickWeighted(this.rng, this.tune.mix).type, p.x + Math.cos(a) * d, p.y + Math.sin(a) * d);
@@ -1102,7 +1124,7 @@
       if (this.packT == null) this.packT = K.packFirst;
       if ((this.packT -= dt) > 0) return;
       this.packT = K.packEvery[0] + (K.packEvery[1] - K.packEvery[0]) * prog;
-      const n = Math.min(cap - this.enemies.length, Math.round((K.packN[0] + K.packN[1] * this.lvl) * (K.packGrow[0] + (K.packGrow[1] - K.packGrow[0]) * prog)));
+      const n = Math.min(cap - this.enemies.length, Math.round((K.packN[0] + K.packN[1] * this.lvl) * this.tune.crowd * (K.packGrow[0] + (K.packGrow[1] - K.packGrow[0]) * prog)));
       const a0 = this.awayAngle(K.packArc / 2);
       for (let i = 0; i < n; i++) {
         const a = a0 + (this.rng() - 0.5) * K.packArc, d = R + this.rng() * 28;
@@ -1316,7 +1338,7 @@
       this.hits++;
       if (this.bossSpawned) this.bossDmgTaken += d;
       if (p.hp < this.minHp) this.minHp = p.hp;
-      p.iframe = RS.IFRAMES;
+      p.iframe = Math.max(RS.IFRAMES, this.stats.hitGuard); // 오뚝이 정신: the hero blinks (render.js) the whole time
       p.hurtT = 0.2;
       this.emit('hurt', { dmg: d });
     }
@@ -3261,4 +3283,4 @@
     };
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).game = 'R13.1';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).game = 'R13.2';

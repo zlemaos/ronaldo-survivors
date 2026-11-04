@@ -1,5 +1,10 @@
+/* round 13.2: a red edge flash when the hero is hit (main.js, the 'hurt' event) */
+body.hurt-flash::after {
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 50;
+  box-shadow: inset 0 0 70px 24px rgba(255, 40, 40, 0.55);
+}
 :root {
-  --build: "R13.1"; /* the build of this file (App.mixedFiles; bump with RS.VERSION) */
+  --build: "R13.2"; /* the build of this file (App.mixedFiles; bump with RS.VERSION) */
   --bg: #0b1d12;
   --panel: rgba(12, 22, 16, 0.94);
   --line: rgba(255, 255, 255, 0.14);

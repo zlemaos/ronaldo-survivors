@@ -1071,7 +1071,11 @@
             if (e.win) this.renderer.shake = Math.max(this.renderer.shake, 0.25);
             break;
           }
-          case 'hurt': RS.Audio.sfx('hurt'); this.renderer.shake = 0.12; if (navigator.vibrate) try { navigator.vibrate(15); } catch (er) { /* ignore */ } break;
+          case 'hurt': RS.Audio.sfx('hurt'); this.renderer.shake = 0.25;
+            // round 13.2: a red edge flash on every hit ("맞은 줄도 모르겠음")
+            document.body.classList.add('hurt-flash'); clearTimeout(this.hurtFlashT);
+            this.hurtFlashT = setTimeout(() => document.body.classList.remove('hurt-flash'), 180);
+            if (navigator.vibrate) try { navigator.vibrate(15); } catch (er) { /* ignore */ } break;
           case 'boss':
             RS.Audio.sfx('boss');
             this.banner((e.final ? '최종 보스 등장: ' : '시즌 보스 등장: ') + e.name);
@@ -1259,4 +1263,4 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => App.boot());
   else App.boot();
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).main = 'R13.1';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).main = 'R13.2';
