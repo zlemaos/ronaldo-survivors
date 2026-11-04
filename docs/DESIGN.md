@@ -505,15 +505,20 @@ for passives, weapons and items alike.
 
   | from season | weapon / passive card 일반 · 고급 · 희귀 · 영웅 · 전설 | item card chance | item 희귀 · 영웅 · 전설 |
   |---|---|---|---|
-  | 0 (debut) | 60 · 30 · 9 · 1 · 0 % | 5 % | 90 · 10 · 0 % |
-  | 3 | 40 · 38 · 18 · 4 · 0 % | 5 % | 90 · 10 · 0 % |
-  | 5 (the wall, 2007) | 20 · 42 · 26 · 10 · 2 % | 5.5 % | 78 · 20 · 2 % |
-  | 10 | 0 · 30 · 42 · 22 · 6 % | 6 % | 66 · 28 · 6 % |
-  | 16 | 0 · 0 · 45 · 40 · 15 % | 6.5 % | 56 · 34 · 10 % |
+  | 0 (debut) | 60 · 30 · 8.981 · 1 · 0.019 % | 5 % | 89.981 · 10 · 0.019 % |
+  | 3 | 40 · 38 · 17.9 · 4 · 0.1 % | 5 % | 89.9 · 10 · 0.1 % |
+  | 5 (the wall, 2007) | 20 · 42 · 26.6 · 11 · 0.4 % | 5.5 % | 78 · 21.6 · 0.4 % |
+  | 8 | 10 · 36 · 36 · 17 · 1 % | 5.5 % | 71 · 28 · 1 % |
+  | 10 | 0 · 30 · 42 · 26.5 · 1.5 % | 6 % | 66 · 32.5 · 1.5 % |
+  | 13 | 0 · 15 · 45 · 37.5 · 2.5 % | 6 % | 61 · 36.5 · 2.5 % |
+  | 16 (2018) | 0 · 0 · 50 · 46.5 · 3.5 % | 6.5 % | 56 · 40.5 · 3.5 % |
+  | 19 | 0 · 0 · 45 · 50.5 · 4.5 % | 6.5 % | 52 · 43.5 · 4.5 % |
+  | 22 | 0 · 0 · 40 · 54.5 · 5.5 % | 6.5 % | 48 · 46.5 · 5.5 % |
 
-  From season 5 on, 전설 comes as often as round 12's 황금 and 무지개 together; the debut, which dealt both at 1 %,
-  deals none, and season 3 bridges the debut and the wall. 행운 부적 / items (`luck`) raise 희귀 and up and the item
-  chance but never open a grade early (`RS.luckOdds` keeps a 0 at 0). Luck used to take its extra share from 일반
+  Round 13.1 (the user: debut 전설 "0.019% 정도", and 2018's 15 % "너무 높아 … 서서히 올라야지"): 전설 is a long
+  shot from the debut and climbs slowly; the share it gave up went mostly to 영웅 (round 13 first had no debut 전설,
+  then 2 · 6 · 15 % from seasons 5 · 10 · 16, items 2 · 6 · 10 %). 행운 부적 / items (`luck`) raise 희귀 and up and
+  the item chance but never open a closed grade (`RS.luckOdds` keeps a 0 at 0). Luck used to take its extra share from 일반
   alone: from season 10 (no 일반) the odds summed over 1 and the roll never reached the top, so a 20 % 행운 부적 or
   a 네잎클로버 dealt no 전설 at all (round 12 too, for 황금 and 무지개). It now takes from 일반, then 고급, then
   scales the odds back to 1.
@@ -538,6 +543,11 @@ for passives, weapons and items alike.
   이지 / 노멀: median boss 22 → 23 / 29 → 24 s, the longest 61 → 61 / 107 → 95 s. The bot only picks dealt cards and
   never bought draws, so these numbers show the honest path stays playable; the coin route players used is gone by
   design.
+- **Round 13.1: a man or two always on his way** (`RS.CROWD.near` 2, `World.updateSpawns`): a youth stage showed its
+  first man after 46 s ("저단계여도 한 두 마리는 계속 덤벼야지"). From 1.5 s on, whenever fewer than two men are on the
+  pitch, one steps in just off the screen edge (checked every 0.5 s), never ahead of a running hero. It counts the
+  stragglers too: they are recycled back around the hero, and counting only the spawn ring kept adding men behind a
+  runner until the crowd cap was full.
 
 ### Round-2 tuning (before → after)
 

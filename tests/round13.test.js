@@ -5,8 +5,8 @@ const RS = require('./load.js');
 const memStore = (raw) => { const m = { [RS.SAVE_KEY]: raw }; return { get: (k) => m[k] || null, set: (k, v) => { m[k] = v; } }; };
 
 // Round 13: coins bought 초히든 items at Lv.1 and an 8-coin reroll could be pressed again and again, so a fresh career
-// started with the strongest gear. The top grades (영웅, 전설) now come only from luck in a match, 전설 only from the
-// wall season on.
+// started with the strongest gear. The top grades (영웅, 전설) now come only from luck in a match; 전설 is a long
+// shot in the debut (the user: "0.019% 정도") and climbs slowly.
 test('coins cannot buy 영웅 or 전설: the 훈련장 boxes stop at 희귀, and a +10 희귀 stays below a 영웅 +1', () => {
   const s = RS.newSave(), rng = RS.makeRng(13);
   let top = 0;
@@ -18,7 +18,7 @@ test('coins cannot buy 영웅 or 전설: the 훈련장 boxes stop at 희귀, and
   assert.ok(RS.weaponMul({ g: 2, p: RS.PLUS_MAX }) < RS.weaponMul({ g: 3, p: 1 }));
 });
 
-test('the debut never deals a 전설 card, even with doubled luck on every hand; 전설 opens at the wall', () => {
+test('전설 is a long shot in the debut, even with doubled luck, and its odds only climb season by season', () => {
   const count = (yearIdx, luck) => {
     const rng = RS.makeRng(9), g = [0, 0, 0, 0, 0];
     for (let i = 0; i < 6000; i++) {
@@ -26,10 +26,30 @@ test('the debut never deals a 전설 card, even with doubled luck on every hand;
     }
     return g;
   };
-  const debut = count(0, 1), wall = count(5, 0);
-  assert.equal(debut[4], 0, 'no 전설 in the debut');
-  assert.ok(debut[3] / debut.reduce((a, x) => a + x) < 0.03, '영웅 stays rare in the debut: ' + debut.join('/'));
-  assert.ok(wall[4] > 0, '전설 can come from the wall season on');
+  const debut = count(0, 1), wall = count(5, 0), n = debut.reduce((a, x) => a + x);
+  assert.ok(debut[4] / n < 0.001, '전설 is a long shot in the debut: ' + debut.join('/'));
+  assert.ok(debut[3] / n < 0.03, '영웅 stays rare in the debut: ' + debut.join('/'));
+  assert.ok(wall[4] > 0, '전설 does come by the wall season');
+  assert.ok(RS.gradeOddsAt(0)[4] > 0, '전설 is possible in the debut');
+  for (let i = 1; i < 24; i++) assert.ok(RS.gradeOddsAt(i)[4] >= RS.gradeOddsAt(i - 1)[4], '전설 odds never drop: season ' + i);
+});
+
+// Round 13.1: a youth stage showed its first man after 46 s ("한 두 마리는 계속 덤벼야지").
+test('an early stage always has a man or two on his way from the first seconds', () => {
+  for (const seed of [1, 2, 3]) {
+    const w = new RS.World({ yearIdx: 0, seed }); w.debug.godMode = true;
+    let empty = 0, frames = 0;
+    while (w.t < 45) {
+      if (w.phase === 'levelup') w.choose(RS.botChoose(w.choices, w.build));
+      else if (w.phase === 'chest') w.closeChest();
+      else if (w.phase === 'swap') w.chooseSwap(w.swapChoices.length - 1);
+      else {
+        w.update(1 / 60, { x: 0, y: 0 });
+        if (w.t > 6) { frames++; if (!w.enemies.some((e) => e.alive && w.inSight(e))) empty++; }
+      }
+    }
+    assert.ok(empty / frames < 0.1, 'seed ' + seed + ': share of time with nobody in sight ' + (empty / frames).toFixed(2));
+  }
 });
 
 // Luck once took its extra share from 일반 alone: a late season has no 일반, the odds summed over 1 and the roll

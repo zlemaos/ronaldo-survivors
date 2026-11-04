@@ -32,7 +32,7 @@ test('하드 bites from the first pro season and its crowd shrugs off knockback;
   assert.ok(n4.hpMul / withDiff('easy', () => RS.yearTuning(4)).hpMul > n1.hpMul / withDiff('easy', () => RS.yearTuning(1)).hpMul);
 });
 
-test('graded items are rare: about one 영웅 in 200 debut level-ups on 노멀 and no 전설, half that on 하드', () => {
+test('graded items are rare: about one 영웅 in 200 debut level-ups on 노멀 and 전설 almost never, half that on 하드', () => {
   const b = RS.newBuild('ronaldo');
   const count = (diff) => withDiff(diff, () => {
     const rng = RS.makeRng(11); let n = 0, top = 0;
@@ -42,7 +42,7 @@ test('graded items are rare: about one 영웅 in 200 debut level-ups on 노멀 a
   const normal = count('normal'), hard = count('hard');
   assert.ok(normal.rate > 0.003 && normal.rate < 0.008, '노멀 rate ' + normal.rate);
   assert.ok(hard.rate < normal.rate * 0.7, '하드 rate ' + hard.rate + ' vs ' + normal.rate);
-  assert.equal(normal.top + hard.top, 0, 'no 전설 item in the debut');
+  assert.ok(normal.top + hard.top < 3, '전설 items stay a long shot in the debut: ' + (normal.top + hard.top));
 });
 
 test('엘 클라시코 seasons: 날두 2009–2017 and 메시 2010–2018, numbered from the first; 메시 2009 is the Rome final against 호날두', () => {

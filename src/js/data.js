@@ -29,16 +29,20 @@
   RS.PLUS_MAX = 10;
   RS.PLUS_STEP = 0.03;
   // Grade odds of every graded level-up card — the weapon card and each passive card — by pro season (RS.tuneIdx).
-  // Round 13: the top grades come only from luck in a match, and never early. The debut deals mostly 일반 and 고급,
-  // a 영웅 once in a hundred and no 전설; from season 3 the cards climb, 전설 opens at the wall (season 5) and grows
-  // from there (from 5 on as often as round 12's 황금 and 무지개 together). Luck (RS.luckOdds) raises 희귀 and up
-  // but never opens a grade early.
+  // Round 13: the top grades come only from luck in a match. The debut deals mostly 일반 and 고급, a 영웅 once in a
+  // hundred and a 전설 about once in 5,000 cards (0.019 %, the user's figure); 전설 then climbs slowly, to 3.5 % in
+  // 2018 (season 16; round 13 first dealt 15 % there: "너무 높아") and 5.5 % at the end, the share it gave up going
+  // mostly to 영웅. Luck (RS.luckOdds) raises 희귀 and up but never opens a closed grade.
   RS.GRADE_STAGES = [
-    { from: 0, odds: [0.6, 0.3, 0.09, 0.01, 0] },
-    { from: 3, odds: [0.4, 0.38, 0.18, 0.04, 0] },
-    { from: 5, odds: [0.2, 0.42, 0.26, 0.1, 0.02] },
-    { from: 10, odds: [0, 0.3, 0.42, 0.22, 0.06] },
-    { from: 16, odds: [0, 0, 0.45, 0.4, 0.15] }
+    { from: 0, odds: [0.6, 0.3, 0.08981, 0.01, 0.00019] },
+    { from: 3, odds: [0.4, 0.38, 0.179, 0.04, 0.001] },
+    { from: 5, odds: [0.2, 0.42, 0.266, 0.11, 0.004] },
+    { from: 8, odds: [0.1, 0.36, 0.36, 0.17, 0.01] },
+    { from: 10, odds: [0, 0.3, 0.42, 0.265, 0.015] },
+    { from: 13, odds: [0, 0.15, 0.45, 0.375, 0.025] },
+    { from: 16, odds: [0, 0, 0.5, 0.465, 0.035] },
+    { from: 19, odds: [0, 0, 0.45, 0.505, 0.045] },
+    { from: 22, odds: [0, 0, 0.4, 0.545, 0.055] }
   ];
   RS.WEAPON_PLUS_W = [62, 24, 10, 4]; // and it comes at +1 … +4
   RS.FUSED_FROM = 3; // 합체 weapons (two moves in one) only come at 영웅 or better
@@ -68,8 +72,10 @@
   // packEvery[0] → [1] s, within `packArc` rad of one direction. At most cap[0] + cap[1] × season alive (≤ cap[2]);
   // the season's events may go `room` past it. Nothing spawns ahead of a running hero any more (half of the crowd
   // used to): the user ran from men at one o'clock and found men already waiting at seven. Fewer men, each worth
-  // `value` × the XP and coins, so levels and coins keep their pace.
-  RS.CROWD = { trickle: 0.42, start: 0.3, packFirst: 8, packEvery: [13, 8], packN: [4, 0.35], packGrow: [0.6, 1.4], packArc: 0.9, cap: [12, 2.2, 60], room: 16, value: 1.6 };
+  // `value` × the XP and coins, so levels and coins keep their pace. Round 13.1: from `nearFirst` s on, at least
+  // `near` men are always on the pitch — every `nearEvery` s one more steps in just off the screen edge when fewer
+  // are (a youth stage showed its first man after 46 s: "저단계여도 한 두 마리는 계속 덤벼야지").
+  RS.CROWD = { trickle: 0.42, start: 0.3, packFirst: 8, packEvery: [13, 8], packN: [4, 0.35], packGrow: [0.6, 1.4], packArc: 0.9, cap: [12, 2.2, 60], room: 16, value: 1.6, near: 2, nearFirst: 1.5, nearEvery: 0.5 };
   // The final duel keeps `duelKeep` of them and at most `duelMax` on (메시's / 날두's own summons included): during
   // the duel the crowd used to refill to 30 and decided the final for the close-range weapons.
   RS.BOSS_CROWD = { keep: 10, max: 30, rivalKeep: 16, rivalRate: 0.5, duelKeep: 4, duelMax: 10 };
@@ -728,13 +734,18 @@
   // effect in game.js (World.updateRelics, damageEnemy, killEnemy, the dice reroll). Round 13: the old 레어 · 히든 ·
   // 초히든 · 슈퍼히든 became 희귀 · 영웅 · 전설 · 전설 (약물 꽂기 영웅), and no coin buys an item any more.
   // The item card: `chance` per level-up (× (1 + luck), × the difficulty's `special`), its grade from `odds` by pro
-  // season like the cards above, so no 전설 before season 5. Chests (RS.CHEST_RELIC) use the same odds; gamble cards
-  // give 영웅 at most. 하드 halves the chance (RS.DIFFS.special).
+  // season, 전설 on the same slow climb as the cards above (0.019 % in the debut). Chests (RS.CHEST_RELIC) use the
+  // same odds; gamble cards give 영웅 at most. 하드 halves the chance (RS.DIFFS.special).
   RS.ITEM_STAGES = [
-    { from: 0, chance: 0.05, odds: [0, 0, 0.9, 0.1, 0] },
-    { from: 5, chance: 0.055, odds: [0, 0, 0.78, 0.2, 0.02] },
-    { from: 10, chance: 0.06, odds: [0, 0, 0.66, 0.28, 0.06] },
-    { from: 16, chance: 0.065, odds: [0, 0, 0.56, 0.34, 0.1] }
+    { from: 0, chance: 0.05, odds: [0, 0, 0.89981, 0.1, 0.00019] },
+    { from: 3, chance: 0.05, odds: [0, 0, 0.899, 0.1, 0.001] },
+    { from: 5, chance: 0.055, odds: [0, 0, 0.78, 0.216, 0.004] },
+    { from: 8, chance: 0.055, odds: [0, 0, 0.71, 0.28, 0.01] },
+    { from: 10, chance: 0.06, odds: [0, 0, 0.66, 0.325, 0.015] },
+    { from: 13, chance: 0.06, odds: [0, 0, 0.61, 0.365, 0.025] },
+    { from: 16, chance: 0.065, odds: [0, 0, 0.56, 0.405, 0.035] },
+    { from: 19, chance: 0.065, odds: [0, 0, 0.52, 0.435, 0.045] },
+    { from: 22, chance: 0.065, odds: [0, 0, 0.48, 0.465, 0.055] }
   ];
   RS.GAMBLE_ODDS = 0.08; // after the item card's chance: the 4th card is a gamble card
   RS.RELICS = {
@@ -1789,4 +1800,4 @@
     reroll: { name: '전술 보드', icon: '🔁', desc: '레벨업 리롤 +1', max: 3, ballon: [1, 1, 1], mods: { reroll: 1 } }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).data = 'R13';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).data = 'R13.1';

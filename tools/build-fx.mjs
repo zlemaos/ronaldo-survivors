@@ -15,7 +15,7 @@ await build({
   target: ['es2020'],
   legalComments: 'none',
   banner: { js: '/* pixelfx (https://github.com/patch-gg/pixelfx, MIT) + 호날두 서바이버즈 effects. Built by tools/build-fx.mjs; see vendor/pixelfx/NOTICE.md. */' },
-  footer: { js: "(globalThis.RS_FILES = globalThis.RS_FILES || {}).pixelfx = 'R13';" },
+  footer: { js: "(globalThis.RS_FILES = globalThis.RS_FILES || {}).pixelfx = 'R13.1';" },
   outfile: path.join(root, 'src', 'js', 'pixelfx.js')
 });
 console.log('src/js/pixelfx.js written');

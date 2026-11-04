@@ -1084,6 +1084,21 @@
         this.spawnEnemy(RS.pickWeighted(this.rng, this.tune.mix).type, p.x + Math.cos(a) * R, p.y + Math.sin(a) * R);
       }
       if (focus) return;
+      // Round 13.1 (RS.CROWD.near): a man or two always on his way, even in a thin early season. The count runs every
+      // `nearEvery` s, not every frame, and takes every man on the pitch: stragglers are recycled back around the hero
+      // (World.updateEnemies), and counting only the ring filled the crowd cap behind a runner. The new man steps in
+      // just off the screen edge, never ahead of a running hero.
+      if (this.nearT == null) this.nearT = K.nearFirst;
+      if ((this.nearT -= dt) <= 0) {
+        this.nearT = K.nearEvery;
+        let n = 0;
+        for (const e of this.enemies) if (e.alive && !e.boss) n++;
+        if (n < K.near && this.enemies.length < cap) {
+          const a = this.awayAngle(0);
+          const d = Math.min(this.view.w / 2 / Math.abs(Math.cos(a)), this.view.h / 2 / Math.abs(Math.sin(a))) + 16;
+          this.spawnEnemy(RS.pickWeighted(this.rng, this.tune.mix).type, p.x + Math.cos(a) * d, p.y + Math.sin(a) * d);
+        }
+      }
       if (this.packT == null) this.packT = K.packFirst;
       if ((this.packT -= dt) > 0) return;
       this.packT = K.packEvery[0] + (K.packEvery[1] - K.packEvery[0]) * prog;
@@ -3246,4 +3261,4 @@
     };
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).game = 'R13';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).game = 'R13.1';
