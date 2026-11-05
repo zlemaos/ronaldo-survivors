@@ -127,7 +127,9 @@
       const cap = (bb) => {
         for (const w of [bb.weapon].concat(bb.armory || [])) if (w) w.g = Math.min(RS.GRADE_TOP, w.g | 0);
         for (const id of Object.keys(bb.passiveGrades || {})) bb.passiveGrades[id] = bb.passiveGrades[id].map((g) => Math.min(RS.GRADE_TOP, g | 0));
-        RS.syncWeapon(bb);
+        // a parked career saved before round 11 has no weapon yet (RS.normalizeBuild makes one when it is played):
+        // syncing it stopped the whole page at load
+        if (bb.weapon && RS.SKILLS[bb.weapon.id]) RS.syncWeapon(bb);
       };
       cap(b);
       for (const k of Object.keys(career.snapshots || {})) cap(career.snapshots[k]);

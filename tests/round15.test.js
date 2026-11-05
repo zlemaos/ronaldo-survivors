@@ -128,6 +128,25 @@ test('each reward is its hero\'s gift move, held at SIUUU in hand by every caree
   assert.deepEqual(RS.loadSave(memStore(JSON.stringify(pre))).meta.cup, { played: 0, wins: 0, best: 0 });
 }));
 
+// A player's save (2026-11-05): the active 메시 career at schema 3 and a 날두 career parked before round 11, with no
+// weapon yet. The schema-4 step synced that empty hand and the page never started.
+test('a save with a career parked before round 11 (no weapon) still loads, and that career plays', () => withRonaldo(() => {
+  const s = saveFor('messi');
+  s.careers.ronaldo = RS.newSave().career;
+  const old = s.careers.ronaldo.build = { hero: 'ronaldo', level: 9, skills: { kick: 3, siuu: 1 }, skillOrder: ['kick', 'siuu'], passives: {}, passiveOrder: [] };
+  s.careers.ronaldo.v = 3; s.careers.ronaldo.yearIdx = 2;
+  s.careers.ronaldo.snapshots = { 1: JSON.parse(JSON.stringify(old)) };
+  s.career.v = 3;
+  const raw = JSON.stringify(s);
+  const back = RS.loadSave(memStore(raw));
+  assert.equal(back.career.build.hero, 'messi');
+  RS.switchHero(back, 'ronaldo');
+  assert.ok(RS.SKILLS[back.career.build.weapon.id], 'the parked career gets its weapon when it is played');
+  const w = RS.startYear(back, back.career.yearIdx, { seed: 3 });
+  for (let i = 0; i < 120; i++) w.update(1 / 60, RS.botInput(w));
+  assert.notEqual(w.phase, 'dead');
+}));
+
 // (in the first season the crowd is thin and every weapon kills about as many; from season 6 it is not)
 test('the three moves fight: at SIUUU each one out-kills the hero\'s starting weapon in season 6', () => withRonaldo(() => {
   const kills = (s) => {
