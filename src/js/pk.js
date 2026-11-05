@@ -241,7 +241,9 @@
       const read = o.rage ? r < P.rageGuess : rng() < 0.3;
       res = o.rage ? (read && rng() >= P.rageRead ? 'save' : 'goal') : (rng() < P.goal ? 'goal' : 'save');
       if (res === 'save') return { res, goal: false, diveCol: col, kind: 'perfect', kickAway: false, odds, shot: odds.shot };
-      return { res, goal: true, diveCol: read ? col : wrong[Math.floor(rng() * 2)], kind: 'perfect', kickAway: false, odds, shot: odds.shot };
+      // (down the middle he cannot have stayed for it — except over his head, under the bar)
+      const stayed = read && !(col === 1 && row < 2);
+      return { res, goal: true, diveCol: stayed ? col : wrong[Math.floor(rng() * 2)], kind: 'perfect', kickAway: false, odds, shot: odds.shot };
     }
     if (r < odds.goal) res = 'goal';
     else if (r < odds.goal + odds.save) res = 'save';
@@ -258,6 +260,12 @@
     const others = [0, 2].concat(col === 1 ? [] : [1]).filter((c) => c !== col);
     let diveCol = res === 'save' ? col : res === 'goal' && rng() < 0.75 ? others[Math.floor(rng() * others.length)] : Math.floor(rng() * 3);
     if (odds.kind === 'panenka') diveCol = res === 'save' ? 1 : rng() < 0.5 ? 0 : 2;
+    // round 23: a goal down the middle means he went to a side — only a full strike under the bar (zone 8, the
+    // green, blue or over band) may beat a keeper who stayed, over his head (RS.PKScene puts it there)
+    if (col === 1 && !odds.kind && res === 'goal') {
+      const full = ['good', 'perfect', 'over'].includes(RS.pkPowerGrade(o.power, o.fin));
+      diveCol = row === 2 && full && rng() < 0.5 ? 1 : rng() < 0.5 ? 0 : 2;
+    }
     if (odds.kind === 'slow' && res === 'goal') diveCol = others[Math.floor(rng() * others.length)];
     const kickAway = res === 'save' && odds.kind === 'panenka';
     return { res, goal: res === 'goal', diveCol, kind: odds.kind, kickAway, odds, shot: odds.shot };
@@ -366,6 +374,7 @@
   // our keeper who stays — picked the middle, or watched it and never moved, or reacted to the middle — takes it
   // RS.SO_PAN_SAVE of the time; one who went to a side is beaten.
   RS.SO_OPP_PANENKA = 0.08; RS.SO_PAN_SAVE = 0.9;
+  RS.SO_MID_SAVE = { low: 0.95, highUp: 0.85, highOver: 0.2 };
   RS.soOppAim = function (rng, miss) {
     if (rng() < RS.SO_OPP_PANENKA) return { col: 1, row: 0, off: rng() < 0.06 ? 'over' : null, panenka: true };
     const r = rng(), col = r < 0.42 ? 0 : r < 0.84 ? 2 : 1, row = rng() < 0.35 ? 1 : 0;
@@ -376,6 +385,10 @@
   RS.soSaveChance = function (ourK, aim, dive) {
     if (!dive || aim.off || dive.col !== aim.col) return 0;
     if (aim.panenka) return RS.SO_PAN_SAVE;
+    // round 23 (the user: 가운데 가만히 서있는데 가운데 슛을 왜 먹혀 … 맨 가운데 위 파워슛만 머리 위로): a keeper in the
+    // middle — picked it, reacted to it or never moved — takes a low ball down the middle; only a high one beats him
+    // over his head, unless he went up for it
+    if (aim.col === 1) return aim.row === 0 ? RS.SO_MID_SAVE.low : dive.row === 1 ? RS.SO_MID_SAVE.highUp : RS.SO_MID_SAVE.highOver;
     const kf = clamp(0.75 + (ourK - 70) * 0.017, 0.6, 1.25), same = dive.row === aim.row;
     if (dive.rt != null) return clamp((same ? 0.8 - 0.75 * clamp(dive.rt, 0, 1) : 0.1) * kf, 0, 0.9);
     return clamp((same ? 0.7 : 0.2) * kf, 0, 0.85);
@@ -668,4 +681,4 @@
   }
   RS.PKSession = PKSession;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R24';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R25';

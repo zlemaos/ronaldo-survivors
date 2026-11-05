@@ -94,6 +94,21 @@ test('the scene: a blue needle sends the ball into the corner, a missed one towa
   assert.ok(flight(0.4) > flight(0.79) * 1.5 && flight(0.79) > flight(0.93), [0.4, 0.79, 0.93].map((p) => flight(p).toFixed(2)).join(' '));
 });
 
+// (the user: 가운데 가만히 서있는데 가운데 슛을 왜 먹혀 … 맨 가운데 위 파워슛만 머리 위로)
+test('a keeper standing in the middle takes a low ball down the middle; only a high one beats him, over his head', () => {
+  const stand = { col: 1, row: 0, rt: 1 };
+  assert.ok(RS.soSaveChance(70, { col: 1, row: 0, off: null }, stand) >= 0.9);
+  assert.ok(RS.soSaveChance(70, { col: 1, row: 1, off: null }, stand) <= 0.3);
+  assert.ok(RS.soSaveChance(70, { col: 1, row: 1, off: null }, { col: 1, row: 1 }) >= 0.8);
+  // our goal down the middle: the keeper is on a side, except a full strike under the bar (zone 8) over his head
+  const rng = RS.makeRng(9);
+  for (let i = 0; i < 300; i++) {
+    const zone = i % 2 ? 2 : 5, power = i % 3 ? 0.75 : 0.45;
+    const k = RS.pkKick(rng, { zone, power, acc: 'great', fin: 76, level: 80, keeper: K.pro, hero: 'ronaldo' });
+    if (k.goal && !k.kind) assert.notStrictEqual(k.diveCol, 1, 'zone ' + zone);
+  }
+});
+
 test('the 토너먼트 opens all nine zones from the 유소년 대회 on', () => withRonaldo(() => {
   const s = RS.newSave();
   const S = new RS.PKSession(s, { kind: 'cup', stage: 0, round: 0, vs: 'U-17 스위쓰', keeper: 'u17', rng: RS.makeRng(1) });
