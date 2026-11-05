@@ -660,6 +660,10 @@ for passives, weapons and items alike.
   45 % of the time and then saves 20 %, otherwise it always goes in. Not shown on screen: the aim grid shows the
   best strike short of perfect (`RS.pkZoneBest`, just outside the blue band, needle in the gold). The 쩨흐 curse
   (nemesis cap) still holds.
+- Round 21: the needle weighs much more in the 영점 error (`RS.PK_ACC_ERR`: good +0.8, miss +2.2, was 0.35 / 1) and a
+  clean strike is saved less (`RS.PK_SAVE_K` 0.7) so the whole stays about as hard (sim: a good player who watches
+  ~17.5 % 날두 / ~10 % 메시 champions). Example, 노이어르 top-left corner: gold 87 %, white 71 %, missed 21 %.
+  Shot types re-tuned to keep their niches: 발등슛 drift 1.3, 감아차기 drift 0.88 / save 1.45.
 
 ### Round-2 tuning (before → after)
 

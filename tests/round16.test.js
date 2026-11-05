@@ -132,6 +132,16 @@ test('round 20: a perfect strike goes in 99 %; an angry keeper saves only when h
   assert.ok(Math.abs(calm / 20000 - 0.99) < 0.004, 'calm keeper: 99 %, ' + (calm / 20000).toFixed(4));
 });
 
+// Round 21 (the user: 정확도 다이얼 잘 못 맞춰도 별 차이가 없네): the needle decides a lot.
+test('round 21: gold, white and a missed needle are far apart', () => {
+  for (const keeper of ['pro', 'neuer']) for (const z of [1, 7, 9]) {
+    const at = (acc) => RS.pkOdds({ fin: 76, keeper: K[keeper], hero: 'ronaldo', zone: z, power: P.blue + 0.02, acc }).goal;
+    const gold = at('great'), white = at('good'), miss = at('miss');
+    assert.ok(gold - white >= 0.1, keeper + ' z' + z + ' gold ' + gold.toFixed(2) + ' white ' + white.toFixed(2));
+    assert.ok(white - miss >= 0.25, keeper + ' z' + z + ' white ' + white.toFixed(2) + ' miss ' + miss.toFixed(2));
+  }
+});
+
 test('a perfect strike bends into its corner and gets the full effect and sound', () => {
   const rng = RS.makeRng(3);
   for (let i = 0; i < 30; i++) {

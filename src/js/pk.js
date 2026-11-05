@@ -48,7 +48,11 @@
   };
   // 영점: how far the strike drifts from the point aimed at — 0 on the blue band with the needle in gold; it grows with
   // the distance from the blue band (1 at the green's edge) and with a needle off the gold (good +0.35, miss +1)
-  RS.pkAimErr = (power, acc, fin) => Math.max(0, Math.abs(power - RS.PK_POWER.blue) - RS.pkBlueHalf(fin)) / 0.09 + ({ great: 0, good: 0.35, miss: 1 }[acc] || 0);
+  // (round 21, the user: 정확도 다이얼 잘 못 맞춰도 별 차이가 없네 — the needle now weighs much more: good +0.8, miss
+  // +2.2; a clean strike is saved a little less (RS.PK_SAVE_K) so the whole stays about as hard)
+  RS.PK_ACC_ERR = { great: 0, good: 0.8, miss: 2.2 };
+  RS.PK_SAVE_K = 0.7;
+  RS.pkAimErr = (power, acc, fin) => Math.max(0, Math.abs(power - RS.PK_POWER.blue) - RS.pkBlueHalf(fin)) / 0.09 + (RS.PK_ACC_ERR[acc] || 0);
   RS.pkPerfect = (power, acc, fin) => acc === 'great' && RS.pkPowerGrade(power, fin) === 'perfect';
   // How fast the gauge and the 정확도 needle move and how wide the needle's target is (degrees of the dial; the
   // 'great' band sits in the middle of 'good'). The lower the 골결정력 the faster and the narrower: a young
@@ -82,8 +86,8 @@
   // A soft touch down the middle stays a 파넨카 or a 티배깅 whatever was picked: a chip is a chip.
   RS.PK_SHOTS = {
     push: { name: '밀어차기', icon: '🦶', key: 'Q', tip: '기본 슛 · 무난하다', gauge: 1, save: 1, saveAdd: 0, base: 1, drift: 1, over: 1, rage: 1, flight: 1 },
-    drive: { name: '발등슛', icon: '🚀', key: 'W', tip: '빠르고 세서 막기 어렵다 · 대신 게이지가 빨라 빗나가기 쉽다', gauge: 1.3, save: 0.75, saveAdd: 0, base: 1.15, drift: 1.45, over: 1.3, rage: 0.95, flight: 0.78 },
-    curl: { name: '감아차기', icon: '🌀', key: 'E', tip: '구석으로 휘어 들어가 잘 안 빗나간다 · 대신 느려서 방향을 읽히면 막힌다', gauge: 0.8, save: 1.3, saveAdd: 0, base: 0.85, drift: 0.78, over: 0.9, rage: 1.12, flight: 1.2 }
+    drive: { name: '발등슛', icon: '🚀', key: 'W', tip: '빠르고 세서 막기 어렵다 · 대신 게이지가 빨라 빗나가기 쉽다', gauge: 1.3, save: 0.75, saveAdd: 0, base: 1.15, drift: 1.3, over: 1.3, rage: 0.95, flight: 0.78 },
+    curl: { name: '감아차기', icon: '🌀', key: 'E', tip: '구석으로 휘어 들어가 잘 안 빗나간다 · 대신 느려서 방향을 읽히면 막힌다', gauge: 0.8, save: 1.45, saveAdd: 0, base: 0.85, drift: 0.88, over: 0.9, rage: 1.12, flight: 1.2 }
   };
   RS.PK_SHOT_IDS = ['push', 'drive', 'curl'];
   RS.pkShot = (id) => RS.PK_SHOTS[id] || RS.PK_SHOTS.push;
@@ -185,7 +189,7 @@
       const mPow = pg === 'over' ? Math.min(0.9, (row === 2 ? 0.65 : row === 1 ? 0.4 : 0.22) * S.over) : 0;
       const off = 1 - (1 - mBase) * (1 - mErr) * (1 - mPow);
       // a save: the zone, the keeper (squared: a legend reaches what others cannot), power, the drift toward him
-      const save = clamp(Z.save * k2 * { red: 2.2, weak: 1.75, ok: 1.15, good: 1, perfect: 0.9, over: 0.75 }[pg] * (1 + 0.3 * Math.min(E, 2)) * (1.25 - fin / 200) * sv + sa, 0.02, 0.95);
+      const save = clamp(RS.PK_SAVE_K * Z.save * k2 * { red: 2.2, weak: 1.75, ok: 1.15, good: 1, perfect: 0.9, over: 0.75 }[pg] * (1 + 0.3 * Math.min(E, 2)) * (1.25 - fin / 200) * sv + sa, 0.02, 0.95);
       odds = { goal: (1 - off) * (1 - save), save: (1 - off) * save, off, kind: null };
     }
     // a keeper one hero could never beat (메시 against 쩨흐): at most that chance, the rest half on the frame
@@ -559,4 +563,4 @@
   }
   RS.PKSession = PKSession;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R19';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R20';
