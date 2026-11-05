@@ -77,6 +77,23 @@ test('a struck ball to either side rings off the post a tenth of the time; down 
   assert.equal(odds({ zone: 9, power: P.blue, acc: 'great' }).off, 0, 'the perfect strike keeps its 99 %');
 });
 
+// (the user: 파란색 맞추면 코너 구석으로 빨려들어가게 … 파워 약하게 차도 강하게 날라가는데)
+test('the scene: a blue needle sends the ball into the corner, a missed one toward the middle; a soft strike flies slower', () => {
+  const shot = (acc, power) => {
+    const sc = new RS.PKScene({ mode: 'shoot', who: 'hero', keeper: K.pro, fin: 76, level: 80, hero: 'ronaldo', rng: RS.makeRng(5) });
+    sc.pickZone(7); sc.stopPower(power); sc.acc = acc; sc.kick();
+    return sc;
+  };
+  let blue = 0, miss = 0;
+  for (let i = 0; i < 20; i++) { blue += shot('great', 0.75).ball.u; miss += shot('miss', 0.75).ball.u; }
+  blue /= 20; miss /= 20;
+  // (a post or a wide moves the ball off the frame: those keep their own spot, so compare the means)
+  assert.ok(blue < -0.85, 'blue: the top-left corner, u ' + blue.toFixed(2));
+  assert.ok(miss > -0.45, 'missed: toward the middle, u ' + miss.toFixed(2));
+  const flight = (power) => { const sc = shot('good', power); sc.result = { res: 'goal', goal: true, kind: null }; return sc.dur('flight'); };
+  assert.ok(flight(0.4) > flight(0.79) * 1.5 && flight(0.79) > flight(0.93), [0.4, 0.79, 0.93].map((p) => flight(p).toFixed(2)).join(' '));
+});
+
 test('the 토너먼트 opens all nine zones from the 유소년 대회 on', () => withRonaldo(() => {
   const s = RS.newSave();
   const S = new RS.PKSession(s, { kind: 'cup', stage: 0, round: 0, vs: 'U-17 스위쓰', keeper: 'u17', rng: RS.makeRng(1) });

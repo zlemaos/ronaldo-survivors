@@ -91,6 +91,12 @@
     // does the kick wait for a tap now?
     waiting() { return !this.o.auto && !this.o.forced && (this.phase === 'aim' || this.phase === 'power' || this.phase === 'acc' || this.phase === 'guess' || this.reactOpen); }
     get slow() { return !!this.o.slow; }
+    // round 23 (the user: 파워 약하게 차도 강하게 날라가는데): × the flight time of our struck ball by its power — the
+    // blue band 1, a soft grey one about 1.7, a 파넨카-zone touch to a side about 2, a full one 0.85
+    pace() {
+      if (this.mode !== 'shoot' || this.o.forced || this.power == null || (this.result && this.result.kind)) return 1;
+      return clamp(1 + (RS.PK_POWER.blue - this.power) * 1.8, 0.85, 2.1);
+    }
     dur(k) {
       const kind = k === 'flight' ? this.ballKind() : null;
       // a chip floats slowly, theirs too while our keeper watches it (it still lands after his window)
@@ -99,7 +105,7 @@
       if (k === 'flight' && this.mode === 'keep' && this.watch) return this.reactWin + 0.1; // the ball lands just after the window
       const d = this.o.fast ? T['fast' + k[0].toUpperCase() + k.slice(1)] : k === 'flight' && this.slow ? T.slow : T[k];
       if (k === 'runup') return d * (RUN[this.style()] || 1);
-      if (k === 'flight') return d * RS.pkShot(this.shot).flight;
+      if (k === 'flight') return d * RS.pkShot(this.shot).flight * this.pace();
       return d;
     }
     // how the ball travels: the result's kind, or the other side's 파넨카 while our keeper still watches it
@@ -248,8 +254,14 @@
       this.kRow = Math.floor(this.target) % 3; // the height he guesses when he is beaten (no extra roll: same luck)
       u = U_COL[col] + (rng() - 0.5) * 0.18; v = V_ROW[row] + (rng() - 0.5) * 0.12;
       if (this.shot === 'curl' && col !== 1) u *= 1.12; // a 감아차기 bends in nearer the corner
-      // round 23: the needle pulls a struck ball from its corner toward the keeper (RS.PK_PULL)
-      if (!r.kind && !o.forced && RS.PK_PULL[this.acc] != null) { const p = RS.PK_PULL[this.acc] * RS.pkShot(this.shot).pull; u *=1 - 0.85 * p; v += (0.35 - v) * 0.5 * p; }
+      // round 23 (the user: 파란색 맞추면 코너 구석으로 빨려들어가게 … 어긋날 수록 가운데방향으로 쏠리는 거): a struck
+      // ball goes from its zone's own corner (blue needle) toward the keeper in the middle as the needle misses
+      // (RS.PK_PULL × the shot's pull), a little scatter growing with the miss
+      if (!r.kind && !o.forced && RS.PK_PULL[this.acc] != null) {
+        const p = clamp(RS.PK_PULL[this.acc] * RS.pkShot(this.shot).pull, 0, 1), j = 0.04 + 0.12 * p;
+        u = lerp(U_CORNER[col], 0, p * 0.9) + (rng() - 0.5) * j;
+        v = lerp(V_CORNER[row], 0.4, p * 0.6) + (rng() - 0.5) * j * 0.6;
+      }
       if (r.kind === 'perfect') { u = col === 1 ? (rng() < 0.5 ? -0.14 : 0.14) : U_CORNER[col]; v = V_CORNER[row]; } // pkKick decided whether he guessed the side (round 20)
       else if (r.kind === 'panenka') { u = (rng() - 0.5) * 0.12; v = 0.42; }
       this.missAt(r.res, col, u, v);
@@ -385,4 +397,4 @@
   }
   RS.PKScene = PKScene;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkscene = 'R23';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkscene = 'R24';
