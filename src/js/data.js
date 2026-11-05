@@ -92,11 +92,11 @@
   // round 11's 에픽 +5 (the Lv.4 row) against a season-7 crowd (kills before the boss, normalised to the median move). 1 when unlisted.
   RS.WEAPON_SOLO = {
     trail: 0.8, rabona: 0.9, kick: 0.95, siuu: 1.8, scissors: 1.8, bicycle: 1.9, stepover: 2,
-    dropball: 0.85, orbit: 0.9, tiki: 0.9, chip: 0.9, curler: 1.6, elastico: 2.6, bobo: 2, solo: 2, zeto: 1.1
+    dropball: 0.85, orbit: 0.9, tiki: 0.9, chip: 0.9, curler: 1.6, elastico: 2.6, bobo: 2, solo: 2, zeto: 1.1, hollywood: 2
   };
   // × the cooldown of the moves built as a side skill (a dash every 4 s, a shout every 7 s): alone they must fire
   // often enough to hold the crowd off
-  RS.WEAPON_CD = { stepover: 0.5, solo: 0.5, siuu: 0.7 };
+  RS.WEAPON_CD = { stepover: 0.5, solo: 0.5, siuu: 0.7, hollywood: 0.5 };
   RS.NUM_GAP = 0.25; // seconds between two damage numbers on one boss / 준보스 / elite (the hits between are summed)
   RS.GIFT_GRADE = 2; // a move taught by a story event or a press answer comes as a 희귀 +1 weapon
   // Teammate grade from the player's OVR (a FIFA-style overall), shown on every teammate card. A higher OVR hits
@@ -472,6 +472,54 @@
         { dmg: 78, cd: 4.6, radius: 45, stun: 1.0, count: 2 }
       ],
       evo: { dmg: 110, cd: 4.0, radius: 50, stun: 1.2, count: 3, guard: 0.7 }
+    },
+    // ---- round 15: the 승부차기 토너먼트 rewards (RS.CUP_REWARDS). gift: never dealt at a level-up; a cup win unlocks
+    // one at random and every career of its hero holds it at SIUUU (RS.grantCupRewards). Each plays an existing
+    // behaviour (use) under its own name, numbers and shout.
+    penaldo: {
+      name: '패널두', icon: '🥅', passive: 'freekick', hero: 'ronaldo', use: 'knuckle', straight: true, gift: true, evoName: '패널두 11m 대포', evoIcon: '🥅',
+      desc: '넘어지면 PK, PK면 골. 페널티 마크에서 찬 대포알이 일직선으로 적을 꿰뚫는다.',
+      evoDesc: '11m 대포알이 일직선으로 모든 적을 꿰뚫는다. 승부차기 토너먼트 우승 보상.',
+      ups: ['', '피해 증가', '관통 +1', '슛 +1', '관통 +1, 피해 증가', '피해 크게 증가'],
+      lv: [
+        { dmg: 22, cd: 2.2, count: 1, pierce: 3, speed: 320, r: 4 },
+        { dmg: 27, cd: 2.0, count: 1, pierce: 3, speed: 325, r: 4 },
+        { dmg: 30, cd: 1.9, count: 1, pierce: 4, speed: 330, r: 4 },
+        { dmg: 33, cd: 1.8, count: 2, pierce: 4, speed: 335, r: 4 },
+        { dmg: 38, cd: 1.65, count: 2, pierce: 5, speed: 340, r: 4 },
+        { dmg: 46, cd: 1.5, count: 2, pierce: 6, speed: 350, r: 4 }
+      ],
+      evo: { dmg: 110, cd: 1.25, count: 2, pierce: 999, speed: 360, r: 8 }
+    },
+    bribe: {
+      name: '심판매수', icon: '💸', passive: 'trickster', hero: 'messi', use: 'hand', shout: '퇴장!', gift: true, evoName: '매수된 심판', evoIcon: '🟥',
+      desc: '봉투를 받은 심판이 적이 가장 많은 곳(보스 우선)에 퇴장을 선언한다. 맞은 적은 기절.',
+      evoDesc: '매수된 심판이 세 번 연달아 퇴장을 선언하고, 그동안 메시는 무적. VAR도 못 봤다. 승부차기 토너먼트 우승 보상.',
+      ups: ['', '피해 증가', '범위 증가, 기절 증가', '쿨타임 감소', '피해·범위 증가', '두 번 연달아 선언'],
+      lv: [
+        { dmg: 34, cd: 6.5, radius: 30, stun: 0.6, count: 1 },
+        { dmg: 42, cd: 6.3, radius: 31, stun: 0.6, count: 1 },
+        { dmg: 44, cd: 6.0, radius: 37, stun: 0.7, count: 1 },
+        { dmg: 50, cd: 5.3, radius: 38, stun: 0.7, count: 1 },
+        { dmg: 62, cd: 5.1, radius: 43, stun: 0.8, count: 1 },
+        { dmg: 78, cd: 4.6, radius: 45, stun: 1.0, count: 2 }
+      ],
+      evo: { dmg: 110, cd: 4.0, radius: 50, stun: 1.2, count: 3, guard: 0.7 }
+    },
+    hollywood: {
+      name: '명품 헐리웃', icon: '🎬', passive: 'speed', hero: 'torres', use: 'stepover', shout: '헐리웃!', gift: true, evoName: '오스카 헐리웃', evoIcon: '🏆',
+      desc: '적이 붙으면 화려하게 넘어진다. 넘어지는 동안 무적, 휩쓸린 적에게 피해.',
+      evoDesc: '오스카급 다이빙. 더 자주, 더 멀리 날아가고 넘어진 자리가 폭발한다. 승부차기 토너먼트 우승 보상.',
+      ups: ['', '다이빙 거리 증가', '피해 증가', '쿨타임 감소', '피해·거리 증가', '쿨타임 크게 감소'],
+      lv: [
+        { dmg: 15, cd: 4.0, dist: 50 },
+        { dmg: 16, cd: 3.8, dist: 58 },
+        { dmg: 22, cd: 3.6, dist: 60 },
+        { dmg: 24, cd: 3.1, dist: 62 },
+        { dmg: 30, cd: 3.0, dist: 70 },
+        { dmg: 34, cd: 2.4, dist: 74 }
+      ],
+      evo: { dmg: 60, cd: 1.5, dist: 90, burst: 44 }
     },
     // 드리볼: balls leave 메시's feet and chase the enemies around him, tapping one after another; past the leash
     // they run back and juggle at his feet. Looks like the 회전 공: white, golden from goldLv; evolved, as many of
@@ -1991,4 +2039,4 @@
     reroll: { name: '전술 보드', icon: '🔁', desc: '레벨업 리롤 +1', max: 3, ballon: [1, 1, 1], mods: { reroll: 1 } }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).data = 'R14';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).data = 'R15';

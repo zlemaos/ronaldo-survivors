@@ -14,7 +14,9 @@
     },
     startPK(job, done) {
       const S = new RS.PKSession(this.save, Object.assign({ rng: this.rng }, job));
-      this.pk = { S, done, scene: null, kick: null, auto: this.autoMode() !== 'off', hold: true, gap: 0, ending: false, finished: false, shouted: false, mates: 0, opps: 0, lastPhase: null };
+      // the 승부차기 토너먼트 is a game to play by hand: only 완전 오토 kicks for the player there
+      const auto = job.kind === 'cup' ? this.autoMode() === 'full' : this.autoMode() !== 'off';
+      this.pk = { S, done, scene: null, kick: null, auto, hold: true, gap: 0, ending: false, finished: false, shouted: false, mates: 0, opps: 0, lastPhase: null };
       this.state = 'pk';
       this.input.enabled = false;
       this.renderer.pkReset();
@@ -32,6 +34,11 @@
         const per = RS.pkCoinPer(K);
         h = '<div class="parody">5경기마다 찾아오는 11m 승부</div><h2 class="glow">⚽ PK 챌린지</h2>' +
           '<p class="story">' + esc(hero) + '가 다섯 번 찬다. 넣을 때마다 💰' + per + ', 다섯 골을 모두 넣으면 보너스 💰' + per * 3 + '.</p>';
+      } else if (S.kind === 'cup') {
+        h = '<div class="parody">승부차기 토너먼트 · ' + esc(S.us) + ' vs ' + esc(S.def.vs) + '</div>' +
+          '<h2 class="glow">🥅 ' + RS.CUP_ROUNDS[S.round].name + '</h2>' + this.cupBracket(S.round) +
+          '<p class="story">' + esc(hero) + '가 우리 팀 킥을 전부 찬다. 상대가 찰 때는 우리 골키퍼가 몸을 날릴 방향을 고른다. 한 번 지면 탈락.</p>' +
+          '<div class="sub">' + this.cupPrize() + '</div>';
       } else {
         const d = S.def;
         h = '<div class="parody">' + (d.single ? '단 한 번의 페널티킥' : '승부차기 · ' + esc(S.us) + ' vs ' + esc(d.vs)) + '</div>' +
@@ -74,7 +81,7 @@
       P.scene = new RS.PKScene({
         mode: k.mode, who: k.who, keeper: k.who === 'opp' ? S.ourKeeper : S.keeper, fin: S.fin, level: S.level, hero: S.hero, small: S.small,
         yearIdx: S.idx, nat: !!(S.def && S.def.nat), n: k.who === 'mate' ? P.mates++ : k.who === 'opp' ? P.opps++ : 0,
-        auto: k.who === 'mate' ? true : P.auto, fast: quick, slow: !!k.decisive, forced: k.forced, ourK: S.ourK, rng: this.rng
+        auto: k.who === 'mate' ? true : P.auto, fast: quick, slow: !!k.decisive, forced: k.forced, ourK: S.ourK, oppMiss: S.oppMiss, rng: this.rng
       });
       P.shouted = false; P.lastPhase = null;
       this.pkScore();
@@ -185,6 +192,7 @@
       this.persist();
       this.pkScore();
       $('pk-hint').textContent = '';
+      if (out.kind === 'cup') return this.cupFinish(out);
       const big = out.kind === 'challenge' ? out.perfect : out.won;
       if (big) { this.renderer.pkCelebrate(true); RS.Audio.sfx('jackpot'); }
       else if (out.kind === 'challenge' && out.goals >= 3) this.renderer.pkCelebrate(false);
@@ -213,6 +221,7 @@
       $('pk-res-notes').innerHTML = notes;
       $('pk-result').classList.remove('hidden');
       for (const t of out.titles) this.toast(t.icon + ' ' + t.name + '!');
+      $('btn-pk-ok').textContent = '계속';
       $('btn-pk-ok').onclick = () => { RS.Audio.sfx('click'); this.pkClose(); };
       this.armAuto(() => this.pkClose(), big ? 3400 : 2600, '계속', 'semi');
     },
@@ -227,6 +236,68 @@
       this.renderer.pkReset();
       P.done();
     },
+    // ---------------------------------------------------------------- 승부차기 토너먼트 (round 15, title screen)
+    startCup() {
+      const hero = this.save.career.build.hero;
+      RS.cupStart(this.save);
+      this.persist();
+      this.cup = { draw: RS.cupDraw(this.rng, hero), round: 0, out: null };
+      this.cupNext();
+    },
+    cupNext() {
+      const C = this.cup, m = C.draw[C.round];
+      C.out = null;
+      this.startPK({ kind: 'cup', round: C.round, vs: m.vs, keeper: m.keeper, idx: this.save.career.yearIdx }, () => {
+        const r = C.out;
+        if (this.cup === C && r && r.next != null) { C.round = r.next; this.cupNext(); }
+        else { this.cup = null; this.showTitle(); }
+      });
+    },
+    cupBracket(cur) {
+      return '<div class="cup-bracket">' + RS.CUP_ROUNDS.map((r, i) => '<span class="' + (i < cur ? 'done' : i === cur ? 'cur' : '') + '">' + (i < cur ? '✓ ' : '') + r.name + '</span>').join('<i>▸</i>') + '</div>';
+    },
+    cupPrize() {
+      const left = RS.cupLeft(this.save.meta);
+      return left.length ? '🏆 우승하면 SIUUU 스킬 1개 랜덤 해금 (남은 ' + left.length + '개: ' + left.map((r) => RS.SKILLS[r.id].icon + ' ' + RS.SKILLS[r.id].name).join(' · ') + ')'
+        : '🏆 SIUUU 스킬 3개를 모두 얻었다 · 우승하면 💰' + RS.CUP_COINS;
+    },
+    cupButton() {
+      const n = RS.CUP_REWARDS.length - RS.cupLeft(this.save.meta).length, c = RS.normalizeCup(this.save.meta.cup);
+      return '🥅 승부차기 토너먼트 · 해금 ' + n + '/' + RS.CUP_REWARDS.length + (c.wins ? ' · 우승 ' + c.wins + '회' : '');
+    },
+    cupFinish(out) {
+      const S = this.pk.S, r = out.cup, C = this.cup, name = RS.CUP_ROUNDS[S.round].name, score = ' ' + out.score[0] + '-' + out.score[1];
+      if (C) C.out = r;
+      if (out.won) { this.renderer.pkCelebrate(true); RS.Audio.sfx('jackpot'); } else RS.Audio.sfx('lose');
+      const title = r.champion ? '🏆 토너먼트 우승!' + score : out.won ? '✅ ' + name + ' 승리!' + score : '😢 ' + name + ' 탈락' + score;
+      $('pk-res-title').textContent = title;
+      $('pk-res-title').className = out.won ? 'glow' : '';
+      const nx = r.next != null && C ? C.draw[r.next] : null;
+      $('pk-res-sub').textContent = nx ? '다음: ' + RS.CUP_ROUNDS[r.next].name + ' vs ' + nx.vs + ' (🧤 ' + RS.PK_KEEPERS[nx.keeper].name + ')' : r.champion ? '16강부터 결승까지 네 번의 승부차기를 모두 이겼다!' : '다음 도전은 다시 16강부터';
+      const stats = $('pk-res-stats'), rec = RS.normalizePk(this.save.meta.pk).heroes[S.hero];
+      stats.innerHTML = '';
+      const add = (v, l) => { const d = document.createElement('div'); d.className = 'stat'; d.innerHTML = '<b></b><span></span>'; d.querySelector('b').textContent = v; d.querySelector('span').textContent = l; stats.appendChild(d); };
+      add(out.goals + '/' + out.shots, '내 킥 성공');
+      if (out.coins) add('+' + out.coins, '코인');
+      add(rec.goals + '골', '통산 PK (' + RS.pkRate(rec) + '%)');
+      let notes = this.cupBracket(r.champion ? RS.CUP_ROUNDS.length : out.won ? S.round + 1 : S.round);
+      const rw = r.reward;
+      if (rw && rw.id) {
+        const sk = RS.SKILLS[rw.id], hn = RS.HEROES[rw.hero].name;
+        notes += '<div class="pk-title-got cup-reward">🎁 SIUUU 스킬 해금: ' + sk.icon + ' ' + esc(sk.name) + ' (' + esc(hn) + ')</div>' +
+          '<div class="sub">' + esc(sk.evoDesc) + '</div>' +
+          '<div class="sub">' + (rw.equipped ? '지금 ' + esc(hn) + ' 커리어에 SIUUU로 장착됐다'
+            : esc(hn) + ' 커리어를 고르면 SIUUU로 장착된다' + (RS.heroLocked(this.save.meta, rw.hero) ? ' (' + esc(hn) + '는 먼저 해금해야 한다)' : '')) + '</div>';
+        this.toast('🎁 ' + sk.name + ' 해금!');
+      } else if (rw && rw.coins) notes += '<div class="sub">SIUUU 스킬은 이미 모두 얻었다 · 💰' + rw.coins + '</div>';
+      for (const t of out.titles) notes += '<div class="pk-title-got">' + t.icon + ' 칭호 획득: ' + esc(t.name) + '!</div>';
+      $('pk-res-notes').innerHTML = notes;
+      $('pk-result').classList.remove('hidden');
+      $('btn-pk-ok').textContent = nx ? '다음 경기 ▶' : '메뉴로';
+      $('btn-pk-ok').onclick = () => { RS.Audio.sfx('click'); this.pkClose(); };
+      // only 완전 오토 moves on by itself here (the reward screen stays until it is read)
+      if (this.autoMode() === 'full' && !r.champion) this.armAuto(() => this.pkClose(), 3000, nx ? '다음 경기' : '메뉴로', 'full');
+    },
     // title screen: this hero's PK record, his title and the matches left to the next PK 챌린지
     pkLine() {
       const pk = RS.normalizePk(this.save.meta.pk), rec = pk.heroes[this.save.career.build.hero], t = RS.pkTitle(rec);
@@ -235,4 +306,4 @@
     }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkui = 'R14';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkui = 'R15';

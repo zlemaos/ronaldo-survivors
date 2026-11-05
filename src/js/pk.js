@@ -230,12 +230,13 @@
   // Teammate kick: rolled. Against keeper rating K.
   RS.soMateKick = (rng, K) => rng() < clamp(RS.SO_MATE - (K - 80) * 0.006, 0.4, 0.95);
   // The other side's kick against our keeper (rating ourK). dive: the column the player sends him to (0 left,
-  // 1 stays, 2 right; null = he guesses). The kicker goes for a corner most of the time and misses 7 %.
-  RS.soOppKick = function (rng, ourK, dive) {
+  // 1 stays, 2 right; null = he guesses). The kicker goes for a corner most of the time and misses 7 % (miss: the
+  // 승부차기 토너먼트's own rate, RS.CUP_ROUNDS).
+  RS.soOppKick = function (rng, ourK, dive, miss) {
     const r = rng(), col = r < 0.42 ? 0 : r < 0.84 ? 2 : 1;
     const guess = dive == null ? (rng() < 0.42 ? 0 : rng() < 0.72 ? 2 : 1) : dive;
     let res;
-    if (rng() < 0.07) res = col === 1 ? 'over' : rng() < 0.5 ? 'post' : 'wide';
+    if (rng() < (miss == null ? 0.07 : miss)) res = col === 1 ? 'over' : rng() < 0.5 ? 'post' : 'wide';
     else if (guess === col && rng() < clamp(0.35 + (ourK - 70) * 0.008, 0.2, 0.7)) res = 'save';
     else res = 'goal';
     return { res, goal: res === 'goal', col, diveCol: guess };
@@ -259,8 +260,9 @@
     if (!so.done && nu + nt >= 40) { so.done = true; so.won = a >= b; } // a guard; never reached in play
     return so;
   };
-  // Is the next kick ours and the hero's? (his place among the first five; in sudden death the others go)
-  RS.soHeroNext = (so, def) => so.turn === 'us' && so.us.length + 1 === (def.order || 1);
+  // Is the next kick ours and the hero's? (his place among the first five; in sudden death the others go; def.all:
+  // the 승부차기 토너먼트, where he takes every kick of ours)
+  RS.soHeroNext = (so, def) => so.turn === 'us' && (!!def.all || so.us.length + 1 === (def.order || 1));
   // After the shootout (or the single penalty): rewards and the career's record of it.
   RS.applyShootout = function (save, idx, def, won, replay) {
     const c = save.career, out = { won, coins: 0, fans: 0 };
@@ -299,6 +301,61 @@
     return (y && RS.ERAS[y.era] && RS.ERAS[y.era].club) || '우리 팀';
   };
 
+  // ---------------------------------------------------------------- 승부차기 토너먼트 (round 15, from the title screen)
+  // A mini-game outside the career: four shootouts, 16강 → 8강 → 4강 → 결승, the hero taking all five of our kicks
+  // (and the sudden-death ones) with the whole goal open (RS.CUP_LEVEL: nine zones). One loss ends the run. Each
+  // round draws one side from its pool, never the hero's own nation, a keeper who played beside him (mate) or one
+  // he can never beat (nemesis). The champion unlocks one of RS.CUP_REWARDS at random, one not unlocked yet; three
+  // titles open all three, and after that a title pays RS.CUP_COINS.
+  RS.CUP_LEVEL = 70;
+  RS.CUP_COINS = 1000;
+  RS.CUP_KEEPER = 84; // our national keeper's rating when the other side kicks
+  // miss: how often the other side's kicker misses (the career's shootouts: 7 %); the early rounds' kickers are worse
+  RS.CUP_ROUNDS = [
+    { name: '16강', miss: 0.26, pool: [{ vs: '스위쓰', keeper: 'pro' }, { vs: '잉글랜드', keeper: 'robinson' }, { vs: '에콰도르', keeper: 'dominguez' }, { vs: '미국', keeper: 'willis' }] },
+    { name: '8강', miss: 0.2, pool: [{ vs: '칠레', keeper: 'bravo' }, { vs: '콜롬비아', keeper: 'ospina' }, { vs: '프랑스', keeper: 'lloris' }, { vs: '네덜란드', keeper: 'vdsar' }] },
+    { name: '4강', miss: 0.15, pool: [{ vs: '체코', keeper: 'cech' }, { vs: '스페인', keeper: 'casillas' }, { vs: '벨기에', keeper: 'courtois' }, { vs: '슬로베니아', keeper: 'oblak' }, { vs: '브라질', keeper: 'alisson' }] },
+    { name: '결승', miss: 0.1, pool: [{ vs: '독일', keeper: 'neuer' }, { vs: '이탈리아', keeper: 'buffon' }, { vs: '아르헨티나', keeper: 'dibu' }, { vs: '소련', keeper: 'yashin' }] }
+  ];
+  // the champion's reward: one hero's move (RS.SKILLS, gift), held at SIUUU by every career of that hero
+  RS.CUP_REWARDS = [{ id: 'penaldo', hero: 'ronaldo' }, { id: 'bribe', hero: 'messi' }, { id: 'hollywood', hero: 'torres' }];
+  RS.CUP_GRADE = RS.GRADES.length - 1;
+  RS.normalizeCup = function (c) {
+    c = c && typeof c === 'object' ? c : {};
+    return { played: Math.max(0, c.played | 0), wins: Math.max(0, c.wins | 0), best: Math.max(0, Math.min(RS.CUP_ROUNDS.length, c.best | 0)) };
+  };
+  RS.cupLeft = (meta) => RS.CUP_REWARDS.filter((r) => !(meta.unlocked && meta.unlocked[r.id]));
+  // The four opponents of one run for this hero.
+  RS.cupDraw = function (rng, hero) {
+    const us = RS.soUsName(hero, 0, { nat: true });
+    return RS.CUP_ROUNDS.map((r) => {
+      const ok = r.pool.filter((m) => { const K = RS.PK_KEEPERS[m.keeper]; return m.vs !== us && K.mate !== hero && !(K.nemesis && K.nemesis[hero] != null); });
+      return Object.assign({}, ok[Math.floor(rng() * ok.length)]);
+    });
+  };
+  RS.cupStart = function (save) {
+    save.meta.cup = RS.normalizeCup(save.meta.cup);
+    save.meta.cup.played++;
+  };
+  // A round played: the record, and on the 결승 the reward. Returns { round, won, next (the round to play, or
+  // null), champion, reward: { id, hero, equipped } | { coins } }.
+  RS.cupResult = function (save, round, won, rng) {
+    const m = save.meta, last = RS.CUP_ROUNDS.length - 1, out = { round, won, next: null, champion: false, reward: null };
+    m.cup = RS.normalizeCup(m.cup);
+    if (!won) return out;
+    m.cup.best = Math.max(m.cup.best, round + 1);
+    if (round < last) { out.next = round + 1; return out; }
+    out.champion = true;
+    m.cup.wins++;
+    const left = RS.cupLeft(m);
+    if (!left.length) { m.coins += RS.CUP_COINS; out.reward = { coins: RS.CUP_COINS }; return out; }
+    const r = left[Math.floor((rng || Math.random)() * left.length)];
+    if (!m.unlocked || typeof m.unlocked !== 'object') m.unlocked = {};
+    m.unlocked[r.id] = true;
+    out.reward = { id: r.id, hero: r.hero, equipped: RS.grantCupRewards(save).includes(r.id) };
+    return out;
+  };
+
   // ---------------------------------------------------------------- a PK session (the screen drives it)
   // kind 'challenge': the PK 챌린지, five kicks by the hero. kind 'shootout': the season's real shootout (or single
   // penalty). The screen asks next() for the next kick, plays it (RS.PKScene) and hands the outcome to record();
@@ -309,11 +366,17 @@
       this.save = save; this.kind = opt.kind; this.idx = opt.idx | 0; this.replay = !!opt.replay;
       this.rng = opt.rng || Math.random;
       this.hero = RS.HEROES[b.hero] ? b.hero : 'ronaldo';
-      this.level = b.level || 1;
+      this.level = opt.kind === 'cup' ? Math.max(b.level || 1, RS.CUP_LEVEL) : b.level || 1;
       this.small = RS.smallBody(b);
-      this.fin = RS.pkFinishing(b, save.meta);
+      this.fin = RS.pkFinishing({ hero: this.hero, level: this.level }, save.meta);
       this.zones = RS.pkZoneCount(this.level);
-      if (opt.kind === 'shootout') {
+      if (opt.kind === 'cup') {
+        this.round = Math.max(0, Math.min(RS.CUP_ROUNDS.length - 1, opt.round | 0));
+        this.def = { cup: true, all: true, nat: true, title: '승부차기 토너먼트 · ' + RS.CUP_ROUNDS[this.round].name, vs: opt.vs, keeper: opt.keeper };
+        this.keeperId = opt.keeper;
+        this.so = RS.newShootout(this.rng() < 0.5 ? 'us' : 'them');
+        this.us = RS.soUsName(this.hero, 0, this.def);
+      } else if (opt.kind === 'shootout') {
         this.def = RS.shootoutFor(this.hero, this.idx);
         this.keeperId = this.def.keeper;
         this.so = this.def.single ? null : RS.newShootout(this.rng() < 0.5 ? 'us' : 'them');
@@ -323,7 +386,9 @@
         this.keeperId = RS.pkChallengeKeeper(this.rng, this.hero, this.idx);
       }
       this.keeper = RS.PK_KEEPERS[this.keeperId];
-      this.ourK = RS.soOurKeeper(b);
+      // the 토너먼트: the national team's keeper (RS.CUP_KEEPER at least) and each round's opposing kickers (oppMiss)
+      this.ourK = this.kind === 'cup' ? Math.max(RS.CUP_KEEPER, RS.soOurKeeper(b)) : RS.soOurKeeper(b);
+      this.oppMiss = this.kind === 'cup' ? RS.CUP_ROUNDS[this.round].miss : null;
       this.ourKeeper = { name: '우리 골키퍼', rating: this.ourK, look: RS.PK_OUR_LOOK };
       this.kicks = []; // the hero's own kicks: { goal, res }
       this.titles = []; // titles earned on the way
@@ -368,6 +433,13 @@
         out.coins = RS.pkReward(this.keeper, goals);
         this.save.meta.coins += out.coins;
         out.perfect = goals >= RS.PK_KICKS;
+      } else if (this.kind === 'cup') {
+        out.won = !!this.so.won;
+        out.score = [this.so.us.filter(Boolean).length, this.so.them.filter(Boolean).length];
+        const rec = RS.normalizePk(this.save.meta.pk).heroes[this.hero];
+        if (out.won) rec.won++; else rec.lost++;
+        out.cup = RS.cupResult(this.save, this.round, out.won, this.rng);
+        if (out.cup.reward && out.cup.reward.coins) out.coins = out.cup.reward.coins;
       } else {
         const won = this.so ? !!this.so.won : goals > 0;
         Object.assign(out, RS.applyShootout(this.save, this.idx, this.def, won, this.replay));
@@ -378,4 +450,4 @@
   }
   RS.PKSession = PKSession;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R14';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R15';

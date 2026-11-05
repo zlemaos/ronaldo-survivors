@@ -1582,7 +1582,7 @@
           }
           continue;
         }
-        if (use === 'stepover') { this.updateStepover(ws, s, evo, dt); continue; }
+        if (use === 'stepover') { this.updateStepover(ws, s, evo, dt, id); continue; }
         if (use === 'orbit') { this.updateOrbit(ws, s, dt, id); continue; }
         if (use === 'trail') { this.updateTrail(ws, s, dt); continue; }
         if (use === 'dribball') { this.updateDribball(ws, s, dt); continue; }
@@ -1913,7 +1913,7 @@
           }
           // round 11: the palm guards the first slam only (it covered every slam: 황금 신의 분노 was untouchable)
           if (s.guard) p.iframe = Math.max(p.iframe, Math.min(RS.GUARD_MAX, s.guard));
-          this.addFx('martial', p.x, p.y, { dur: 0.9, ch: '신의 손!', n: 0, center: true, follow: true });
+          this.addFx('martial', p.x, p.y, { dur: 0.9, ch: def.shout || '신의 손!', n: 0, center: true, follow: true });
           this.emit('sfx', { name: 'drop' });
           return true;
         }
@@ -2044,9 +2044,10 @@
 
     // 스텝오버 / 솔로 드리블 (round 11, now a weapon on its own): when an enemy comes within STEP_REACH the hero
     // slips through him — the dash runs at the nearest man and past him, untouchable, hitting all it crosses.
-    updateStepover(ws, s, evo, dt) {
-      const p = this.player;
+    updateStepover(ws, s, evo, dt, id) {
+      const p = this.player, shout = id && RS.SKILLS[id] && RS.SKILLS[id].shout;
       ws.timer -= dt;
+      if (shout) ws.say = Math.max(0, (ws.say || 0) - dt);
       if (ws.timer > 0 || p.dash) return;
       this.grid.query(p.x, p.y, STEP_REACH + 12, this._q);
       let threat = null, bd = 1e9;
@@ -2064,6 +2065,8 @@
       p.dash = { dx, dy, t: 0, dur, speed: s.dist / dur, dmg: s.dmg, hits: new Set(), burst: s.burst || STEP_BURST, sx: p.x, sy: p.y };
       p.iframe = Math.max(p.iframe, dur + 0.04);
       ws.timer = s.cd * this.stats.cd;
+      // 명품 헐리웃 (round 15): the dive says its name now and then, not on every dash
+      if (shout && !ws.say) { ws.say = 3; this.addFx('martial', p.x, p.y, { dur: 0.8, ch: shout, n: 0, center: true, follow: true }); }
       this.emit('sfx', { name: 'dash' });
     }
 
@@ -3401,4 +3404,4 @@
     };
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).game = 'R14';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).game = 'R15';

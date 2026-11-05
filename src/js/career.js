@@ -34,7 +34,8 @@
       // diff: RS.DIFFS key; auto: 'off' | 'semi' (반자동: important choices are the player's) | 'full' (완전 오토);
       // pk: matches played and each hero's penalties (RS.normalizePk)
       // unlocked: heroes opened in play (round 11: torres, by beating him after 드록빠)
-      meta: { coins: 0, ballons: 0, upgrades: {}, ballonYears: [], muted: false, totalKills: 0, wins: 0, diff: 'normal', auto: 'off', pk: { games: 0, heroes: {} }, unlocked: {} }
+      // cup: the 승부차기 토너먼트 record (RS.normalizeCup); its rewards are unlocked keys too (RS.CUP_REWARDS)
+      meta: { coins: 0, ballons: 0, upgrades: {}, ballonYears: [], muted: false, totalKills: 0, wins: 0, diff: 'normal', auto: 'off', pk: { games: 0, heroes: {} }, unlocked: {}, cup: { played: 0, wins: 0, best: 0 } }
     };
   };
   RS.AUTO_MODES = ['off', 'semi', 'full'];
@@ -66,8 +67,20 @@
     if (!RS.AUTO_MODES.includes(s.meta.auto)) s.meta.auto = 'off';
     s.meta.pk = RS.normalizePk(s.meta.pk);
     if (!s.meta.unlocked || typeof s.meta.unlocked !== 'object') s.meta.unlocked = {};
+    s.meta.cup = RS.normalizeCup(s.meta.cup);
+    RS.grantCupRewards(s);
     RS.setDiff(s.meta.diff);
     return s;
+  };
+  // 승부차기 토너먼트 rewards (round 15): the active career holds each unlocked move of its hero at SIUUU, in hand
+  // when it first comes (the move held goes to the 무기고). Owned already, nothing changes. Returns the ids given.
+  RS.grantCupRewards = function (save) {
+    const b = save.career.build, un = save.meta.unlocked || {}, got = [];
+    for (const r of RS.CUP_REWARDS) {
+      if (!un[r.id] || r.hero !== b.hero || RS.ownedWeapon(b, r.id)) continue;
+      if (RS.gainWeapon(b, { id: r.id, g: RS.CUP_GRADE, p: 1 }, true)) got.push(r.id);
+    }
+    return got;
   };
 
   // Switch the active career to another hero. The current career is parked under save.careers[hero] and the
@@ -86,6 +99,7 @@
     RS.selectHero(hero, save.career.build);
     save.career.yearIdx = Math.max(0, Math.min(RS.YEARS.length - 1, save.career.yearIdx | 0));
     if (!save.career.finished) RS.releaseOffSeason(save.career.build, save.career.yearIdx); // a parked pre-round-11 squad
+    RS.grantCupRewards(save);
     return save.career;
   };
 
@@ -518,6 +532,7 @@
     save.career.build = RS.dressBuild(save, RS.newBuild(hero));
     save.career.laps = laps;
     RS.selectHero(hero, save.career.build);
+    RS.grantCupRewards(save);
   };
 
   // ---------------------------------------------------------------- shop
@@ -570,4 +585,4 @@
     return true;
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).career = 'R14';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).career = 'R15';

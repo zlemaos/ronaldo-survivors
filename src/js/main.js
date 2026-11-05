@@ -169,6 +169,7 @@
         : this.save.meta.unlocked.torresBlue ? '✨ 성공한 첼씨 토레쓰 획득 · 새 커리어는 SSS 첼씨 토레쓰 · ' + RS.HEROES.torres.desc : RS.HEROES.torres.desc;
       this.renderWallet($('title-wallet'));
       $('title-pk').textContent = this.pkLine();
+      $('btn-cup').textContent = this.cupButton();
       const ts = $('title-sprite'); ts.innerHTML = '';
       ts.appendChild(RS.Sprites.toCanvas(RS.Sprites.hero(c.build.hero, c.yearIdx, 1, null, RS.smallBody(c.build)), 0, 7));
       this.makeAttract();
@@ -1247,6 +1248,7 @@
         this.toast(h.name + ' 커리어를 처음부터 시작합니다');
       };
       $('btn-shop').onclick = () => this.showShop();
+      $('btn-cup').onclick = () => { RS.Audio.sfx('click'); this.startCup(); };
       $('btn-howto').onclick = () => this.show('howto');
       $('btn-mute').onclick = () => this.toggleMute();
       $('btn-mute-hud').onclick = (e) => { e.stopPropagation(); this.toggleMute(); };
@@ -1299,4 +1301,4 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => App.boot());
   else App.boot();
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).main = 'R14';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).main = 'R15';

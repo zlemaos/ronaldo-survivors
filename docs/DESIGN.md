@@ -367,6 +367,17 @@ invisible. This removes the power creep of the carried-over build: late bosses n
   - Effects: night stadium with a crowd in both sides' colours (it jumps on a goal), LED boards that flash, a net
     that bulges where the ball went in, a white flash, light and a gold firework for our goal, spark and shake on a
     save or the frame, `GOAL!!` / `SIUUU!` shouts, fireworks and confetti for a won shootout or five of five.
+  - **승부차기 토너먼트** (round 15, title button `btn-cup`; rules `RS.CUP_*` in `js/pk.js`, screens in `js/pkui.js`):
+    a mini-game outside the career. 16강 → 8강 → 4강 → 결승, one shootout a round (`PKSession` kind 'cup'), the
+    hero taking every kick of ours with all nine zones (`RS.CUP_LEVEL` 70), our keeper rated `RS.CUP_KEEPER` 84, the
+    other side missing `miss` 26 / 20 / 15 / 10 % by round. Draws skip the hero's nation, his keeper teammates and his
+    nemesis. Manual by default (only 완전 오토 kicks for him). One loss ends the run. Measured (4,000 runs a hero):
+    a player who aims for the corners with good timing wins about one run in four (22–25 %), the bot 14–19 %.
+    The champion unlocks one of `RS.CUP_REWARDS` at random (never twice): 날두 **패널두** (`knuckle`, straight),
+    메시 **심판매수** (`hand`, shout 퇴장!), 토레쓰 **명품 헐리웃** (`stepover`, shout 헐리웃!) — gift moves, never dealt
+    at a level-up, held at SIUUU (`RS.CUP_GRADE`) in hand by every career of that hero (`RS.grantCupRewards`: on
+    load, hero switch, new career and the title itself; once given, the player may put it away). Three titles
+    open all three; later titles pay `RS.CUP_COINS` 1000. Record: `meta.cup` { played, wins, best }.
 
 ### Round 11: 담백하게 — one weapon, grades, fewer and meaner enemies, 토레쓰
 Player feedback (31세 하드, Lv.90): the screen was unreadable (six moves, evolutions, 합체, damage numbers

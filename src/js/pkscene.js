@@ -126,7 +126,7 @@
     kick() {
       const o = this.o, rng = this.rng;
       if (this.mode === 'keep') {
-        const r = RS.soOppKick(rng, o.ourK || 70, this.dive);
+        const r = RS.soOppKick(rng, o.ourK || 70, this.dive, o.oppMiss);
         this.zone = r.col + 1 + (rng() < 0.5 ? 3 : 0); // the other side's kicker: low or mid height
         this.result = { res: r.res, goal: r.goal, diveCol: r.diveCol };
       } else if (o.forced) {
@@ -189,4 +189,4 @@
   }
   RS.PKScene = PKScene;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkscene = 'R14';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkscene = 'R15';
