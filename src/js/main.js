@@ -76,15 +76,22 @@
         if (mixed) { tries = +(sessionStorage.getItem('rs_mixed') || 0); sessionStorage.setItem('rs_mixed', tries + 1); }
         else sessionStorage.removeItem('rs_mixed');
       } catch (e) { tries = 2; }
-      if (!mixed) this.init();
-      else if (tries < 2) this.hardReload();
+      if (!mixed) {
+        // a page reached through hardReload's fresh address drops the marker again
+        if (/[?&]b=\d+/.test(location.search)) history.replaceState(null, '', location.pathname + location.search.replace(/([?&])b=\d+&?/, '$1').replace(/[?&]$/, '') + location.hash);
+        this.init();
+      } else if (tries < 2) this.hardReload();
       else $('btn-update').classList.remove('hidden');
     },
     hardReload() {
       const urls = [location.pathname + location.search].concat([...document.scripts].map((s) => s.getAttribute('src')),
         [...document.querySelectorAll('link[rel="stylesheet"]')].map((l) => l.getAttribute('href'))).filter(Boolean);
-      // a file that cannot be fetched (offline) is left as it is: the reload still runs
-      Promise.all(urls.map((u) => fetch(u, { cache: 'reload' }).catch(() => null))).then(() => location.reload());
+      // a file that cannot be fetched (offline) is left as it is: the reload still runs. It opens the page at a fresh
+      // address (?b=time): some phone browsers (in-app ones) answered a plain reload with the old cached page again,
+      // so a mixed page never got past the update button.
+      const q = location.search.replace(/([?&])b=\d+&?/, '$1').replace(/[?&]$/, '');
+      const go = () => location.replace(location.pathname + (q ? q + '&' : '?') + 'b=' + Date.now() + location.hash);
+      Promise.all(urls.map((u) => fetch(u, { cache: 'reload' }).catch(() => null))).then(go);
     },
 
     // ------------------------------------------------------------ screens
