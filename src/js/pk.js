@@ -375,9 +375,16 @@
   // RS.SO_PAN_SAVE of the time; one who went to a side is beaten.
   RS.SO_OPP_PANENKA = 0.08; RS.SO_PAN_SAVE = 0.9;
   RS.SO_MID_SAVE = { low: 0.95, highUp: 0.85, highOver: 0.2 };
-  RS.soOppAim = function (rng, miss) {
-    if (rng() < RS.SO_OPP_PANENKA) return { col: 1, row: 0, off: rng() < 0.06 ? 'over' : null, panenka: true };
-    const r = rng(), col = r < 0.42 ? 0 : r < 0.84 ? 2 : 1, row = rng() < 0.35 ? 1 : 0;
+  // (the user: 가운데 가만히만 있음 가운데 다 막으니까 상대가 가운데 한 번 막히면 사이드로 차거나 머리 위 파워슛 갈길 가능성
+  // 높아지게) midSaved: their low balls down the middle our keeper has taken this session — after one, most of the
+  // kickers who would go low down the middle (or chip it) go to a side or over his head instead (RS.SO_MID_WARY)
+  RS.SO_MID_WARY = [0, 0.7, 0.85, 0.95];
+  RS.soOppAim = function (rng, miss, midSaved) {
+    const wary = RS.SO_MID_WARY[Math.min(midSaved || 0, RS.SO_MID_WARY.length - 1)];
+    if (rng() < RS.SO_OPP_PANENKA * (1 - wary)) return { col: 1, row: 0, off: rng() < 0.06 ? 'over' : null, panenka: true };
+    const r = rng();
+    let col = r < 0.42 ? 0 : r < 0.84 ? 2 : 1, row = rng() < 0.35 ? 1 : 0;
+    if (col === 1 && row === 0 && rng() < wary) { if (rng() < 0.45) row = 1; else col = rng() < 0.5 ? 0 : 2; }
     const off = rng() < (miss == null ? 0.07 : miss) ? (col === 1 || row === 1 ? (rng() < 0.6 ? 'over' : 'post') : rng() < 0.5 ? 'post' : 'wide') : null;
     return { col, row, off };
   };
@@ -615,6 +622,7 @@
       this.rage = false; // the other keeper's 분노 모드 (round 16)
       this.morale = 0; // round 23: our kicker's failed 파넨카s so far (RS.pkTiming)
       this.panStreak = 0; // round 23: his 파넨카 attempts in a row just now (RS.PK_PAN_STREAK)
+      this.midSaved = 0; // round 23: their low balls down the middle our keeper took (RS.soOppAim)
       this.kicks = []; // the hero's own kicks: { goal, res }
       this.titles = []; // titles earned on the way
       this.cur = null;
@@ -652,7 +660,10 @@
         this.kicks.push({ goal, res: result.res });
         const t = RS.pkRecord(this.save.meta, this.hero, goal);
         if (t) this.titles.push(t);
-      } else if (c.who === 'opp' && result.res === 'save') rec.saves++;
+      } else if (c.who === 'opp' && result.res === 'save') {
+        rec.saves++;
+        if (result.col === 1 && result.row === 0) this.midSaved++; // (RS.soOppAim: the next ones avoid it)
+      }
       if (this.so) RS.soAdd(this.so, c.who === 'opp' ? 'them' : 'us', goal);
       this.cur = null;
     }
@@ -681,4 +692,4 @@
   }
   RS.PKSession = PKSession;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R25';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R26';

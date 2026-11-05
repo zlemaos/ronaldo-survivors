@@ -92,7 +92,7 @@
       P.scene = new RS.PKScene({
         mode: k.mode, who: k.who, keeper: k.who === 'opp' ? S.ourKeeper : S.keeper, fin: S.fin, level: S.level, hero: S.hero, small: S.small,
         yearIdx: S.idx, nat: !!(S.def && S.def.nat), n: k.who === 'mate' ? P.mates++ : k.who === 'opp' ? P.opps++ : 0,
-        auto: k.who === 'mate' ? true : P.auto, fast: quick, slow: !!k.decisive, forced: k.forced, ourK: S.ourK, oppMiss: S.oppMiss, rage: S.rage, rng: this.rng,
+        auto: k.who === 'mate' ? true : P.auto, fast: quick, slow: !!k.decisive, forced: k.forced, ourK: S.ourK, oppMiss: S.oppMiss, midSaved: S.midSaved, rage: S.rage, rng: this.rng,
         shot: this.pkShotPref || 'push', zones: S.zones, morale: k.who === 'hero' ? S.morale : 0, panStreak: S.panStreak
       });
       P.shouted = false; P.lastPhase = null; P.lastReact = false;
@@ -393,4 +393,4 @@
     }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkui = 'R25';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkui = 'R26';

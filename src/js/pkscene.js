@@ -29,7 +29,7 @@
   class PKScene {
     // opt: { mode: 'shoot' | 'keep', who: 'hero' | 'mate' | 'opp' (the kicker), keeper (RS.PK_KEEPERS entry or our
     //   keeper), fin, level, hero, small, yearIdx, auto, fast, slow, rng, forced: { goal } (a teammate's kick: the
-    //   outcome is already rolled), ourK (our keeper's rating, 'keep'), oppMiss, rage (the keeper's 분노 모드),
+    //   outcome is already rolled), ourK (our keeper's rating, 'keep'), oppMiss, midSaved (RS.soOppAim), rage (the keeper's 분노 모드),
     //   shot (round 18: the player's shot type, RS.PK_SHOTS; the 🤖 picks its own) }
     constructor(opt) {
       this.o = opt;
@@ -232,7 +232,7 @@
       if (this.mode === 'keep') {
         // the other side's kicker: a column and a height; our keeper's early pick (or his own guess on auto) settles
         // it now, a watching keeper settles it when he moves (react) or when the ball arrives
-        const a = this.aim = RS.soOppAim(rng, o.oppMiss);
+        const a = this.aim = RS.soOppAim(rng, o.oppMiss, o.midSaved);
         this.zone = a.col + 1 + (a.row ? 6 : 0);
         if (!this.watch) this.result = RS.soOppSave(rng, o.ourK || 70, a, this.dive || RS.soGuess(rng));
         else this.reactOpen = true;
@@ -397,4 +397,4 @@
   }
   RS.PKScene = PKScene;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkscene = 'R25';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkscene = 'R26';

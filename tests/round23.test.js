@@ -109,6 +109,20 @@ test('a keeper standing in the middle takes a low ball down the middle; only a h
   }
 });
 
+// (the user: 상대가 가운데 한 번 막히면 사이드로 차거나 머리 위 파워슛 갈길 가능성 높아지게)
+test('after one low ball down the middle is saved, the other kickers mostly go to a side or over the keeper\'s head', () => {
+  const lowMid = (saved) => {
+    const rng = RS.makeRng(4); let n = 0;
+    for (let i = 0; i < 4000; i++) { const a = RS.soOppAim(rng, 0, saved); if (a.col === 1 && a.row === 0) n++; }
+    return n / 4000;
+  };
+  assert.ok(lowMid(1) < lowMid(0) * 0.4, lowMid(0).toFixed(3) + ' → ' + lowMid(1).toFixed(3));
+  // the session counts it from the scene's result
+  const S = { cur: { who: 'opp' }, midSaved: 0, so: null, hero: 'ronaldo', save: { meta: {} } };
+  RS.PKSession.prototype.record.call(S, { res: 'save', goal: false, col: 1, row: 0 });
+  assert.equal(S.midSaved, 1);
+});
+
 test('the 토너먼트 opens all nine zones from the 유소년 대회 on', () => withRonaldo(() => {
   const s = RS.newSave();
   const S = new RS.PKSession(s, { kind: 'cup', stage: 0, round: 0, vs: 'U-17 스위쓰', keeper: 'u17', rng: RS.makeRng(1) });
