@@ -129,8 +129,8 @@
     pkSfx(n, sc) {
       const A = RS.Audio;
       if (n === 'goal') { // the stadium horn and the roar; 날두's own goal gets his SIUU
-        A.sfx('horn'); A.sfx('cheer'); A.sfx('roar');
-        if (sc.who === 'hero') setTimeout(() => this.celebrate(sc.o.hero), 250);
+        A.sfx('horn'); A.sfx('roar');
+        if (sc.who === 'hero' && sc.o.hero === 'ronaldo') setTimeout(() => A.siuu(), 250);
       } else A.sfx(n);
       if (n === 'kick' && sc.slow) A.sfx('drum');
       // round 23: the phone buzzes on the net, the gloves and the frame (only here: 'thud' is common in the season)
@@ -393,4 +393,4 @@
     }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkui = 'R22';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkui = 'R23';

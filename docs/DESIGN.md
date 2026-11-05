@@ -698,8 +698,9 @@ for passives, weapons and items alike.
   Shot niches kept: low corner 밀어차기, top corner 감아차기 (pull × 0.8), middle 발등슛 (pull × 1.4).
 - Their kicker chips one in `RS.SO_OPP_PANENKA` (8 %): our keeper who stays (or watched and never moved) takes it 90 %.
 - The 토너먼트 opens all nine zones at every stage.
-- Crowd (`RS.Audio.crowd`): `roar` for us, `aah` against us, `ooh` off the frame, `bigroar` on a won shootout or
-  cup; the phone buzzes (`RS.Audio.buzz`, Android) on the net, the gloves, the frame and a win.
+- Crowd: recorded clips `assets/audio/crowd_{goal,aah,ooh,win}.mp3` (ElevenLabs sound effects, loudness-normalised,
+  mono 64 kbps) played by `RS.Audio.clip` — `roar` for us (and `cheer` everywhere), `aah` against us, `ooh` off the
+  frame, `bigroar` on a won shootout or cup (version R23: the synthesized crowd read as a swoosh); the phone buzzes (`RS.Audio.buzz`, Android) on the net, the gloves, the frame and a win.
   Tests `tests/round23.test.js`.
 
 ### Round-2 tuning (before → after)

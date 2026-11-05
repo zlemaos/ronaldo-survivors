@@ -7,7 +7,7 @@
   // agree). A page whose files carry two builds — a phone's cache across an update — reloads instead of starting
   // (App.mixedFiles); a tab left open learns of a newer build from App.checkUpdate. Round 11 had no such check, so its
   // files stay unchanged in js/ and css/ for pages cached before round 12; the game itself lives in src/.
-  RS.VERSION = 'R22';
+  RS.VERSION = 'R23';
 
   // Seeded RNG (mulberry32) so runs and tests are reproducible.
   RS.makeRng = function (seed) {
@@ -117,4 +117,4 @@
     };
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).core = 'R22';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).core = 'R23';
