@@ -17,10 +17,11 @@
   RS.pkRow = (z) => Math.floor((z - 1) / 3); // 0 along the ground, 2 under the bar
   // per zone: save = how often a keeper rated 80 stops a clean, well-struck shot there; off = how often a clean
   // strike there still misses. The top corners are the hardest to stop and the easiest to miss.
+  // (round 23: the sides' off halved — the post is its own RS.PK_POST now)
   RS.PK_ZONE = {
-    1: { save: 0.24, off: 0.04 }, 2: { save: 0.42, off: 0.02 }, 3: { save: 0.24, off: 0.04 },
-    4: { save: 0.28, off: 0.05 }, 5: { save: 0.55, off: 0.02 }, 6: { save: 0.28, off: 0.05 },
-    7: { save: 0.1, off: 0.09 }, 8: { save: 0.34, off: 0.06 }, 9: { save: 0.1, off: 0.09 }
+    1: { save: 0.24, off: 0.02 }, 2: { save: 0.42, off: 0.02 }, 3: { save: 0.24, off: 0.02 },
+    4: { save: 0.28, off: 0.025 }, 5: { save: 0.55, off: 0.02 }, 6: { save: 0.28, off: 0.025 },
+    7: { save: 0.1, off: 0.045 }, 8: { save: 0.34, off: 0.06 }, 9: { save: 0.1, off: 0.045 }
   };
 
   // ---------------------------------------------------------------- the kicker
@@ -32,11 +33,14 @@
     const drill = (meta && meta.upgrades && meta.upgrades.pkdrill) || 0;
     return clamp(Math.round(RS.PK_BASE[hero] + Math.min(24, ((build && build.level) || 1) * 0.2) + 3 * drill), 1, 99);
   };
-  // The power gauge sweeps 0 → 1 → 0 and the tap stops it (round 16, the user's gauge): red under PK_POWER.red (the
-  // softest touch — a 파넨카 when aimed down the middle), grey 'weak' under PK_POWER.weak, yellow 'ok', green 'good'
-  // inside PK_POWER.good, and inside the green a thin blue band around PK_POWER.blue — 'perfect', very hard to stop
-  // on (RS.pkBlueHalf) — then yellow again and red 'over' past PK_POWER.over (skied or dragged wide).
-  RS.PK_POWER = { red: 0.16, weak: 0.55, good: [0.7, 0.88], blue: 0.79, over: 0.95 };
+  // The power gauge sweeps 0 → 1 → 0 and the tap stops it. Round 23 (the user): from the left — red 'slow' under
+  // PK_POWER.slow (barely touched: it rolls or floats in so slowly that a keeper who went the right way walks over
+  // and picks it up), the 파넨카 zone PK_POWER.pan (green, a thin blue band 'panPerfect' around PK_POWER.panBlue; a
+  // soft placed chip when aimed at a side), grey 'weak' under PK_POWER.weak, yellow 'ok', green 'good' inside
+  // PK_POWER.good with the thin blue 'perfect' band around PK_POWER.blue (RS.pkBlueHalf), yellow again, and red
+  // 'over' past PK_POWER.over (skied). The power is only the power: it sets how fast the ball goes (how easily it
+  // is saved, RS.PK_POWER_SAVE) and an over-hit flies high — never the direction (that is the needle's, RS.PK_PULL).
+  RS.PK_POWER = { slow: 0.08, pan: [0.08, 0.3], panBlue: 0.19, weak: 0.55, good: [0.7, 0.88], blue: 0.79, over: 0.95 };
   // half the blue band: fin 55 → ±1.35 %, fin 95 → ±1.75 % of the gauge (about 30 ms of its sweep)
   RS.pkBlueHalf = (fin) => (0.016 + (fin == null ? 70 : fin) * 0.0002) / 2;
   RS.pkPowerGrade = (p, fin) => {
@@ -44,18 +48,20 @@
     if (p > P.over) return 'over';
     if (Math.abs(p - P.blue) <= RS.pkBlueHalf(fin)) return 'perfect';
     if (p >= P.good[0] && p <= P.good[1]) return 'good';
-    return p < P.red ? 'red' : p < P.weak ? 'weak' : 'ok';
+    if (p < P.slow) return 'slow';
+    if (p <= P.pan[1]) return Math.abs(p - P.panBlue) <= RS.pkBlueHalf(fin) ? 'panPerfect' : 'pan';
+    return p < P.weak ? 'weak' : 'ok';
   };
-  // 영점: how far the strike drifts from the point aimed at — 0 on the blue band with the needle in gold; it grows with
-  // the distance from the blue band (1 at the green's edge; round 22: about 0.7) and with a needle off the gold (good +0.35, miss +1)
-  // (round 21, the user: 정확도 다이얼 잘 못 맞춰도 별 차이가 없네 — the needle now weighs much more: good +0.8, miss
-  // +2.2; a clean strike is saved a little less (RS.PK_SAVE_K) so the whole stays about as hard)
-  // (round 22, the user: 정확도 좋음인데도 다 빗나감 … 파란색 노란색 흰색 이렇게 — white sent a third of the top-corner
-  // strikes wide. The dial has three bands now: blue 'great' in the middle (the old gold: with the blue power band a
-  // perfect strike), yellow 'fine' around it, then white 'good'; white drifts a little, a missed needle as before.)
-  RS.PK_ACC_ERR = { great: 0, fine: 0.15, good: 0.35, miss: 2.2 };
-  RS.PK_SAVE_K = 0.8;
-  RS.pkAimErr = (power, acc, fin) => Math.max(0, Math.abs(power - RS.PK_POWER.blue) - RS.pkBlueHalf(fin)) / 0.11 + (RS.PK_ACC_ERR[acc] || 0);
+  // × a struck ball's saves by its power: a soft one is slow to the corner, a full one hard to hold
+  RS.PK_POWER_SAVE = { pan: 2.2, panPerfect: 2.2, weak: 1.75, ok: 1.15, good: 1, perfect: 0.9, over: 0.75 };
+  // The needle sets the direction. Round 22 (the user: 파란색 노란색 흰색): three bands — blue 'great' in the middle
+  // (with the blue power band a perfect strike), yellow 'fine', white 'good'. Round 23 (the user: 다이얼 제대로
+  // 맞출수록 구석에 가는 거 … 못 맞출수록 가운데 쏠려서 키퍼가 막기 쉬워지고): the worse the needle, the more the ball is
+  // pulled from its corner toward the keeper in the middle (RS.PK_PULL: the share of the way) — saved more, not wide.
+  RS.PK_PULL = { great: 0, fine: 0.15, good: 0.35, miss: 1 };
+  RS.PK_CENTER = 2.4; // × the middle's saves for a ball pulled all the way in: it comes at his body
+  RS.PK_SAVE_K = 0.52; // round 23: with the posts and the pull, about the round-22 cup odds (sim: 60 → 25 → 11 → 7 % for a good 날두)
+  RS.PK_POST = 0.1; // round 23 (the user): a struck ball to either side rings off the post this often
   RS.pkPerfect = (power, acc, fin) => acc === 'great' && RS.pkPowerGrade(power, fin) === 'perfect';
   // How fast the gauge and the 정확도 needle move and how wide the needle's target is (degrees of the dial; the
   // 'great' band sits in the middle of 'good'). The lower the 골결정력 the faster and the narrower: a young
@@ -64,10 +70,14 @@
   // turns faster and its arcs narrow — × RS.pkPowerHard(power): 1 on the blue band, up to 1.45 for a full-blooded
   // strike, down to 0.7 for a soft one.
   RS.pkPowerHard = (power) => (power == null ? 1 : clamp(1 + (power - RS.PK_POWER.blue) * 2.5, 0.7, 1.45));
-  RS.pkTiming = (fin, power) => {
-    const h = RS.pkPowerHard(power);
+  // Round 23 (the user: 파넨카 실패 시 키커 사기 저하 … 파워나 정확도 맞추기가 더 훨씬 어려워지게): each failed 파넨카
+  // in a session (morale 1–3, RS.PK_MORALE_MAX) speeds the gauge and the needle up and narrows the needle's bands
+  // by × (1 + RS.PK_MORALE per step) — the odds of a given strike stay; hitting it gets harder.
+  RS.PK_MORALE = 0.3; RS.PK_MORALE_MAX = 3;
+  RS.pkTiming = (fin, power, morale) => {
+    const m = 1 + RS.PK_MORALE * clamp(morale | 0, 0, RS.PK_MORALE_MAX), h = RS.pkPowerHard(power) * m;
     return {
-      gauge: 1.5 - fin * 0.006, // sweeps a second: fin 55 → 1.17, fin 95 → 0.93
+      gauge: (1.5 - fin * 0.006) * m, // sweeps a second: fin 55 → 1.17, fin 95 → 0.93
       needle: (0.95 - fin * 0.003) * h, // turns a second: 0.785 → 0.665 (on the blue band)
       good: Math.max(8, Math.round((18 + fin * 0.32) / h)), // 36° → 48°
       great: Math.max(2, Math.round((1 + fin * 0.08) / h)), // 5° → 9°, blue (round 16: half of a perfect strike, so it is narrow)
@@ -90,9 +100,11 @@
   // keeper who guessed right gets there more often (save), all the more an angry one who flies early (rage).
   // A soft touch down the middle stays a 파넨카 or a 티배깅 whatever was picked: a chip is a chip.
   RS.PK_SHOTS = {
-    push: { name: '밀어차기', icon: '🦶', key: 'Q', tip: '기본 슛 · 무난하다', gauge: 1, save: 1, saveAdd: 0, base: 1, drift: 1, over: 1, rage: 1, flight: 1 },
-    drive: { name: '발등슛', icon: '🚀', key: 'W', tip: '빠르고 세서 막기 어렵다 · 대신 게이지가 빨라 빗나가기 쉽다', gauge: 1.3, save: 0.75, saveAdd: 0, base: 1.15, drift: 1.3, over: 1.3, rage: 0.95, flight: 0.78 },
-    curl: { name: '감아차기', icon: '🌀', key: 'E', tip: '구석으로 휘어 들어가 잘 안 빗나간다 · 대신 느려서 방향을 읽히면 막힌다', gauge: 0.8, save: 1.45, saveAdd: 0, base: 0.85, drift: 0.88, over: 0.9, rage: 1.12, flight: 1.2 }
+    push: { name: '밀어차기', icon: '🦶', key: 'Q', tip: '기본 슛 · 무난하다', gauge: 1, save: 1, saveAdd: 0, base: 1, drift: 1, over: 1, rage: 1, flight: 1, post: 1, pull: 1 },
+    drive: { name: '발등슛', icon: '🚀', key: 'W', tip: '빠르고 세서 막기 어렵다 · 대신 게이지가 빨라 빗나가기 쉽다', gauge: 1.3, save: 0.75, saveAdd: 0, base: 1.15, drift: 1.3, over: 1.3, rage: 0.95, flight: 0.78, post: 1.3, pull: 1.4 },
+    // round 23: post × RS.PK_POST, pull × RS.PK_PULL — the 발등슛 is struck too hard to place (more to the middle, more
+    // of the frame); the 감아차기 bends back toward its corner (less of the frame, less drawn to the middle)
+    curl: { name: '감아차기', icon: '🌀', key: 'E', tip: '구석으로 휘어 들어가 잘 안 빗나간다 · 대신 느려서 방향을 읽히면 막힌다', gauge: 0.8, save: 1.45, saveAdd: 0, base: 0.85, drift: 0.88, over: 0.9, rage: 1.12, flight: 1.2, post: 0.6, pull: 0.8 }
   };
   RS.PK_SHOT_IDS = ['push', 'drive', 'curl'];
   RS.pkShot = (id) => RS.PK_SHOTS[id] || RS.PK_SHOTS.push;
@@ -162,15 +174,19 @@
 
   // ---------------------------------------------------------------- one kick
   // Chance of a goal, a save or a miss. o: { fin, keeper (RS.PK_KEEPERS entry), zone, power (0–1),
-  // acc: 'great' | 'fine' | 'good' | 'miss', hero, rage (the keeper's 분노 모드) }. Sums to 1. kind: 'perfect' (blue band and
-  // gold needle: it bends into the zone's own corner — no miss, and only a legend's fingertips), 'panenka' (the red
-  // band down the middle: a chip that beats a keeper who dives and dies in the arms of one who stays), 'tbag' (too
-  // soft down the middle: the keeper starts to go, stops and walks back to it), else a strike that drifts with its
-  // 영점 error (RS.pkAimErr) — wide or over from a corner, up or sideways from the middle, and nearer the keeper.
+  // acc: 'great' | 'fine' | 'good' | 'miss', hero, rage (the keeper's 분노 모드), panStreak (our 파넨카 attempts
+  // just before this one, in a row) }. Sums to 1. kind: 'perfect' (blue band and blue needle: it bends into the
+  // zone's own corner — no miss, and only a legend's fingertips), 'panenka' (the 파넨카 zone down the middle: a chip
+  // that beats a keeper who dives and dies in the arms of one who stays; on its blue band (odds.chipPerfect) it
+  // floats over half the ones who stay), 'slow' (round 23, the red far left, any zone: it rolls or floats in so
+  // slowly that a keeper who went the right way walks over to it — otherwise it is in), else a struck ball: the
+  // needle pulls it toward the middle (RS.PK_PULL), the power sets its pace (RS.PK_POWER_SAVE) and an over-hit
+  // flies high; to either side it rings off the post RS.PK_POST of the time (odds.post, part of odds.off).
   RS.PK_RAGE = 1.2; // × the keeper's saves in 분노 모드 (after one of our 파넨카 he read: he burns for the rest)
   // A perfect strike (round 20, the user): 99 % in; against a keeper in 분노 모드 it goes in every time he dives the
   // wrong way and 80 % of the times he guesses it (he guesses it rageGuess of the time). Never shown on screen.
   RS.PK_PERFECT = { goal: 0.99, rageRead: 0.8, rageGuess: 0.45 };
+  RS.PK_PAN_STREAK = [1, 1.9, 2.6]; // × how often he stays for our 파넨카: the first, the second in a row, more
   // o.shot (round 18): 'push' (default) | 'drive' | 'curl' (RS.PK_SHOTS) scales the saves and the misses of a struck
   // ball; odds.shot says which one it was.
   RS.pkOdds = function (o) {
@@ -183,25 +199,28 @@
     const fin = o.fin, pg = RS.pkPowerGrade(o.power, fin), k2 = (o.keeper.rating / 80) ** 2 * (o.rage ? RS.PK_RAGE : 1);
     const S = RS.pkShot(o.shot), sv = S.save * (o.rage ? S.rage : 1), sa = S.saveAdd * (o.rage ? S.rage : 1);
     let odds;
-    if (!corner && pg === 'red') { // 파넨카: he stays (reads it) or he dives (beaten, unless the chip is off)
-      const stay = clamp(0.3 * k2 * (o.rage ? 1.5 : 1), 0.1, 0.8), off = 0.06;
-      odds = { goal: (1 - stay) * (1 - off), save: stay, off: (1 - stay) * off, kind: 'panenka' };
-    } else if (!corner && pg === 'weak') { // too soft down the middle: he comes back for it
-      const save = clamp(0.82 * Math.min(1.1, k2), 0.5, 0.95);
-      odds = { goal: 1 - save, save, off: 0, kind: 'tbag' };
+    if (pg === 'slow') { // round 23: he only has to go the right way (a 분노 keeper reads it more)
+      const read = clamp((0.6 + (o.keeper.rating - 80) * 0.01) * (o.rage ? 1.3 : 1), 0.4, 0.9);
+      odds = { goal: 1 - read, save: read, off: 0, kind: 'slow' };
+    } else if (!corner && (pg === 'pan' || pg === 'panPerfect')) { // 파넨카: he stays (reads it) or he dives (beaten, unless the chip is off)
+      // round 23 (the user: 파넨카 2연속시 상대가 가운데 막을 확률 올려): a second one in a row, a third — he waits for it
+      const streak = RS.PK_PAN_STREAK[Math.min(o.panStreak | 0, RS.PK_PAN_STREAK.length - 1)];
+      const stay = clamp(0.3 * k2 * (o.rage ? 1.5 : 1) * streak, 0.1, 0.9), top = pg === 'panPerfect', off = top ? 0 : 0.06, save = stay * (top ? 0.5 : 1);
+      odds = { goal: (1 - save) * (1 - off), save, off: (1 - save) * off, kind: 'panenka', chipPerfect: top };
     } else if (RS.pkPerfect(o.power, o.acc, fin)) { // round 20: whatever the type, the zone or the keeper
       const P = RS.PK_PERFECT, goal = o.rage ? P.rageGuess * P.rageRead + (1 - P.rageGuess) : P.goal;
       odds = { goal, save: 1 - goal, off: 0, kind: 'perfect' };
     } else {
-      const E = RS.pkAimErr(o.power, o.acc, fin), drift = Math.pow(Math.min(E, 2.5), 1.5);
-      // a miss: the zone's own risk (less with 골결정력), the drift (from the top corners it flies most), an over-hit
-      const mBase = Math.min(0.5, Z.off * (1.3 - fin / 100) * S.base);
-      const mErr = Math.min(0.85, drift * (corner ? (row === 2 ? 0.22 : 0.14) : 0.1) * S.drift);
+      // a miss: the zone's own risk (less with 골결정력; a 발등슛 more), an over-hit flies high, the post to the sides
+      const mBase = Math.min(0.5, Z.off * (1.3 - fin / 100) * S.base * S.drift);
       const mPow = pg === 'over' ? Math.min(0.9, (row === 2 ? 0.65 : row === 1 ? 0.4 : 0.22) * S.over) : 0;
-      const off = 1 - (1 - mBase) * (1 - mErr) * (1 - mPow);
-      // a save: the zone, the keeper (squared: a legend reaches what others cannot), power, the drift toward him
-      const save = clamp(RS.PK_SAVE_K * Z.save * k2 * { red: 2.2, weak: 1.75, ok: 1.15, good: 1, perfect: 0.9, over: 0.75 }[pg] * (1 + 0.3 * Math.min(E, 2)) * (1.25 - fin / 200) * sv + sa, 0.02, 0.95);
-      odds = { goal: (1 - off) * (1 - save), save: (1 - off) * save, off, kind: null };
+      const post = corner ? RS.PK_POST * S.post : 0, off = 1 - (1 - post) * (1 - mBase) * (1 - mPow);
+      // a save: the spot it ends up at — the zone, pulled toward the middle of its row by the needle — the keeper
+      // (squared: a legend reaches what others cannot), its pace and 골결정력
+      const pull = (RS.PK_PULL[o.acc] != null ? RS.PK_PULL[o.acc] : RS.PK_PULL.miss) * S.pull, mid = RS.PK_ZONE[row * 3 + 2];
+      const spot = Z.save * (1 - pull) + mid.save * RS.PK_CENTER * pull;
+      const save = clamp(RS.PK_SAVE_K * spot * k2 * RS.PK_POWER_SAVE[pg] * (1.25 - fin / 200) * sv + sa, 0.02, 0.95);
+      odds = { goal: (1 - off) * (1 - save), save: (1 - off) * save, off, post, kind: null };
     }
     // a keeper one hero could never beat (메시 against 쩨흐): at most that chance, the rest half on the frame
     const cap = o.keeper.nemesis && o.keeper.nemesis[o.hero];
@@ -212,8 +231,8 @@
   // needle in the gold (round 20: the perfect strike's own numbers are not shown)
   RS.pkZoneBest = (o, z) => RS.pkOdds(Object.assign({}, o, { zone: z, power: RS.PK_POWER.blue + RS.pkBlueHalf(o.fin) + 0.004, acc: 'great' })).goal;
   // Roll one kick. Returns { res: 'goal' | 'save' | 'post' | 'bar' | 'over' | 'wide', goal, diveCol (the keeper's
-  // dive: 0 left, 1 stays, 2 right), kind (pkOdds), kickAway (a save he boots away: an angry 파넨카 save, half the
-  // 티배깅 ones), odds }. On a save he went the right way; on a goal mostly the wrong one.
+  // dive: 0 left, 1 stays, 2 right), kind (pkOdds), kickAway (a save he boots away: an angry 파넨카 save), odds }.
+  // On a save he went the right way; on a goal mostly the wrong one (a 'slow' ball: always the wrong one).
   RS.pkKick = function (rng, o) {
     const odds = RS.pkOdds(o), r = rng(), row = RS.pkRow(o.zone), col = RS.pkCol(o.zone);
     let res;
@@ -226,27 +245,29 @@
     }
     if (r < odds.goal) res = 'goal';
     else if (r < odds.goal + odds.save) res = 'save';
+    else if (odds.post && r < odds.goal + odds.save + odds.post) res = 'post'; // round 23: a side shot off the post
     else {
-      // a 발등슛 off the mark rises (from the middle row too); a 감아차기 off the mark curls past the post
-      const drive = odds.shot === 'drive' && !odds.kind, curl = odds.shot === 'curl' && !odds.kind;
+      // a 발등슛 off the mark rises (from the middle row too); the sides go wide, the middle up or sideways
+      const drive = odds.shot === 'drive' && !odds.kind;
       const q = rng(), high = row === 2 || (drive && row === 1) || RS.pkPowerGrade(o.power, o.fin) === 'over' || odds.kind === 'panenka';
       if (odds.nemesis && q < 0.6) res = 'bar';
       else if (high && q < (drive ? 0.75 : 0.6)) res = q < 0.2 ? 'bar' : 'over';
-      else if (col === 1) res = q < (drive ? 0.7 : 0.55) ? 'over' : q < 0.8 ? 'post' : 'wide'; // the middle spreads up or sideways
-      else res = q < (curl ? 0.5 : 0.8) ? 'post' : 'wide';
+      else if (col === 1) res = q < (drive ? 0.7 : 0.55) ? 'over' : q < 0.8 ? 'post' : 'wide';
+      else res = 'wide';
     }
     const others = [0, 2].concat(col === 1 ? [] : [1]).filter((c) => c !== col);
     let diveCol = res === 'save' ? col : res === 'goal' && rng() < 0.75 ? others[Math.floor(rng() * others.length)] : Math.floor(rng() * 3);
-    if (odds.kind === 'panenka' || odds.kind === 'tbag') diveCol = res === 'save' ? 1 : rng() < 0.5 ? 0 : 2;
-    const kickAway = res === 'save' && (odds.kind === 'panenka' || (odds.kind === 'tbag' && rng() < 0.5));
+    if (odds.kind === 'panenka') diveCol = res === 'save' ? 1 : rng() < 0.5 ? 0 : 2;
+    if (odds.kind === 'slow' && res === 'goal') diveCol = others[Math.floor(rng() * others.length)];
+    const kickAway = res === 'save' && odds.kind === 'panenka';
     return { res, goal: res === 'goal', diveCol, kind: odds.kind, kickAway, odds, shot: odds.shot };
   };
   // 완전 오토 (and the 🤖 button): a sensible kick — the corners once they are open — executed as steadily as the
   // 골결정력 allows (it finds the blue band and the gold now and then, never a 파넨카). The shot type (round 18) is
   // the one that pays best for its zone: 감아차기 under the bar, 발등슛 down the middle and low against a keeper
   // rated 88 or more, else 밀어차기; a faster gauge (발등슛) spreads its power wider.
-  RS.pkBotKick = function (rng, fin, level, keeper) {
-    const n = RS.pkZoneCount(level);
+  RS.pkBotKick = function (rng, fin, level, keeper, zones) {
+    const n = zones || RS.pkZoneCount(level);
     const pool = n === 9 ? [7, 9, 1, 3, 4, 6] : n === 6 ? [1, 3, 4, 6, 1, 3] : [1, 3, 1, 3, 2];
     const zone = pool[Math.floor(rng() * pool.length)];
     const shot = RS.pkBotShot(zone, keeper);
@@ -341,7 +362,12 @@
   // quicker it came. dive: { col, row, rt } | a column (old callers: the height is a coin) | null (he guesses).
   RS.SO_REACT = { easy: 0.9, normal: 0.6, hard: 0.3 };
   RS.soReact = () => RS.SO_REACT[RS.DIFF] || RS.SO_REACT.normal;
+  // Round 23 (the user: 파넨카 상대는 안 참?): one kicker in RS.SO_OPP_PANENKA chips it down the middle (aim.panenka):
+  // our keeper who stays — picked the middle, or watched it and never moved, or reacted to the middle — takes it
+  // RS.SO_PAN_SAVE of the time; one who went to a side is beaten.
+  RS.SO_OPP_PANENKA = 0.08; RS.SO_PAN_SAVE = 0.9;
   RS.soOppAim = function (rng, miss) {
+    if (rng() < RS.SO_OPP_PANENKA) return { col: 1, row: 0, off: rng() < 0.06 ? 'over' : null, panenka: true };
     const r = rng(), col = r < 0.42 ? 0 : r < 0.84 ? 2 : 1, row = rng() < 0.35 ? 1 : 0;
     const off = rng() < (miss == null ? 0.07 : miss) ? (col === 1 || row === 1 ? (rng() < 0.6 ? 'over' : 'post') : rng() < 0.5 ? 'post' : 'wide') : null;
     return { col, row, off };
@@ -349,13 +375,14 @@
   RS.soGuess = (rng) => ({ col: rng() < 0.42 ? 0 : rng() < 0.72 ? 2 : 1, row: rng() < 0.4 ? 1 : 0 });
   RS.soSaveChance = function (ourK, aim, dive) {
     if (!dive || aim.off || dive.col !== aim.col) return 0;
+    if (aim.panenka) return RS.SO_PAN_SAVE;
     const kf = clamp(0.75 + (ourK - 70) * 0.017, 0.6, 1.25), same = dive.row === aim.row;
     if (dive.rt != null) return clamp((same ? 0.8 - 0.75 * clamp(dive.rt, 0, 1) : 0.1) * kf, 0, 0.9);
     return clamp((same ? 0.7 : 0.2) * kf, 0, 0.85);
   };
   RS.soOppSave = function (rng, ourK, aim, dive) {
     const res = aim.off || (rng() < RS.soSaveChance(ourK, aim, dive) ? 'save' : 'goal');
-    return { res, goal: res === 'goal', col: aim.col, row: aim.row, diveCol: dive ? dive.col : 1, diveRow: dive ? dive.row : 0 };
+    return { res, goal: res === 'goal', col: aim.col, row: aim.row, diveCol: dive ? dive.col : 1, diveRow: dive ? dive.row : 0, kind: aim.panenka ? 'panenka' : null };
   };
   RS.soOppKick = function (rng, ourK, dive, miss) {
     const aim = RS.soOppAim(rng, miss);
@@ -443,10 +470,10 @@
   RS.CUP_GRADE = RS.GRADES.length - 1;
 
   // Round 22 (the user: 바로 첨부터 월드컵이 아니라 청소년때부터 올라가게해 서사 있게): each hero climbs four stages,
-  // one tournament a run — 유소년 대회 (U-17, the ground only: three zones) → 청소년 대회 (U-20, six zones) → his
-  // continent's cup (유로 / 코파 아메리카, nine zones) → the 월드컵 (RS.CUP_ROUNDS, the SIUUU reward). A title opens the
-  // next stage for that hero and pays its coins; a loss replays the same stage. lv: the kicker's level there (the
-  // zones and his 골결정력); ourK: our keeper; pre: the youth teams' prefix. A stage's story: RS.CUP_STORY.
+  // one tournament a run — 유소년 대회 (U-17) → 청소년 대회 (U-20) → his continent's cup (유로 / 코파 아메리카) → the
+  // 월드컵 (RS.CUP_ROUNDS, the SIUUU reward). A title opens the next stage for that hero and pays its coins; a loss
+  // replays the same stage. lv: the kicker's level there (his 골결정력; round 23: every zone is open at every
+  // stage); ourK: our keeper; pre: the youth teams' prefix. A stage's story: RS.CUP_STORY.
   RS.CUP_STAGES = [
     { id: 'u17', name: '유소년 대회', icon: '🧒', pre: 'U-17 ', lv: 20, ourK: 64, coins: 150, rounds: [
       { name: '4강', miss: 0.34, pool: [{ vs: '스위쓰', keeper: 'u17' }, { vs: '미국', keeper: 'u17' }, { vs: '일본', keeper: 'u17' }] },
@@ -549,7 +576,8 @@
       this.level = opt.kind === 'cup' ? (this.stage === RS.CUP_WC ? Math.max(b.level || 1, RS.CUP_LEVEL) : this.st.lv) : b.level || 1;
       this.small = RS.smallBody(b);
       this.fin = RS.pkFinishing({ hero: this.hero, level: this.level }, save.meta);
-      this.zones = RS.pkZoneCount(this.level);
+      // round 23 (the user: 승부차기 모드에선 유소년때도 다 해금시켜줘 미니게임인데): the 토너먼트 opens every zone
+      this.zones = opt.kind === 'cup' ? 9 : RS.pkZoneCount(this.level);
       if (opt.kind === 'cup') {
         this.round = Math.max(0, Math.min(this.st.rounds.length - 1, opt.round | 0));
         this.def = { cup: true, all: true, nat: true, title: this.st.icon + ' ' + this.st.name + ' · ' + this.st.rounds[this.round].name, vs: opt.vs, keeper: opt.keeper };
@@ -572,6 +600,8 @@
       this.oppMiss = this.kind === 'cup' ? this.st.rounds[this.round].miss : null;
       this.ourKeeper = { name: '우리 골키퍼', rating: this.ourK, look: RS.PK_OUR_LOOK };
       this.rage = false; // the other keeper's 분노 모드 (round 16)
+      this.morale = 0; // round 23: our kicker's failed 파넨카s so far (RS.pkTiming)
+      this.panStreak = 0; // round 23: his 파넨카 attempts in a row just now (RS.PK_PAN_STREAK)
       this.kicks = []; // the hero's own kicks: { goal, res }
       this.titles = []; // titles earned on the way
       this.cur = null;
@@ -602,6 +632,10 @@
       // a 파넨카 the keeper read: he boots the ball away and burns for the rest of the session (RS.PK_RAGE)
       if (c.who !== 'opp' && result && result.kind === 'panenka' && result.res === 'save' && !this.rage) { this.rage = true; this.rageNew = true; }
       if (c.who === 'hero') {
+        // round 23: a 파넨카 that did not go in shakes him (사기 저하: this.moraleNew for the screen)
+        const pan = !!(result && result.kind === 'panenka');
+        this.panStreak = pan ? this.panStreak + 1 : 0;
+        if (pan && !goal && this.morale < RS.PK_MORALE_MAX) { this.morale++; this.moraleNew = true; }
         this.kicks.push({ goal, res: result.res });
         const t = RS.pkRecord(this.save.meta, this.hero, goal);
         if (t) this.titles.push(t);
@@ -634,4 +668,4 @@
   }
   RS.PKSession = PKSession;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R21';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R22';

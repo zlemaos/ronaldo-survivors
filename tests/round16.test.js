@@ -8,8 +8,10 @@ const K = RS.PK_KEEPERS, P = RS.PK_POWER;
 const odds = (o) => RS.pkOdds(Object.assign({ fin: 80, keeper: K.national, hero: 'ronaldo' }, o));
 const rate = (n, fn) => { let g = 0; for (let i = 0; i < n; i++) if (fn()) g++; return g / n; };
 
-test('the gauge: red, grey, yellow, green and a blue band inside the green that is much thinner', () => {
-  assert.equal(RS.pkPowerGrade(0.05, 80), 'red');
+test('the gauge: red, the 파넨카 zone, grey, yellow, green and a blue band inside the green that is much thinner', () => {
+  assert.equal(RS.pkPowerGrade(0.05, 80), 'slow');
+  assert.equal(RS.pkPowerGrade(0.12, 80), 'pan');
+  assert.equal(RS.pkPowerGrade(P.panBlue, 80), 'panPerfect');
   assert.equal(RS.pkPowerGrade(0.4, 80), 'weak');
   assert.equal(RS.pkPowerGrade(0.62, 80), 'ok');
   assert.equal(RS.pkPowerGrade(P.good[0] + 0.01, 80), 'good');
@@ -19,31 +21,36 @@ test('the gauge: red, grey, yellow, green and a blue band inside the green that 
   assert.ok(RS.pkBlueHalf(95) > RS.pkBlueHalf(55), '골결정력 widens it a little');
 });
 
-test('a perfect strike beats the shown odds; the strike drifts the further it is from the blue band and the gold', () => {
+// (round 23: the power is only the power — it sets the pace, never the direction; the needle pulls toward the middle)
+test('a perfect strike beats the shown odds; a softer strike or a poorer needle is saved more, not sent wide', () => {
   for (const z of [1, 3, 7, 9]) {
     const best = odds({ zone: z, power: P.blue, acc: 'great' });
     assert.equal(best.kind, 'perfect');
     assert.equal(best.off, 0, 'a perfect strike never misses the frame');
     assert.ok(RS.pkZoneBest({ fin: 80, keeper: K.national, hero: 'ronaldo' }, z) < best.goal, 'the grid shows the best strike short of perfect');
-    const green = odds({ zone: z, power: P.good[0] + 0.005, acc: 'good' }), yellow = odds({ zone: z, power: 0.62, acc: 'miss' });
-    assert.ok(best.goal > green.goal && green.goal > yellow.goal, 'zone ' + z + ': ' + [best.goal, green.goal, yellow.goal].map((x) => x.toFixed(2)));
-    assert.ok(yellow.off > green.off, 'more drift, more misses');
+    const green = odds({ zone: z, power: P.good[0] + 0.005, acc: 'good' }), soft = odds({ zone: z, power: 0.62, acc: 'good' }), poor = odds({ zone: z, power: P.good[0] + 0.005, acc: 'miss' });
+    assert.ok(best.goal > green.goal && green.goal > soft.goal && green.goal > poor.goal, 'zone ' + z + ': ' + [best.goal, green.goal, soft.goal, poor.goal].map((x) => x.toFixed(2)));
+    assert.equal(soft.off, green.off, 'a softer strike does not go wider');
+    assert.equal(poor.off, green.off, 'a poor needle does not go wider either');
+    assert.ok(soft.save > green.save && poor.save > green.save, 'both are saved more');
   }
-  assert.ok(RS.pkAimErr(P.blue, 'great', 80) === 0 && RS.pkAimErr(P.good[1], 'great', 80) > 0.6);
+  assert.ok(RS.PK_PULL.great === 0 && RS.PK_PULL.fine < RS.PK_PULL.good && RS.PK_PULL.good < RS.PK_PULL.miss);
 });
 
-test('down the middle: too soft is a 티배깅 save, the red band is a 파넨카 that beats a diving keeper', () => {
-  const tb = odds({ zone: 2, power: 0.4, acc: 'good' });
-  assert.equal(tb.kind, 'tbag');
-  assert.ok(tb.save > 0.6, 'he walks back for it');
-  const pan = odds({ zone: 2, power: 0.08, acc: 'miss' });
+test('down the middle: the 파넨카 zone chips it over a diving keeper; grey is only a soft strike', () => {
+  const soft = odds({ zone: 2, power: 0.4, acc: 'good' });
+  assert.equal(soft.kind, null);
+  assert.ok(soft.save > odds({ zone: 2, power: 0.8, acc: 'good' }).save, 'slower, easier');
+  const pan = odds({ zone: 2, power: 0.12, acc: 'miss' });
   assert.equal(pan.kind, 'panenka');
   assert.ok(pan.goal > 0.4 && pan.save > 0.15, 'it can go either way');
-  assert.equal(odds({ zone: 1, power: 0.08, acc: 'good' }).kind, null, 'a corner is no 파넨카');
+  const top = odds({ zone: 2, power: P.panBlue, acc: 'miss' });
+  assert.ok(top.chipPerfect && top.goal > pan.goal && top.off === 0, 'its blue band floats over more of them');
+  assert.equal(odds({ zone: 1, power: 0.12, acc: 'good' }).kind, null, 'a corner is no 파넨카');
   // a read 파넨카 is booted away
   const rng = RS.makeRng(4);
   let seen = 0;
-  for (let i = 0; i < 400; i++) { const r = RS.pkKick(rng, { fin: 80, keeper: K.national, hero: 'ronaldo', zone: 5, power: 0.05, acc: 'good' }); if (r.res === 'save') { seen++; assert.ok(r.kickAway); assert.equal(r.diveCol, 1); } }
+  for (let i = 0; i < 400; i++) { const r = RS.pkKick(rng, { fin: 80, keeper: K.national, hero: 'ronaldo', zone: 5, power: 0.12, acc: 'good' }); if (r.res === 'save') { seen++; assert.ok(r.kickAway); assert.equal(r.diveCol, 1); } }
   assert.ok(seen > 40);
 });
 
@@ -57,7 +64,7 @@ test('a read 파넨카 puts the keeper in 분노 모드 for the rest of the shoo
   assert.equal(S.rage, true);
   assert.equal(S.rageNew, true);
   for (const z of [1, 9, 5]) assert.ok(odds({ zone: z, power: P.blue, acc: 'great', rage: true }).save > odds({ zone: z, power: P.blue, acc: 'great' }).save);
-  assert.ok(odds({ zone: 5, power: 0.05, acc: 'good', rage: true }).save > odds({ zone: 5, power: 0.05, acc: 'good' }).save, 'and reads 파넨카 more');
+  assert.ok(odds({ zone: 5, power: 0.12, acc: 'good', rage: true }).save > odds({ zone: 5, power: 0.12, acc: 'good' }).save, 'and reads 파넨카 more');
 });
 
 test('our keeper: the right column at the wrong height seldom saves; watching the ball saves more the quicker', () => {
@@ -140,7 +147,7 @@ test('round 22: blue, yellow and white are steps; white mostly on target; a miss
     const blue = at('great').goal, yellow = at('fine').goal, white = at('good'), miss = at('miss').goal;
     assert.ok(blue > yellow && yellow > white.goal, keeper + ' z' + z + ' ' + [blue, yellow, white.goal].map((v) => v.toFixed(3)));
     assert.ok(white.off < 0.2, keeper + ' z' + z + ' white wide ' + white.off.toFixed(2));
-    assert.ok(white.goal - miss >= 0.25, keeper + ' z' + z + ' white ' + white.goal.toFixed(2) + ' miss ' + miss.toFixed(2));
+    assert.ok(white.goal - miss >= (keeper === 'neuer' ? 0.2 : 0.12), keeper + ' z' + z + ' white ' + white.goal.toFixed(2) + ' miss ' + miss.toFixed(2));
   }
   const T = RS.pkTiming(76);
   assert.ok(T.great < T.fine && T.fine < T.good, 'the bands nest: blue inside yellow inside white');

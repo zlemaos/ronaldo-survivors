@@ -97,9 +97,10 @@
     if (sc && sc.slow && sc.phase === 'flight') z = 1 + 0.24 * Math.min(1, sc.t / (sc.dur('flight') * 0.7));
     else if (sc && sc.slow && sc.phase === 'result') z = 1 + 0.24 * Math.max(0, 1 - sc.t / 0.5);
     if (this.shake > 0) { this.shake = Math.max(0, this.shake - dt); z = Math.max(z, 1.04); }
-    if (z === 1) { C.drawImage(this.low, 0, 0, DW, DH); return; }
+    if (z === 1) { this.pkZ = null; C.drawImage(this.low, 0, 0, DW, DH); return; }
     const sw = LW / z, sh = LH / z, jx = this.shake > 0 ? (Math.random() - 0.5) * 12 * this.shake * HD : 0, jy = this.shake > 0 ? (Math.random() - 0.5) * 12 * this.shake * HD : 0;
     const sx = clamp(g.cx * HD - sw / 2 + jx, 0, LW - sw), sy = clamp((g.goalY - g.H * 0.6) * HD - sh * 0.4 + jy, 0, LH - sh);
+    this.pkZ = { sx: sx / HD, sy: sy / HD, k: LW / sw }; // world → zoomed world, for labels that follow the ball
     C.drawImage(this.low, sx, sy, sw, sh, 0, 0, DW, DH);
   };
 
@@ -309,16 +310,18 @@
     const t = p.t || 0;
     let P;
     if (p.mode === 'dive') P = kDive(p, T, t);
-    else if (p.mode === 'feint') {
-      P = kMix(kReady(0.3, t, false), K_LOAD, clamp(p.k, 0, 1) * 0.8);
-      if (!p.hold && p.k > 0.03 && p.k < 0.97) { // little steps back to the middle
-        const w = Math.sin(t * 14), up = Math.abs(w);
+    else if (p.mode === 'catch') {
+      P = kReady(p.walk ? 0.1 : 0.3, t, !!p.walk);
+      if (p.walk) { // unhurried steps over to a slow ball
+        const w = Math.sin(t * 9), up = Math.abs(w);
         if (w > 0) { P.fA = pt(P.fA.x, up * 0.05); P.kA = pt(P.kA.x, P.kA.y + up * 0.03); } else { P.fB = pt(P.fB.x, up * 0.05); P.kB = pt(P.kB.x, P.kB.y + up * 0.03); }
+        P = kMap(P, (j) => pt(j.x, j.y + up * 0.012));
       }
-      if (p.hold && b) { P.pel = pt(P.pel.x, P.pel.y - 0.03); P.chest = pt(P.chest.x, P.chest.y - 0.05); kHands(P, b, 1); }
-    } else if (p.mode === 'catch') {
-      P = kReady(0.3, t, false);
-      if (b) kHands(P, b, clamp((b.z - 0.5) / 0.4, 0, 1));
+      if (b) {
+        const w = clamp((b.z - (p.low ? 0.7 : 0.5)) / (p.low ? 0.25 : 0.4), 0, 1);
+        if (p.low) P = kMix(P, kCentre(0, b), w * clamp((0.26 - b.y) / 0.2, 0, 1) * 0.9); // he bends down for a roller
+        kHands(P, b, w);
+      }
     } else P = kReady(0.15, t, p.still);
     if (p.kick > 0 && hb) P = kKick(P, p.kick, hb);
     return P;
@@ -394,7 +397,7 @@
     if (rage) this.pkFlames(L, fx, y1, fw, fh, time, 0.95); // 분노 모드: he burns behind
     const head = X(kDraw(L, P, X, pal, sz, look.style || 'short'));
     if (rage) this.pkFlames(L, fx, y1, fw, fh, time + 0.37, 0.6);
-    // a booted 파넨카 or a 티배깅: the keeper's "!!" over his head
+    // a booted 파넨카: the keeper's "!!" over his head
     if (sc && sc.phase === 'result' && sc.result && sc.result.kickAway) {
       L.fillStyle = '#ff3a2a'; const x = head.x, y = head.y - 0.1 * sz - 7 - Math.abs(Math.sin(time * 10)) * 2;
       L.fillRect(x - 3, y, 1.5, 4); L.fillRect(x - 3, y + 5, 1.5, 1.5); L.fillRect(x + 1.5, y, 1.5, 4); L.fillRect(x + 1.5, y + 5, 1.5, 1.5);
@@ -413,8 +416,29 @@
     L.globalAlpha = 1;
   };
   R.pkBall = function (L, g, sc, b, time) {
-    const hot = sc.mode === 'shoot' && sc.result && sc.result.kind === 'perfect';
-    if (b.k < 1.5) { // after-images (a blue-white comet for a perfect strike)
+    const hot = sc.mode === 'shoot' && sc.result && sc.result.kind === 'perfect', kind = sc.ballKind ? sc.ballKind() : null;
+    if (kind === 'panenka' && sc.chipTop && b.k < 1.3) { // a perfect 파넨카: a twinkling trail of gold and white
+      for (let i = 12; i >= 1; i--) {
+        const q = sc.ballAt(Math.max(0, b.k - i * 0.035)), p = proj(g, q.u, q.v, q.z), tw = Math.sin(time * 18 + i * 2.1);
+        if (tw < -0.3) continue;
+        const jx = Math.sin(i * 12.9898) * 2.5, jy = Math.cos(i * 7.233) * 2, x = Math.round((p.x + jx) * 2) / 2, y = Math.round((p.y - ballR(p.s) + jy) * 2) / 2;
+        L.globalAlpha = (1 - i / 13) * (0.5 + 0.5 * tw);
+        L.fillStyle = i % 3 ? '#ffe27a' : '#ffffff';
+        L.fillRect(x - 0.75, y - 0.75, 1.5, 1.5);
+        if (tw > 0.4 && i < 9) { L.fillRect(x - 2.5, y - 0.25, 5, 0.5); L.fillRect(x - 0.25, y - 2.5, 0.5, 5); } // a little star
+      }
+      L.globalAlpha = 1;
+    }
+    if (kind === 'slow' && sc.slowRoll && b.k < 1.4) { // a roller kicks up little puffs of grass behind it
+      for (let i = 6; i >= 1; i--) {
+        const q = sc.ballAt(Math.max(0, b.k - i * 0.04)), p = proj(g, q.u, 0, q.z), sp = ((time * 3 + i * 0.37) % 1);
+        L.globalAlpha = 0.5 * (1 - i / 7) * (1 - sp);
+        L.fillStyle = i % 2 ? '#9ad07a' : '#e0f0d0';
+        L.fillRect(Math.round((p.x + (i % 2 ? 1.5 : -1.5) * sp) * 2) / 2, Math.round((p.y - 1 - sp * 2) * 2) / 2, 1, 1);
+      }
+      L.globalAlpha = 1;
+    }
+    if (b.k < 1.5 && kind !== 'slow') { // after-images (a blue-white comet for a perfect strike)
       for (let i = hot ? 6 : 3; i >= 1; i--) {
         const q = sc.ballAt(Math.max(0, b.k - i * 0.05)), p = proj(g, q.u, q.v, q.z), r = ballR(p.s) * (hot ? 1.4 - i * 0.05 : 1);
         L.globalAlpha = (hot ? 0.13 : 0.12) * ((hot ? 7 : 4) - i);
@@ -423,7 +447,8 @@
       }
       L.globalAlpha = 1;
     }
-    this.pkBallAt(L, g, b.u, b.v, b.z, time, b.k < 1.3 ? 1 : 0.25);
+    // a slow ball turns over lazily (a roller a little faster than a floater), a held or settled one barely
+    this.pkBallAt(L, g, b.u, b.v, b.z, time, kind === 'slow' ? (b.k < 1.1 ? (sc.slowRoll ? 0.4 : 0.15) : 0.05) : b.k < 1.3 ? 1 : 0.25);
   };
   R.pkBallAt = function (L, g, u, v, z, time, spin) {
     const p = proj(g, u, v, z), gp = proj(g, u, 0, z), r = ballR(p.s);
@@ -494,11 +519,14 @@
     const P = RS.PK_POWER, x0 = Math.round(g.cx - g.halfW * 0.75), w = Math.round(g.halfW * 1.5), y = g.gaugeY, h = 5;
     L.fillStyle = 'rgba(0,0,0,0.65)'; L.fillRect(x0 - 1.5, y - 1.5, w + 3, h + 3);
     const seg = (a, b, col) => { L.fillStyle = col; L.fillRect(x0 + a * w, y, (b - a) * w, h); };
-    // red (the softest touch: a 파넨카 down the middle), grey, yellow, green, the thin blue perfect band, yellow, red
+    // round 23, left to right: red 'slow' (barely touched), the 파넨카 zone in green with its own thin blue band, grey,
+    // yellow, green with the thin blue perfect band, yellow, red 'over'
     const bh = RS.pkBlueHalf(sc.o.fin);
-    seg(0, P.red, '#e8403a'); seg(P.red, P.weak, '#5a6470'); seg(P.weak, P.good[0], '#d8c040'); seg(P.good[0], P.good[1], '#4ae06a');
+    seg(0, P.slow, '#e8403a'); seg(P.pan[0], P.pan[1], '#4ae06a'); seg(P.panBlue - bh, P.panBlue + bh, '#3a8cff');
+    seg(P.pan[1], P.weak, '#5a6470'); seg(P.weak, P.good[0], '#d8c040'); seg(P.good[0], P.good[1], '#4ae06a');
     seg(P.blue - bh, P.blue + bh, '#3a8cff'); seg(P.good[1], P.over, '#d8c040'); seg(P.over, 1, '#ff4a4a');
-    L.fillStyle = 'rgba(190,230,255,0.9)'; L.fillRect(x0 + P.blue * w - 0.25, y - 1, 0.5, h + 2);
+    L.fillStyle = 'rgba(0,0,0,0.55)'; L.fillRect(x0 + P.slow * w - 0.25, y, 0.5, h); L.fillRect(x0 + P.pan[1] * w - 0.25, y, 0.5, h); // the 파넨카 zone's edges
+    L.fillStyle = 'rgba(190,230,255,0.9)'; L.fillRect(x0 + P.blue * w - 0.25, y - 1, 0.5, h + 2); L.fillRect(x0 + P.panBlue * w - 0.25, y - 1, 0.5, h + 2);
     L.fillStyle = 'rgba(255,255,255,0.3)'; L.fillRect(x0, y, w, 1);
     const v = sc.phase === 'power' ? sc.gauge() : sc.power, mx = x0 + v * w;
     L.fillStyle = '#ffffff'; L.fillRect(mx - 0.5, y - 3, 1, h + 6);
@@ -553,12 +581,19 @@
     }
     if (own && (ph === 'power' || ph === 'acc' || ph === 'runup')) {
       const x0 = g.cx - g.halfW * 0.75;
-      if (ph === 'power') text('파워', x0 - 9, g.gaugeY + 2.5, base * 0.75, '#ffffff');
-      else if (sc.power != null) {
+      if (ph === 'power') {
+        text('파워', x0 - 9, g.gaugeY + 2.5, base * 0.75, '#ffffff');
+        const P = RS.PK_POWER, w = g.halfW * 1.5;
+        text('파넨카', x0 + (P.pan[0] + P.pan[1]) / 2 * w, g.gaugeY + 10.5, base * 0.68, '#a0f0aa');
+      } else if (sc.power != null) {
         const pg = RS.pkPowerGrade(sc.power, sc.o.fin), mid = sc.zone && RS.pkCol(sc.zone) === 1;
-        const label = { perfect: '파랑! 퍼펙트 파워', good: '파워 좋음', ok: '조금 어긋났다', weak: mid ? '너무 약하다…' : '힘이 약하다', red: mid ? '파넨카?!' : '살살…', over: '너무 세다!' }[pg];
-        text(label, x0 + sc.power * g.halfW * 1.5, g.gaugeY - 7, base * 0.8,
-          { perfect: '#6ab8ff', good: '#4ae06a', ok: '#ffe27a', weak: '#c8d0d8', red: '#ff8a6a', over: '#ff6a6a' }[pg]);
+        const label = { perfect: '파랑! 퍼펙트 파워', good: '파워 좋음', ok: '조금 어긋났다', weak: '힘이 약하다', slow: '너무 약하다… 데굴데굴',
+          pan: mid ? '파넨카!' : '살살…', panPerfect: mid ? '파랑! 완벽한 파넨카' : '파랑! 살살…', over: '너무 세다!' }[pg];
+        const size = base * 0.8;
+        C.font = '900 ' + Math.round(size) + 'px ' + FONT;
+        const half = C.measureText(label).width / 2 / s + 2; // keep it on screen at either end of the gauge
+        text(label, clamp(x0 + sc.power * g.halfW * 1.5, half, this.view.w - half), g.gaugeY - 7, size,
+          { perfect: '#6ab8ff', good: '#4ae06a', ok: '#ffe27a', weak: '#c8d0d8', slow: '#ff8a6a', pan: '#7ef08e', panPerfect: '#6ab8ff', over: '#ff6a6a' }[pg]);
       }
     }
     if (own && ph === 'acc') text('정확도', g.dialX, g.dialY + g.dialR + 8, base * 0.75, '#ffffff');
@@ -570,6 +605,15 @@
       const col = sc.reactOpen ? '#ffb070' : '#7fe0ff';
       for (let c = 0; c < 3; c++) for (let r = 0; r < 2; r++) text([['↙', '↓', '↘'], ['↖', '↑', '↗']][r][c], g.cx + (-1 + (c + 0.5) * 2 / 3) * g.halfW, g.goalY - (r + 0.5) * g.H / 2, base * 1.2, col);
       text(sc.reactOpen ? '지금!' : '미리 고르거나 · 공 보고 막기', g.cx, g.gaugeY - 6, base * 0.75, col);
+    }
+    // round 23: a soft ball says what it is while it floats — 데굴데굴 rolling, 붕~ floating, 파넨카 chipped
+    const kind = ph === 'flight' && sc.ball && sc.ballKind && sc.ballK() < 0.95 ? sc.ballKind() : null;
+    if (kind === 'slow' || kind === 'panenka') {
+      const q = sc.ballAt(sc.ballK()), p = proj(g, q.u, q.v, q.z), Z = this.pkZ;
+      let x = p.x, y = p.y - ballR(p.s) * 2 - 6 - Math.abs(Math.sin(sc.t * 6)) * 1.5;
+      if (Z) { x = (x - Z.sx) * Z.k; y = (y - Z.sy) * Z.k; }
+      const str = kind === 'slow' ? (sc.slowRoll ? '데굴데굴~' : '붕~') : sc.chipTop ? '✦ 파넨카 ✦' : '파넨카!';
+      text(str, x, y, base * 0.85, kind === 'slow' ? '#ffd0a0' : sc.chipTop ? '#9ad8ff' : '#ffe27a');
     }
   };
 
@@ -657,4 +701,4 @@
     A.length = n;
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkrender = 'R21';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkrender = 'R22';

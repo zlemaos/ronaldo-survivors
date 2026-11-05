@@ -50,9 +50,9 @@ test('the blue band still bends into the corner for every type; the grid shows t
     assert.ok(RS.pkZoneBest({ fin: 80, keeper: K.pro, hero: 'ronaldo', shot }, z) < o.goal, 'the grid shows the best strike short of perfect');
   }
   for (const shot of RS.PK_SHOT_IDS) {
-    const pan = odds({ zone: 2, power: 0.08, acc: 'miss', shot }), tb = odds({ zone: 2, power: 0.4, acc: 'good', shot });
-    assert.equal(pan.kind, 'panenka'); assert.deepEqual(Object.assign({}, pan, { shot: 0 }), Object.assign({}, odds({ zone: 2, power: 0.08, acc: 'miss' }), { shot: 0 }));
-    assert.equal(tb.kind, 'tbag');
+    const pan = odds({ zone: 2, power: 0.12, acc: 'miss', shot }), slow = odds({ zone: 2, power: 0.04, acc: 'good', shot });
+    assert.equal(pan.kind, 'panenka'); assert.deepEqual(Object.assign({}, pan, { shot: 0 }), Object.assign({}, odds({ zone: 2, power: 0.12, acc: 'miss' }), { shot: 0 }));
+    assert.equal(slow.kind, 'slow'); assert.deepEqual(Object.assign({}, slow, { shot: 0 }), Object.assign({}, odds({ zone: 2, power: 0.04, acc: 'good' }), { shot: 0 }));
   }
   // an angry keeper who flies early gets to a slow curl more often still
   const calm = odds({ zone: 7, power: 0.74, acc: 'good', shot: 'curl' }), mad = odds({ zone: 7, power: 0.74, acc: 'good', shot: 'curl', rage: true });
@@ -67,8 +67,10 @@ test('misses look like the type: a 발등슛 off the mark mostly flies over, a �
     assert.equal(r.shot, shot);
     if (!r.goal && r.res !== 'save') n[shot][r.res] = (n[shot][r.res] || 0) + 1;
   }
-  assert.ok((n.drive.over || 0) > (n.drive.wide || 0) + (n.drive.post || 0), JSON.stringify(n.drive));
-  assert.ok((n.curl.wide || 0) > 0 && (n.curl.over || 0) < (n.drive.over || 0));
+  // (round 23: the post is a flat share of the side shots — the rest is what the type shows)
+  assert.ok((n.drive.over || 0) > (n.drive.wide || 0), JSON.stringify(n.drive));
+  assert.ok((n.curl.post || 0) < (n.drive.post || 0), 'the curl bends in off the frame');
+  assert.ok((n.curl.over || 0) < (n.drive.over || 0));
 });
 
 test('the bot and 🤖 pick a type for the zone: 감아차기 under the bar, 발등슛 in the middle or against a top keeper', () => {

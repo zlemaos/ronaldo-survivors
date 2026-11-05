@@ -7,12 +7,16 @@
 (function (RS) {
   'use strict';
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
   const U_COL = [-0.64, 0, 0.64], V_ROW = [0.2, 0.52, 0.84], V_KEEP = [0.22, 0.74];
   // a perfect strike bends into its zone's own corner (round 16: "구석으로 빨려 들어가게")
   const U_CORNER = [-0.93, 0, 0.93], V_CORNER = [0.08, 0.5, 0.93];
   // phase lengths in seconds (fast: a teammate's or the other side's kick in a shootout; slow: the ball's flight on a
   // kick that can decide it; react: the other side's kick while our keeper watches it; chip: a 파넨카's lob)
-  const T = { runup: 0.55, flight: 0.46, result: 1.5, fastRunup: 0.32, fastFlight: 0.38, fastResult: 0.95, slow: 1.3, chip: 0.95, guess: 2.6 };
+  // round 23: chipTop a perfect 파넨카's higher float; roll / lob a 'slow' ball barely touched — along the grass (the
+  // low row) or a lazy floater (the rows above), far slower than any struck ball
+  const T = { runup: 0.55, flight: 0.46, result: 1.5, fastRunup: 0.32, fastFlight: 0.38, fastResult: 0.95, slow: 1.3, chip: 0.95, chipTop: 1.2, roll: 2.4, lob: 2.1, guess: 2.6 };
+  const smooth = (t) => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
   // Round 18: each shot type has its own run-up — the 발등슛 a longer, straighter charge, the 감아차기 a curved approach
   // from wider — its length (× T.runup) and its footfalls (RUN_STEPS; the last one is the plant beside the ball, at
   // PLANT of the run-up; the strike swings through the rest). The flight is × RS.PK_SHOTS[shot].flight.
@@ -41,8 +45,8 @@
       this.stepN = 0; // footfalls of the run-up so far (the 'step' sounds)
       this.phase = this.mode === 'keep' ? 'guess' : opt.forced ? 'runup' : 'aim';
       this.t = 0; this.time = 0;
-      this.zones = RS.pkZoneCount(opt.level || 1);
-      this.timing = RS.pkTiming(opt.fin || 50);
+      this.zones = opt.zones || RS.pkZoneCount(opt.level || 1); // round 23: the 토너먼트 opens all nine
+      this.timing = RS.pkTiming(opt.fin || 50, null, opt.morale); // round 23: 사기 저하 speeds the gauge and the needle
       this.target = 150 + this.rng() * 170; // centre of the needle's target, degrees from the top, clockwise
       this.zone = null; this.power = null; this.acc = null; this.dive = null; this.perfect = false;
       this.watch = false; this.reactOpen = false; this.diveT = 0; this.aim = null; this.away = false;
@@ -60,7 +64,7 @@
     // the 골결정력 allows
     setAuto(on) {
       this.o.auto = !!on;
-      this.bot = on && this.mode === 'shoot' && !this.o.forced ? RS.pkBotKick(this.rng, this.o.fin || 50, this.o.level || 1, this.o.keeper) : null;
+      this.bot = on && this.mode === 'shoot' && !this.o.forced ? RS.pkBotKick(this.rng, this.o.fin || 50, this.o.level || 1, this.o.keeper, this.zones) : null;
       if (this.mode === 'shoot' && !this.o.forced && this.phase === 'aim') this.shot = this.bot ? this.bot.shot : RS.PK_SHOTS[this.o.shot] ? this.o.shot : 'push';
     }
     // the player picks the shot type while he aims (round 18)
@@ -72,10 +76,10 @@
     // How the strike looks: the shot type, or 'chip' for a soft touch down the middle (a 파넨카 or a 티배깅 — whatever
     // type was picked); known once the power is set.
     style() {
-      if (this.result && (this.result.kind === 'panenka' || this.result.kind === 'tbag')) return 'chip';
-      if (this.mode === 'shoot' && !this.o.forced && this.zone && this.power != null && RS.pkCol(this.zone) === 1) {
+      if (this.result && (this.result.kind === 'panenka' || this.result.kind === 'slow')) return 'chip';
+      if (this.mode === 'shoot' && !this.o.forced && this.zone && this.power != null) {
         const pg = RS.pkPowerGrade(this.power, this.o.fin);
-        if (pg === 'red' || pg === 'weak') return 'chip';
+        if (pg === 'slow' || (RS.pkCol(this.zone) === 1 && (pg === 'pan' || pg === 'panPerfect'))) return 'chip';
       }
       return this.shot;
     }
@@ -88,13 +92,22 @@
     waiting() { return !this.o.auto && !this.o.forced && (this.phase === 'aim' || this.phase === 'power' || this.phase === 'acc' || this.phase === 'guess' || this.reactOpen); }
     get slow() { return !!this.o.slow; }
     dur(k) {
+      const kind = k === 'flight' ? this.ballKind() : null;
+      // a chip floats slowly, theirs too while our keeper watches it (it still lands after his window)
+      if (kind === 'panenka') return (this.chipTop ? T.chipTop : T.chip) * (this.slow ? 1.3 : 1);
+      if (kind === 'slow') return (this.slowRoll ? T.roll : T.lob) * (this.slow ? 1.2 : 1);
       if (k === 'flight' && this.mode === 'keep' && this.watch) return this.reactWin + 0.1; // the ball lands just after the window
-      if (k === 'flight' && this.result && this.result.kind === 'panenka') return T.chip * (this.slow ? 1.3 : 1);
       const d = this.o.fast ? T['fast' + k[0].toUpperCase() + k.slice(1)] : k === 'flight' && this.slow ? T.slow : T[k];
       if (k === 'runup') return d * (RUN[this.style()] || 1);
-      if (k === 'flight' && !(this.result && this.result.kind === 'tbag')) return d * RS.pkShot(this.shot).flight;
+      if (k === 'flight') return d * RS.pkShot(this.shot).flight;
       return d;
     }
+    // how the ball travels: the result's kind, or the other side's 파넨카 while our keeper still watches it
+    ballKind() { return this.result && this.result.kind ? this.result.kind : this.aim && this.aim.panenka ? 'panenka' : null; }
+    // a perfect 파넨카 (its blue band): the higher, prettier float
+    get chipTop() { return !!(this.result && this.result.odds && this.result.odds.chipPerfect); }
+    // a 'slow' ball aimed along the ground rolls; higher up it floats
+    get slowRoll() { return this.zone != null && RS.pkRow(this.zone) === 0; }
     // the gauge (0–1, up and down; a 발등슛's sweeps faster, a 감아차기's slower) and the needle (degrees) as they are now
     gauge() { const x = (this.t * this.timing.gauge * RS.pkShot(this.shot).gauge) % 2; return x < 1 ? x : 2 - x; }
     needle() { return (this.t * this.timing.needle * 360) % 360; }
@@ -138,7 +151,7 @@
     pickZone(z) { this.zone = z; this.sfx.push('click'); this.go('power'); }
     stopPower(p) {
       this.power = p; this.go('acc');
-      this.timing = RS.pkTiming(this.o.fin || 50, p); // round 20: the harder the strike, the faster and narrower the dial
+      this.timing = RS.pkTiming(this.o.fin || 50, p, this.o.morale); // round 20: the harder the strike, the faster and narrower the dial
       this.sfx.push(RS.pkPowerGrade(p, this.o.fin) === 'perfect' ? 'sparkle' : 'tap');
     }
     stopNeedle(deg) {
@@ -218,9 +231,10 @@
         if (!this.watch) this.result = RS.soOppSave(rng, o.ourK || 70, a, this.dive || RS.soGuess(rng));
         else this.reactOpen = true;
         u = U_COL[a.col] + (rng() - 0.5) * 0.2; v = V_KEEP[a.row] + (rng() - 0.5) * 0.12;
+        if (a.panenka) { u = (rng() - 0.5) * 0.12; v = 0.42; } // round 23: their 파넨카 drops in down the middle
         this.missAt(a.off, a.col, u, v);
         this.sfx.push('kick');
-        this.strikeSfx(null);
+        this.strikeSfx(a.panenka ? 'panenka' : null); // their chip ticks like ours
         return;
       }
       if (o.forced) {
@@ -228,15 +242,16 @@
         const col = RS.pkCol(this.zone), others = [0, 1, 2].filter((c) => c !== col);
         this.result = { res, goal: res === 'goal', diveCol: res === 'save' ? col : others[Math.floor(rng() * 2)] };
       } else {
-        this.result = RS.pkKick(rng, { fin: o.fin, keeper: o.keeper, zone: this.zone, power: this.power, acc: this.acc, hero: o.hero, rage: o.rage, shot: this.shot });
+        this.result = RS.pkKick(rng, { fin: o.fin, keeper: o.keeper, zone: this.zone, power: this.power, acc: this.acc, hero: o.hero, rage: o.rage, shot: this.shot, panStreak: o.panStreak });
       }
       const col = RS.pkCol(this.zone), row = RS.pkRow(this.zone), r = this.result;
       this.kRow = Math.floor(this.target) % 3; // the height he guesses when he is beaten (no extra roll: same luck)
       u = U_COL[col] + (rng() - 0.5) * 0.18; v = V_ROW[row] + (rng() - 0.5) * 0.12;
       if (this.shot === 'curl' && col !== 1) u *= 1.12; // a 감아차기 bends in nearer the corner
+      // round 23: the needle pulls a struck ball from its corner toward the keeper (RS.PK_PULL)
+      if (!r.kind && !o.forced && RS.PK_PULL[this.acc] != null) { const p = RS.PK_PULL[this.acc] * RS.pkShot(this.shot).pull; u *=1 - 0.85 * p; v += (0.35 - v) * 0.5 * p; }
       if (r.kind === 'perfect') { u = col === 1 ? (rng() < 0.5 ? -0.14 : 0.14) : U_CORNER[col]; v = V_CORNER[row]; } // pkKick decided whether he guessed the side (round 20)
       else if (r.kind === 'panenka') { u = (rng() - 0.5) * 0.12; v = 0.42; }
-      else if (r.kind === 'tbag') { u = (rng() - 0.5) * 0.1; v = 0.1; }
       this.missAt(r.res, col, u, v);
       this.sfx.push('kick');
       this.strikeSfx(r.kind);
@@ -244,7 +259,7 @@
     }
     // the strike's own sound on top of the thump: the 발등슛's crack and rush, the 감아차기's whirring spin, a chip's tick
     strikeSfx(kind) {
-      if (kind === 'panenka' || kind === 'tbag') this.sfx.push('chip');
+      if (kind === 'panenka' || kind === 'slow') this.sfx.push('chip');
       else if (this.shot === 'drive') this.sfx.push('rocket');
       else if (this.shot === 'curl') this.sfx.push('spin');
     }
@@ -261,15 +276,17 @@
     impact() {
       if (!this.result) { this.reactOpen = false; this.result = RS.soOppSave(this.rng, this.o.ourK || 70, this.aim, { col: 1, row: 0, rt: this.reactWin }); }
       const r = this.result, B = this.ball, keep = this.mode === 'keep';
+      // round 23 (the user: 탄성 탄식이나 함성 … 진동 그런게 왜캐 없어): the crowd roars ('roar') for us, sighs
+      // ('aah') against us; the frame draws a gasp first ('ooh')
       if (r.res === 'goal') {
         this.vfx.push({ kind: r.kind === 'perfect' ? 'perfect' : 'goal', u: B.u, v: B.v });
-        this.sfx.push('net'); this.sfx.push(keep ? 'oh' : 'goal');
+        this.sfx.push('net'); this.sfx.push(keep ? 'aah' : 'goal');
         if (r.kind === 'perfect') this.sfx.push('perfect');
       } else if (r.res === 'save') {
-        this.vfx.push({ kind: r.kind === 'panenka' ? 'rage' : 'save', u: B.u, v: B.v });
-        this.sfx.push('thud'); this.sfx.push(keep ? 'cheer' : r.kind === 'panenka' || r.kind === 'tbag' ? 'boo' : 'oh');
-      } else if (r.res === 'post' || r.res === 'bar') { this.vfx.push({ kind: 'frame', u: B.u, v: B.v }); this.sfx.push('ping'); this.sfx.push(keep ? 'cheer' : 'oh'); }
-      else this.sfx.push(keep ? 'cheer' : 'oh');
+        this.vfx.push({ kind: r.kind === 'panenka' && !keep ? 'rage' : 'save', u: B.u, v: B.v });
+        this.sfx.push('thud'); this.sfx.push(keep ? 'roar' : r.kind === 'panenka' || r.kind === 'slow' ? 'boo' : 'aah');
+      } else if (r.res === 'post' || r.res === 'bar') { this.vfx.push({ kind: 'frame', u: B.u, v: B.v }); this.sfx.push('ping'); this.sfx.push('ooh'); this.sfx.push(keep ? 'roar' : 'aah'); }
+      else this.sfx.push(keep ? 'roar' : 'aah');
     }
     // Flight progress of the ball: 0 at the strike, 1 at the goal line, on past it while the result shows.
     ballK() {
@@ -278,21 +295,26 @@
     }
     // The ball in goal space at flight progress k: u across, v up, z deep (0 the spot, 1 the goal line). It bends a
     // little toward its corner on a low arc (a perfect strike stays straight, then swerves into the corner; a 파넨카
-    // floats up and drops; a 티배깅 one rolls); after the line (s = seconds since) it sinks into the net, sticks in
-    // the keeper's gloves, is booted away toward us, bounces off the frame, or flies on into the stands.
+    // floats up and drops, a perfect one higher; a 'slow' one rolls along the grass, bobbing, or lobs up lazily);
+    // after the line (s = seconds since) it sinks into the net (a slow one trickles in), sticks in the keeper's
+    // gloves, is booted away toward us, bounces off the frame, or flies on into the stands.
     // Round 18: a 발등슛 flies low and flat, then rises like a rocket; a 감아차기 swings out (against curlDir) and
     // bends back in, dipping at the end. The other side's 발등슛 flies straight (보고 막기 reads it).
     ballAt(k) {
-      const B = this.ball, r = this.result ? this.result : { res: 'goal' }, kind = r.kind;
+      const B = this.ball, r = this.result ? this.result : { res: 'goal' }, kind = this.ballKind();
       if (k <= 1) {
-        const shot = kind === 'panenka' || kind === 'tbag' ? null : this.shot, bow = -this.curlDir * CURL_BOW * Math.sin(k * Math.PI) * (1 - 0.35 * k);
+        const shot = kind === 'panenka' || kind === 'slow' ? null : this.shot, bow = -this.curlDir * CURL_BOW * Math.sin(k * Math.PI) * (1 - 0.35 * k);
         if (kind === 'perfect') {
           if (shot === 'curl') return { u: B.u * k + bow * 1.2, v: B.v * Math.pow(k, 1.3) + Math.sin(k * Math.PI) * 0.1, z: k };
           if (shot === 'drive') return { u: B.u * (0.5 * k + 0.5 * k * k * k), v: B.v * Math.pow(k, 2) + Math.sin(k * Math.PI) * 0.03, z: k };
           return { u: B.u * (0.3 * k + 0.7 * k * k * k), v: B.v * Math.pow(k, 1.6) + Math.sin(k * Math.PI) * 0.04, z: k };
         }
-        if (kind === 'panenka') return { u: B.u * k, v: B.v * k + Math.sin(k * Math.PI) * 0.6, z: k };
-        if (kind === 'tbag') return { u: B.u * k, v: B.v * k, z: k };
+        if (kind === 'panenka') return { u: B.u * k, v: B.v * k + Math.sin(k * Math.PI) * (this.chipTop ? 0.95 : 0.6), z: k };
+        if (kind === 'slow') {
+          const z = k * (1.3 - 0.3 * k); // it dies as it goes
+          if (this.slowRoll) return { u: B.u * z, v: Math.abs(Math.sin(z * Math.PI * 6)) * 0.04 * (1 - 0.7 * z), z };
+          return { u: B.u * k, v: B.v * k + Math.sin(k * Math.PI) * 0.5, z: k };
+        }
         if (shot === 'drive') return this.mode === 'keep' ? { u: B.u * k, v: B.v * k, z: k } : { u: B.u * k, v: B.v * Math.pow(k, 1.7) + Math.sin(k * Math.PI) * 0.03, z: k };
         if (shot === 'curl') return { u: B.u * k + bow, v: B.v * k + Math.sin(k * Math.PI) * 0.13, z: k };
         return { u: B.u * k * (0.8 + 0.2 * k), v: B.v * k + Math.sin(k * Math.PI) * 0.08, z: k };
@@ -303,7 +325,12 @@
         if (!t) return { u: B.u * 0.3, v: 0.3, z: 1 };
         return { u: B.u * 0.3 + side * 0.4 * t, v: 0.3 + 2.6 * t - 1.2 * t * t, z: Math.max(-0.3, 1 - 1.6 * t) };
       }
-      if (r.res === 'save' && (kind === 'panenka' || kind === 'tbag')) return { u: B.u * 0.3, v: 0.3, z: 1 }; // in his arms
+      if (r.res === 'save' && kind === 'panenka') return { u: B.u * 0.3, v: 0.3, z: 1 }; // in his arms
+      if (kind === 'slow') {
+        const v0 = this.slowRoll ? 0 : B.v;
+        if (r.res === 'save') return { u: B.u, v: lerp(v0, 0.3, smooth((s - 0.15) / 0.45)), z: 1 }; // he picks it up
+        return { u: B.u, v: Math.max(0, v0 * Math.exp(-s * 1.5)), z: 1 + 0.13 * (1 - Math.exp(-s * 1.3)) }; // it trickles in
+      }
       switch (r.res) {
         case 'goal': return { u: B.u, v: Math.max(0, B.v * Math.exp(-s * 2.6) - 0.02 * s), z: 1 + 0.15 * ease(9) };
         case 'save': return { u: B.u + side * 0.55 * ease(3), v: Math.max(0, B.v + 0.9 * s - 2.4 * s * s), z: 1 - 0.5 * ease(2.5) };
@@ -315,8 +342,8 @@
     // The keeper for Renderer.pkKeeper (round 18: a jointed keeper). mode 'idle' (on his line; still = a watching
     // keeper frozen until the player reacts), 'dive' (side -1 / 0 / 1, row 0 low · 1 mid · 2 high, k 0–1 how far
     // into it — set, load, launch, full stretch — target the goal-space point his leading glove reaches, land 0–1
-    // back down on the grass), 'feint' (a 티배깅 keeper starts toward side, stops and walks back) or 'catch' (he reads
-    // a 파넨카 and takes it). kick 0–1: he boots the ball away.
+    // back down on the grass) or 'catch' (he takes a slow ball in his arms: a 파넨카 he read, or a 'slow' one — u
+    // where he stands, walk while he steps over to it, low: he bends down for a roller). kick 0–1: he boots it away.
     keeperPose() {
       const tt = this.time, idle = { mode: 'idle', u: Math.sin(tt * 2.3) * 0.1, t: tt };
       if (this.phase !== 'flight' && this.phase !== 'result') return idle;
@@ -324,15 +351,23 @@
       const land = inResult ? clamp(this.t / 0.45, 0, 1) : 0;
       const kick = inResult && r && r.kickAway ? clamp((this.t - 0.3) / 0.22, 0, 1) : 0;
       if (this.mode === 'keep' && this.watch) {
+        if (r && r.kind === 'panenka' && r.res === 'save') return { mode: 'catch', u: 0, k: 1, kick: 0, t: tt }; // he stayed: it drops into his arms
+        if (r && r.kind === 'panenka' && (!this.dive || this.dive.rt == null)) return this.divePose(r, 1, 2, inResult ? 1 : 0.6, 0); // a late jump under it
         if (!r || !this.dive || this.dive.rt == null) return r ? { mode: 'idle', u: 0, t: tt, still: true } : idle;
         const k = inResult ? 1 : clamp((this.t - this.diveT) / 0.32, 0, 1);
         return this.divePose(r, this.dive.col, this.dive.row ? 2 : 0, k, land);
       }
       if (!r) return idle;
       const q = inResult ? 1 : clamp(this.t / D, 0, 1);
-      if (r.kind === 'tbag' && r.res === 'save') { // a feint toward fake, then back to the middle for it
-        const out = q < 0.4 ? q / 0.4 : Math.max(0, 1 - (q - 0.4) / 0.45);
-        return { mode: 'feint', u: this.fake * 0.3 * out, side: this.fake, k: out, hold: q > 0.8, kick, t: tt };
+      if (r.kind === 'slow') {
+        if (r.res === 'save') { // no dive: he walks over (the middle: he just waits) and picks it up
+          const w = smooth(q / 0.7), far = Math.abs(this.ball.u) > 0.08;
+          return { mode: 'catch', u: this.ball.u * w, walk: far && q > 0.02 && q < 0.7, low: this.slowRoll, k: q, kick: 0, t: tt };
+        }
+        // he went early the other way and lies there watching it trickle in
+        const sec = inResult ? D * 1.25 + this.t : this.t;
+        const away = r.diveCol !== 1 ? r.diveCol : RS.pkCol(this.zone) === 0 ? 2 : 0; // one who stayed still went down the wrong way
+        return this.divePose(r, away, 0,clamp(sec / 0.5, 0, 1), clamp((sec - 0.6) / 0.4, 0, 1));
       }
       if (r.kind === 'panenka' && r.res === 'save') return { mode: 'catch', u: 0, k: q, kick, t: tt };
       const k = inResult ? 1 : clamp((this.t / D - 0.06) / 0.62, 0, 1);
@@ -350,4 +385,4 @@
   }
   RS.PKScene = PKScene;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkscene = 'R21';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkscene = 'R22';

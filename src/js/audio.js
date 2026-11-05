@@ -132,6 +132,40 @@
       s.connect(f); f.connect(g); g.connect(this.master);
       s.start(t0); s.stop(t0 + dur);
     },
+    // Round 23: a stadium crowd — band-passed noise whose band slides f0 → f1 (a rising "ooh", a falling "aah"),
+    // swelling in over `attack` s and dying away over the rest, with a slow tremble of many voices; two bands an
+    // octave apart so it reads as people, not wind.
+    crowd(dur, vol, f0, f1, attack, delay) {
+      const c = this.ctx, t0 = c.currentTime + (delay || 0), n = Math.floor(c.sampleRate * dur);
+      if (!this._nb || this._nb.length < n) {
+        this._nb = c.createBuffer(1, Math.max(n, c.sampleRate * 4), c.sampleRate);
+        const d = this._nb.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      }
+      const out = c.createGain();
+      out.gain.setValueAtTime(0.001, t0);
+      out.gain.exponentialRampToValueAtTime(vol, t0 + attack);
+      out.gain.setValueAtTime(vol, t0 + attack + (dur - attack) * 0.35);
+      out.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+      const lfo = c.createOscillator(), depth = c.createGain(), mix = c.createGain();
+      mix.gain.value = 1; lfo.frequency.value = 5.5; depth.gain.value = 0.25; lfo.connect(depth); depth.connect(mix.gain);
+      mix.connect(out);
+      for (const [mul, v] of [[1, 1], [2.1, 0.45]]) {
+        const s = c.createBufferSource(); s.buffer = this._nb;
+        const f = c.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.1;
+        f.frequency.setValueAtTime(f0 * mul, t0); f.frequency.exponentialRampToValueAtTime(f1 * mul, t0 + dur);
+        const g = c.createGain(); g.gain.value = v;
+        s.connect(f); f.connect(g); g.connect(mix);
+        s.start(t0, Math.random() * 0.5); s.stop(t0 + dur);
+      }
+      out.connect(this.master);
+      lfo.start(t0); lfo.stop(t0 + dur);
+    },
+    // a phone buzz (where the browser has one: Android Chrome; iOS Safari has none) — silent when muted
+    buzz(pattern) {
+      if (this.muted) return;
+      try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) { /* ignore */ }
+    },
     // Rate-limited named sound effects. Small random detune keeps repeated hits from sounding mechanical.
     sfx(name) {
       if (this.muted || !this.ctx) return;
@@ -194,6 +228,12 @@
           // round 10: penalties
           case 'net': this.noise(0.3, 0.32, 1400); this.tone(190, 0.14, 'sine', 0.4, 0.6); break; // the ball swishes into the net
           case 'ping': this.tone(1760, 0.32, 'triangle', 0.32, 0.98); this.tone(2640, 0.22, 'sine', 0.18, 0.99, 0.01); this.noise(0.03, 0.35, 4000); break; // the post rings
+          // round 23: the crowd (RS.Audio.crowd)
+          case 'roar': this.crowd(2.4, 0.55, 700, 950, 0.18); this.crowd(1.6, 0.3, 1200, 1500, 0.25, 0.3); break; // the roar for us
+          case 'aah': this.crowd(1.7, 0.5, 820, 330, 0.12); break; // the sigh: it starts high and sinks
+          case 'ooh': this.crowd(0.9, 0.42, 420, 900, 0.3); break; // the gasp as it rings off the frame
+          case 'bigroar': // the shootout or the cup is won: the stadium erupts and goes on
+            this.crowd(4.5, 0.65, 650, 900, 0.15); this.crowd(3.8, 0.4, 1100, 1400, 0.3, 0.4); this.crowd(2.5, 0.3, 500, 700, 0.5, 1.6); break;
           case 'oh': this.noise(0.9, 0.3, 520, 0, true); this.tone(190, 0.6, 'sawtooth', 0.1, 0.65); break; // the crowd groans
           case 'horn': [392, 494, 587, 784].forEach((f, i) => this.tone(f, 0.18, 'square', 0.3, null, i * 0.08)); this.tone(784, 0.5, 'sawtooth', 0.22, null, 0.32); break; // stadium goal horn
           case 'drum': this.tone(68, 0.22, 'sine', 0.85, 0.55); this.noise(0.08, 0.25, 180, 0, true); break; // tension on the kick that decides it
@@ -232,4 +272,4 @@
   };
   RS.Audio = A;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).audio = 'R21';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).audio = 'R22';

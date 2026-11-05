@@ -2,7 +2,8 @@
  * behind, so each shot type (RS.PK_SHOTS, PKScene.style()) has its own stance, run-up, strike and follow-through:
  * 🦶 밀어차기 a side-foot push, 🚀 발등슛 a long straight charge, a laces strike and a hop landing on the kicking foot,
  * 🌀 감아차기 a curved approach from wider, the body leaning away and the leg wrapping across, and a soft chip for a
- * 파넨카 / 티배깅. A left-footer (RS.pkFoot: 메시) stands on the other side of the ball and is drawn mirrored.
+ * 파넨카 or a barely touched 'slow' ball. A kicker whose 파넨카s failed (사기 저하, opt.morale 1–3) waits slumped, with
+ * a sweat drop, then a gloomy little cloud, then rain from it. A left-footer (RS.pkFoot: 메시) stands on the other side of the ball and is drawn mirrored.
  * The head and the torso are cut from the season's PK sprite (RS.Sprites.pkHero / pkMate / pkFoe, frame 0), so hair,
  * kit and pattern stay his; arms and legs are drawn here, pixel by pixel, in colours read off that sprite. A scorer
  * still turns to the crowd with the sprite's celebration frame (5). Also here: the strike's effects (a flash at the
@@ -111,6 +112,12 @@
   };
   // a miss or a save: hands on the head, shoulders down
   const HEAD = P({ La: 0.2, Lb: 2.95, Lc: 1.45, Lf: -0.9, Ra: 0.2, Rb: 2.95, Rc: 1.45, Rf: -0.9, pit: 0.2 });
+  // 사기 저하 (round 23): a waiting pose slumped by a (0–1) — leaning in, one shoulder low, arms dangling, knees soft
+  const slump = (p, a) => Object.assign({}, p, {
+    pit: p.pit + 0.32 * a, rol: p.rol + 0.07 * a, hop: p.hop - 0.8 * a, lb: p.lb + 0.3 * a, rb: p.rb + 0.3 * a,
+    La: lerp(p.La, -0.05, a), Ra: lerp(p.Ra, -0.05, a), Lb: lerp(p.Lb, 0.08, a), Rb: lerp(p.Rb, 0.08, a),
+    Lc: lerp(p.Lc, 0.04, a), Rc: lerp(p.Rc, 0.04, a), Lf: lerp(p.Lf, 0, a), Rf: lerp(p.Rf, 0, a)
+  });
 
   // The run-up's stride: footfalls at whole phi; the foot landing at the last one (N) is the left, the plant.
   function gait(phi, N, A, lean) {
@@ -260,6 +267,9 @@
       pose = d > 0.3 ? mix(WAIT[st], gait((K.walk / 7) % 2, 2, 0.5, 0), 0.8) : WAIT[st];
       pose = Object.assign({}, pose, { hop: pose.hop + Math.sin(time * 3) * 0.25 });
     }
+    // round 23: 사기 저하 — he waits slumped: shoulders down, arms hanging, head low, knees soft (morale 2–3 fully)
+    const gloom = clamp(o.morale | 0, 0, 3), ga = gloom ? (gloom >= 2 ? 1 : 0.6) : 0;
+    if (ga && T == null) pose = slump(pose, ga);
     // after the strike: a scorer turns to the crowd (the sprite's celebration), a miss holds his head
     const res = sc.phase === 'result' && sc.result;
     if (res && res.goal && sc.t > 0.12) return this.pkCelebrateKicker(L, sc, spr, x, y);
@@ -282,8 +292,34 @@
     L.translate(Math.round(x * 2) / 2, Math.round(y * 2) / 2); L.scale(m, 1);
     L.drawImage(kc, -AX * CELL, -AY * CELL, KW * CELL, KH * CELL);
     L.restore();
+    if (gloom) this.pkGloom(L, x + m * (F.px - AX) * CELL, y + (F.py - F.sy * look.torsoH - 14 - AY) * CELL, gloom, time, m);
     if (sc.phase === 'flight' && !K.fx) { K.fx = true; this.pkStrikeFx(g, sc, st, m); }
     this.pkKickParts(L);
+  };
+  // 사기 저하 over his head (hx, hy: the top of his head, world px): a sweat drop sliding down; from 2 a grey cloud
+  // hanging over him; at 3 it is darker and rains on him
+  R.pkGloom = function (L, hx, hy, n, time, m) {
+    const px = (x, y, w, h) => L.fillRect(Math.round(x * 2) / 2, Math.round(y * 2) / 2, w, h);
+    const ph = (time * 0.8) % 1, dx = hx + m * 12, dy = hy + 7 + ph * 5;
+    L.globalAlpha = ph < 0.8 ? 1 : (1 - ph) * 5;
+    L.fillStyle = '#0c1a2a'; px(dx - 1.5, dy - 2, 3, 4.5); px(dx - 0.5, dy - 3.5, 1, 1.5);
+    L.fillStyle = '#7fd0ff'; px(dx - 1, dy - 1.5, 2, 3.5); px(dx - 0.5, dy - 2.5, 1, 1);
+    L.fillStyle = '#ffffff'; px(dx - 0.5, dy - 1, 0.5, 1);
+    L.globalAlpha = 1;
+    if (n < 2) return;
+    const cx = hx, cy = hy - 9 + Math.sin(time * 2) * 0.8, dark = n >= 3;
+    if (dark) { // rain under it
+      L.fillStyle = 'rgba(127,190,255,0.75)';
+      for (let i = 0; i < 5; i++) { const q = (time * 2.2 + i * 0.29) % 1; px(cx - 6 + i * 3, cy + 3 + q * 8, 0.5, 2); }
+    }
+    const blobs = [[-5, 0.5, 3.5], [-1.5, -1.5, 4.5], [3, -0.5, 4], [6, 1, 3], [0.5, 1.5, 4]];
+    L.fillStyle = '#10141c';
+    for (const [bx, by, r] of blobs) { L.beginPath(); L.arc(cx + bx, cy + by, r + 0.7, 0, TAU); L.fill(); }
+    L.fillStyle = dark ? '#4a505c' : '#7a8290';
+    for (const [bx, by, r] of blobs) { L.beginPath(); L.arc(cx + bx, cy + by, r, 0, TAU); L.fill(); }
+    L.fillStyle = dark ? '#5e6676' : '#9aa2b0';
+    px(cx - 4, cy - 3, 4, 1); px(cx + 1, cy - 4, 3, 1);
+    if (dark && Math.floor(time * 3) % 5 === 0) { L.fillStyle = '#ffe27a'; px(cx + 1, cy + 3, 1, 2); px(cx, cy + 4.5, 1, 2); }
   };
   // the celebration: the sprite's arms-up frame facing the camera (날두 jumps for his SIUU)
   R.pkCelebrateKicker = function (L, sc, spr, x, y) {
@@ -341,8 +377,8 @@
   // and a spin swirl round the ball; then the ball as before
   const basePkBall = R.pkBall;
   R.pkBall = function (L, g, sc, b, time) {
-    const st = sc && sc.style ? sc.style() : 'push', kind = sc && sc.result && sc.result.kind;
-    if (b.k < 1.2 && kind !== 'panenka' && kind !== 'tbag' && (st === 'drive' || st === 'curl')) {
+    const st = sc && sc.style ? sc.style() : 'push', kind = sc && sc.ballKind ? sc.ballKind() : sc && sc.result && sc.result.kind;
+    if (b.k < 1.2 && kind !== 'panenka' && kind !== 'slow' && (st === 'drive' || st === 'curl')) {
       const now = proj(g, b.u, b.v, b.z), r = ballR(now.s);
       L.globalCompositeOperation = 'lighter';
       if (st === 'drive') {
@@ -380,4 +416,4 @@
   };
   R.pkKickPose = poseAt; // for checks
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkkick = 'R21';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkkick = 'R22';

@@ -52,7 +52,7 @@ test('a youth stage: its own level (fewer zones), its own keepers and our youth 
     if (si < RS.CUP_WC) assert.equal(S.ourK, st.ourK);
     assert.equal(S.oppMiss, st.rounds[0].miss);
   }
-  assert.deepEqual(zones, [3, 6, 9, 9], 'the ground, then the middle row, then the top corners');
+  assert.deepEqual(zones, [9, 9, 9, 9], 'round 23: every zone open at every stage');
   for (let i = 1; i < keepers.length; i++) assert.ok(keepers[i] > keepers[i - 1], 'stage ' + i + '\'s final keepers are better');
 }));
 

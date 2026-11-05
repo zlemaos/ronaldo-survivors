@@ -679,6 +679,29 @@ for passives, weapons and items alike.
   No stage given = the 월드컵 (older callers). Sim, a good player: about 57 % → 24 % → 14 % → 9 % per stage.
 - SIUUU clip at `RS.Audio.SIU_TRIM` (0.45) of its slider. Tests `tests/round22.test.js`.
 
+### Round 23 (version R22): power is power, the needle is direction; 파넨카 rules; the crowd
+- The user: "파워는 그냥 말 그대로 파워지". The power never moves the ball off line: it sets the pace
+  (`RS.PK_POWER_SAVE`: pan 2.2 · weak 1.75 · ok 1.15 · good 1 · perfect 0.9 · over 0.75 × saves) and an over-hit flies
+  high. `RS.pkAimErr` / `RS.PK_ACC_ERR` are gone.
+- The needle is the direction: `RS.PK_PULL` (great 0 · fine 0.15 · good 0.35 · miss 1) pulls the ball from its corner
+  toward the middle of its row; the save then blends the zone's and the middle's (× `RS.PK_CENTER` 2.4). The scene
+  draws the ball there too.
+- Gauge from the left (`RS.PK_POWER`): red `slow` < 0.08 (kind 'slow', any zone: saved only when the keeper went that
+  way — `read` 0.6 ± rating, he walks to it), the 파넨카 zone 0.08–0.3 (green; `panPerfect` blue band at 0.19 = a chip
+  over half the keepers who stay; to a side it is a soft placed shot), grey weak, yellow, green with blue, yellow, red
+  over. The old 티배깅 kind is gone.
+- `RS.PK_PAN_STREAK` [1, 1.9, 2.6]: the keeper stays for a second / third 파넨카 in a row more often. A 파넨카 that does
+  not go in costs morale (`PKSession.morale`, max 3): `RS.pkTiming(fin, power, morale)` × (1 + 0.3 per step) on the
+  gauge and needle speed and ÷ on the needle bands; the odds of a given strike are unchanged.
+- Side shots ring off the post `RS.PK_POST` (10 %; 발등슛 × 1.3, 감아차기 × 0.6) — not the perfect strike. The sides'
+  `PK_ZONE.off` halved; `RS.PK_SAVE_K` 0.52 keeps the cup odds (sim, a good player: 날두 60 → 25 → 11 → 7 %).
+  Shot niches kept: low corner 밀어차기, top corner 감아차기 (pull × 0.8), middle 발등슛 (pull × 1.4).
+- Their kicker chips one in `RS.SO_OPP_PANENKA` (8 %): our keeper who stays (or watched and never moved) takes it 90 %.
+- The 토너먼트 opens all nine zones at every stage.
+- Crowd (`RS.Audio.crowd`): `roar` for us, `aah` against us, `ooh` off the frame, `bigroar` on a won shootout or
+  cup; the phone buzzes (`RS.Audio.buzz`, Android) on the net, the gloves, the frame and a win.
+  Tests `tests/round23.test.js`.
+
 ### Round-2 tuning (before → after)
 
 | Value | Before | After |
