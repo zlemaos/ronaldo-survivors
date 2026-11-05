@@ -193,6 +193,18 @@
           case 'oh': this.noise(0.9, 0.3, 520, 0, true); this.tone(190, 0.6, 'sawtooth', 0.1, 0.65); break; // the crowd groans
           case 'horn': [392, 494, 587, 784].forEach((f, i) => this.tone(f, 0.18, 'square', 0.3, null, i * 0.08)); this.tone(784, 0.5, 'sawtooth', 0.22, null, 0.32); break; // stadium goal horn
           case 'drum': this.tone(68, 0.22, 'sine', 0.85, 0.55); this.noise(0.08, 0.25, 180, 0, true); break; // tension on the kick that decides it
+          // round 16: the perfect strike, the 파넨카 keeper's temper
+          case 'perfectLock': // blue band + gold needle: a charged-up "ting" that rises
+            this.tone(1319, 0.06, 'square', 0.3); this.tone(1976, 0.09, 'square', 0.28, null, 0.05); this.tone(2637, 0.28, 'triangle', 0.3, 1.02, 0.1);
+            this.tone(220, 0.35, 'sawtooth', 0.18, 2.4, 0.04); this.noise(0.18, 0.15, 6000, 0.08); break;
+          case 'perfect': // the perfect strike hits the top corner: a deep boom, a bright chord and a long shimmer
+            this.tone(55, 0.55, 'sine', 0.95, 0.5); this.noise(0.12, 0.5, 1800);
+            [1047, 1319, 1568, 2093].forEach((f, i) => this.tone(f, 0.5, 'square', 0.18, null, 0.06 + i * 0.03));
+            [2637, 3136, 3951, 4186].forEach((f, i) => this.tone(f, 0.1, 'triangle', 0.2, null, 0.25 + i * 0.07));
+            this.noise(0.9, 0.18, 7000, 0.2); break;
+          case 'angry': // the keeper roars and boots it: a growl and a whump
+            this.tone(110, 0.35, 'sawtooth', 0.45, 0.6); this.tone(82, 0.4, 'square', 0.3, 0.7, 0.08); this.noise(0.3, 0.35, 400, 0.02, true); break;
+          case 'boo': this.noise(1.1, 0.32, 380, 0, true); this.tone(140, 0.9, 'sawtooth', 0.12, 0.9); this.tone(130, 0.9, 'sawtooth', 0.1, 0.95, 0.15); break; // the crowd jeers
         }
       } catch (e) { /* ignore audio errors */ }
     },
@@ -206,4 +218,4 @@
   };
   RS.Audio = A;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).audio = 'R15';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).audio = 'R16';

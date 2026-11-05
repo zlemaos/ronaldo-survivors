@@ -235,17 +235,38 @@
     L.fillStyle = 'rgba(0,0,0,' + Math.max(0.1, 0.32 - pose.v * 0.3) + ')';
     L.beginPath(); L.ellipse(ground.x, ground.y, w * 0.34, 1.6, 0, 0, TAU); L.fill();
     const fr = spr.frames[pose.k > 0.05 ? 4 : Math.floor(time * 3) % 2 ? 0 : 2];
+    const rage = sc && sc.o.rage && sc.mode === 'shoot';
+    if (rage) this.pkFlames(L, base.x, base.y, w, h, time, 0.95); // 분노 모드: he burns behind
     L.save(); L.translate(base.x, base.y - h / 2); L.rotate(pose.angle);
     L.drawImage(fr.n, -w / 2, -h / 2, w, h);
+    if (rage) { L.globalCompositeOperation = 'source-atop'; L.fillStyle = 'rgba(255,60,20,' + (0.25 + 0.1 * Math.sin(time * 12)).toFixed(3) + ')'; L.fillRect(-w / 2, -h / 2, w, h); L.globalCompositeOperation = 'source-over'; }
     L.restore();
+    if (rage) this.pkFlames(L, base.x, base.y, w, h, time + 0.37, 0.6);
+    // a booted 파넨카 or a 티배깅: the keeper's "!!" over his head
+    if (sc && sc.phase === 'result' && sc.result && sc.result.kickAway) {
+      L.fillStyle = '#ff3a2a'; const y = base.y - h - 4 - Math.abs(Math.sin(time * 10)) * 2;
+      L.fillRect(base.x - 3, y, 1.5, 4); L.fillRect(base.x - 3, y + 5, 1.5, 1.5); L.fillRect(base.x + 1.5, y, 1.5, 4); L.fillRect(base.x + 1.5, y + 5, 1.5, 1.5);
+    }
+  };
+  // flickering pixel flames around a body standing at (x, y) of size w × h
+  R.pkFlames = function (L, x, y, w, h, time, a) {
+    const cols = ['#ffe26b', '#ff8a2a', '#f2561d', '#c9281f'];
+    for (let i = 0; i < 24; i++) {
+      const ph = (time * (1.3 + (i % 3) * 0.4) + i * 0.137) % 1, fx = x + Math.sin(i * 2.4 + time * 3) * w * 0.5;
+      const fy = y - ph * h * 1.25, s = (1 - ph) * 4 + 1.5;
+      L.globalAlpha = a * (1 - ph);
+      L.fillStyle = cols[Math.min(3, Math.floor(ph * 4))];
+      L.fillRect(Math.round(fx - s / 2), Math.round(fy - s), s, s * 1.4);
+    }
+    L.globalAlpha = 1;
   };
   R.pkBall = function (L, g, sc, b, time) {
-    const hot = sc.mode === 'shoot' && !sc.o.forced && sc.acc === 'great' && RS.pkPowerGrade(sc.power == null ? 0.8 : sc.power) === 'perfect';
-    if (b.k < 1.5) { // after-images (a golden streak for a perfect strike)
-      for (let i = 3; i >= 1; i--) {
-        const q = sc.ballAt(Math.max(0, b.k - i * 0.05)), p = proj(g, q.u, q.v, q.z), r = ballR(p.s) * (hot ? 1.25 : 1);
-        L.globalAlpha = (hot ? 0.18 : 0.12) * (4 - i);
-        L.fillStyle = hot ? '#ffd23a' : '#ffffff';
+    const hot = sc.mode === 'shoot' && sc.result && sc.result.kind === 'perfect';
+    if (b.k < 1.5) { // after-images (a blue-white comet for a perfect strike)
+      for (let i = hot ? 6 : 3; i >= 1; i--) {
+        const q = sc.ballAt(Math.max(0, b.k - i * 0.05)), p = proj(g, q.u, q.v, q.z), r = ballR(p.s) * (hot ? 1.4 - i * 0.05 : 1);
+        L.globalAlpha = (hot ? 0.13 : 0.12) * ((hot ? 7 : 4) - i);
+        L.fillStyle = hot ? (i < 3 ? '#ffffff' : '#5ac8ff') : '#ffffff';
         L.beginPath(); L.arc(p.x, p.y - r, r, 0, TAU); L.fill();
       }
       L.globalAlpha = 1;
@@ -295,7 +316,7 @@
     if (own && sc.zone && (ph === 'power' || ph === 'acc' || ph === 'runup')) this.pkMark(L, g, sc.zone, time);
     if (own && (ph === 'power' || ((ph === 'acc' || ph === 'runup') && sc.power != null))) this.pkGauge(L, g, sc);
     if (own && (ph === 'acc' || (ph === 'runup' && sc.acc))) this.pkDial(L, g, sc);
-    if (sc.mode === 'keep' && ph === 'guess') this.pkGuess(L, g, sc, time);
+    if (sc.mode === 'keep' && (ph === 'guess' || sc.reactOpen)) this.pkGuess(L, g, sc, time);
   };
   // open cells tinted by their odds (green ≥ 80 %, yellow ≥ 65 %, orange below); locked ones dark
   R.pkGrid = function (L, g, sc, time) {
@@ -321,7 +342,11 @@
     const P = RS.PK_POWER, x0 = Math.round(g.cx - g.halfW * 0.75), w = Math.round(g.halfW * 1.5), y = g.gaugeY, h = 5;
     L.fillStyle = 'rgba(0,0,0,0.65)'; L.fillRect(x0 - 1.5, y - 1.5, w + 3, h + 3);
     const seg = (a, b, col) => { L.fillStyle = col; L.fillRect(x0 + a * w, y, (b - a) * w, h); };
-    seg(0, P.weak, '#5a6470'); seg(P.weak, P.perfect[0], '#d8c040'); seg(P.perfect[0], P.perfect[1], '#4ae06a'); seg(P.perfect[1], P.over, '#d8c040'); seg(P.over, 1, '#ff4a4a');
+    // red (the softest touch: a 파넨카 down the middle), grey, yellow, green, the thin blue perfect band, yellow, red
+    const bh = RS.pkBlueHalf(sc.o.fin);
+    seg(0, P.red, '#e8403a'); seg(P.red, P.weak, '#5a6470'); seg(P.weak, P.good[0], '#d8c040'); seg(P.good[0], P.good[1], '#4ae06a');
+    seg(P.blue - bh, P.blue + bh, '#3a8cff'); seg(P.good[1], P.over, '#d8c040'); seg(P.over, 1, '#ff4a4a');
+    L.fillStyle = 'rgba(190,230,255,0.9)'; L.fillRect(x0 + P.blue * w - 0.25, y - 1, 0.5, h + 2);
     L.fillStyle = 'rgba(255,255,255,0.3)'; L.fillRect(x0, y, w, 1);
     const v = sc.phase === 'power' ? sc.gauge() : sc.power, mx = x0 + v * w;
     L.fillStyle = '#ffffff'; L.fillRect(mx - 0.5, y - 3, 1, h + 6);
@@ -341,17 +366,19 @@
     L.beginPath(); L.moveTo(x, y); L.lineTo(x + Math.cos(a) * (r + 2.5), y + Math.sin(a) * (r + 2.5)); L.stroke();
     L.fillStyle = '#ff3a3a'; L.beginPath(); L.arc(x, y, 1.5, 0, TAU); L.fill();
   };
-  // our keeper: three columns to dive to, and the time left to choose
+  // our keeper: six cells to dive to (three columns, low and high) and the time left — before the kick (cyan: an
+  // early guess) or while the ball flies (orange: the 1-second reaction)
   R.pkGuess = function (L, g, sc, time) {
-    const pulse = 0.5 + 0.5 * Math.sin(time * 6), cw = g.halfW * 2 / 3;
-    for (let c = 0; c < 3; c++) {
-      const x0 = g.cx + (-1 + c * 2 / 3) * g.halfW;
-      L.fillStyle = 'rgba(127,224,255,' + (0.1 + 0.08 * pulse) + ')'; L.fillRect(x0 + 0.5, g.barY + 0.5, cw - 1, g.H - 1);
-      L.strokeStyle = 'rgba(127,224,255,0.7)'; L.lineWidth = 0.5; L.strokeRect(x0 + 0.75, g.barY + 0.75, cw - 1.5, g.H - 1.5);
+    const pulse = 0.5 + 0.5 * Math.sin(time * 6), cw = g.halfW * 2 / 3, ch = g.H / 2, react = sc.reactOpen;
+    const rgb = react ? '255,160,60' : '127,224,255';
+    for (let c = 0; c < 3; c++) for (let r = 0; r < 2; r++) {
+      const x0 = g.cx + (-1 + c * 2 / 3) * g.halfW, y0 = g.barY + (1 - r) * ch;
+      L.fillStyle = 'rgba(' + rgb + ',' + ((react ? 0.06 : 0.1) + 0.08 * pulse) + ')'; L.fillRect(x0 + 0.5, y0 + 0.5, cw - 1, ch - 1);
+      L.strokeStyle = 'rgba(' + rgb + ',0.7)'; L.lineWidth = 0.5; L.strokeRect(x0 + 0.75, y0 + 0.75, cw - 1.5, ch - 1.5);
     }
-    const k = sc.o.auto ? 1 : Math.max(0, 1 - sc.t / 3.2), w = g.halfW * 1.5;
+    const k = sc.o.auto ? 1 : react ? Math.max(0, 1 - sc.t / RS.SO_REACT) : Math.max(0, 1 - sc.t / 2.6), w = g.halfW * 1.5;
     L.fillStyle = 'rgba(0,0,0,0.6)'; L.fillRect(g.cx - w / 2 - 1, g.gaugeY - 1, w + 2, 4);
-    L.fillStyle = '#7fe0ff'; L.fillRect(g.cx - w / 2, g.gaugeY, w * k, 2);
+    L.fillStyle = react ? '#ffa03c' : '#7fe0ff'; L.fillRect(g.cx - w / 2, g.gaugeY, w * k, 2);
   };
   // labels in device pixels: odds on the open cells, the level that opens the locked ones, how the strike went
   R.pkLabels = function (C, g, sc) {
@@ -375,19 +402,44 @@
       const x0 = g.cx - g.halfW * 0.75;
       if (ph === 'power') text('파워', x0 - 9, g.gaugeY + 2.5, base * 0.75, '#ffffff');
       else if (sc.power != null) {
-        const pg = RS.pkPowerGrade(sc.power);
-        text({ perfect: '파워 최고!', ok: '파워 좋음', weak: '힘이 약하다', over: '너무 세다!' }[pg], x0 + sc.power * g.halfW * 1.5, g.gaugeY - 7, base * 0.8,
-          { perfect: '#4ae06a', ok: '#ffe27a', weak: '#c8d0d8', over: '#ff6a6a' }[pg]);
+        const pg = RS.pkPowerGrade(sc.power, sc.o.fin), mid = sc.zone && RS.pkCol(sc.zone) === 1;
+        const label = { perfect: '파랑! 퍼펙트 파워', good: '파워 좋음', ok: '조금 어긋났다', weak: mid ? '너무 약하다…' : '힘이 약하다', red: mid ? '파넨카?!' : '살살…', over: '너무 세다!' }[pg];
+        text(label, x0 + sc.power * g.halfW * 1.5, g.gaugeY - 7, base * 0.8,
+          { perfect: '#6ab8ff', good: '#4ae06a', ok: '#ffe27a', weak: '#c8d0d8', red: '#ff8a6a', over: '#ff6a6a' }[pg]);
       }
     }
     if (own && ph === 'acc') text('정확도', g.dialX, g.dialY + g.dialR + 8, base * 0.75, '#ffffff');
-    if (own && ph === 'runup' && sc.acc) text({ great: '완벽!', good: '좋아', miss: '빗나간다…' }[sc.acc], g.dialX, g.dialY - g.dialR - 8, base * 0.95, { great: '#ffd23a', good: '#ffffff', miss: '#ff6a6a' }[sc.acc]);
-    if (sc.mode === 'keep' && ph === 'guess') for (let c = 0; c < 3; c++) text(['◀', '▲', '▶'][c], g.cx + (-1 + (c + 0.5) * 2 / 3) * g.halfW, g.goalY - g.H / 2, base * 1.6, '#7fe0ff');
+    if (own && ph === 'runup' && sc.acc) {
+      if (sc.perfect) text('★ PERFECT ★', g.cx, g.gaugeY + 16 - Math.min(1, sc.t / 0.15) * 4, base * 1.5, Math.floor(sc.t * 12) % 2 ? '#ffffff' : '#6ab8ff');
+      else text({ great: '완벽!', good: '좋아', miss: '빗나간다…' }[sc.acc], g.dialX, g.dialY - g.dialR - 8, base * 0.95, { great: '#ffd23a', good: '#ffffff', miss: '#ff6a6a' }[sc.acc]);
+    }
+    if (sc.mode === 'keep' && (ph === 'guess' || sc.reactOpen)) {
+      const col = sc.reactOpen ? '#ffb070' : '#7fe0ff';
+      for (let c = 0; c < 3; c++) for (let r = 0; r < 2; r++) text([['↙', '↓', '↘'], ['↖', '↑', '↗']][r][c], g.cx + (-1 + (c + 0.5) * 2 / 3) * g.halfW, g.goalY - (r + 0.5) * g.H / 2, base * 1.2, col);
+      text(sc.reactOpen ? '지금!' : '미리 고르거나 · 공 보고 막기', g.cx, g.gaugeY - 6, base * 0.75, col);
+    }
   };
 
   // ---------------------------------------------------------------- effects
   R.pkVfx = function (sc, f, g, st) {
     const p = proj(g, f.u, f.v, 1), Q = this.pkW.pfxQ, ours = sc.mode === 'shoot', seed = (Math.random() * 1e6) | 0;
+    if (f.kind === 'perfect') { // the perfect strike in the top corner: everything a goal has, in blue and gold, twice
+      this.pkVfx(sc, { kind: 'goal', u: f.u, v: f.v }, g, st);
+      const BLUE = ['#0b2340', '#1b5a9a', '#3aa0e8', '#8ad4ff', '#d8f3ff', '#ffffff'];
+      Q.push({ fx: 'goldBurst', x: p.x, y: p.y + 6, palette: BLUE, seed: seed + 3 });
+      Q.push({ fx: 'firework', x: p.x, y: p.y, palette: BLUE, seed: seed + 4 });
+      Q.push({ fx: 'sparkPop', x: p.x, y: p.y - 2, palette: RS.PFX_WHITE, seed: seed + 5 });
+      if (st.net) st.net.a = 13;
+      st.flash = 1; st.party = Math.max(st.party, 1.6); st.partyT = 0;
+      this.shake = Math.max(this.shake, 0.7);
+      return;
+    }
+    if (f.kind === 'rage') { // he read the 파넨카: a save, then he flares up
+      this.pkVfx(sc, { kind: 'save', u: f.u, v: f.v }, g, st);
+      Q.push({ fx: 'goldBurst', x: p.x, y: p.y + 6, palette: RS.PFX_FIRE, seed: seed + 3 });
+      this.shake = Math.max(this.shake, 0.45);
+      return;
+    }
     if (f.kind === 'goal') {
       st.net = { x: p.x, y: p.y, t: 0, a: sc.slow ? 9 : 7 };
       Q.push({ fx: 'goldBurst', x: p.x, y: p.y + 8, palette: ours ? RS.PFX_GOLD : RS.PFX_WHITE, seed });
@@ -452,4 +504,4 @@
     A.length = n;
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkrender = 'R15';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkrender = 'R16';

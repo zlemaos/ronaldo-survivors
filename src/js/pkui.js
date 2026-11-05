@@ -50,7 +50,9 @@
       h += '<div class="pk-keeper">🧤 ' + esc(K.name) + ' · ' + RS.pkTier(K) + (K.note ? '<span>' + esc(K.note) + '</span>' : '') + '</div>' +
         '<div class="sub">골결정력 ' + S.fin + ' · 노릴 수 있는 칸 ' + S.zones + '개' +
         (S.zones < 9 ? ' (Lv.' + RS.PK_ZONE_LV[S.zones < 6 ? 0 : 1] + '에 ' + (S.zones < 6 ? 6 : 9) + '칸)' : '') + '</div>' +
-        '<div class="sub pk-how">칸 고르기 → 파워 게이지 멈추기(초록) → 정확도 바늘 멈추기(하얀 칸, 노란 칸이면 완벽)</div>';
+        '<div class="sub pk-how">칸 고르기 → 파워 게이지 멈추기(초록, 가운데 가는 파란 줄이 퍼펙트) → 정확도 바늘 멈추기(하얀 칸, 노란 칸이면 완벽). ' +
+        '파란 줄 + 노란 칸이면 공이 구석으로 빨려 들어간다. 가운데를 빨강으로 차면 파넨카.</div>' +
+        (S.kind === 'challenge' ? '' : '<div class="sub pk-how">🧤 막을 때: 6칸(위·아래) 중 미리 고르거나, 기다렸다가 공이 날아오면 1초 안에 누르기</div>');
       $('pk-intro-body').innerHTML = h;
       $('pk-intro').classList.remove('hidden');
       const go = () => {
@@ -81,9 +83,9 @@
       P.scene = new RS.PKScene({
         mode: k.mode, who: k.who, keeper: k.who === 'opp' ? S.ourKeeper : S.keeper, fin: S.fin, level: S.level, hero: S.hero, small: S.small,
         yearIdx: S.idx, nat: !!(S.def && S.def.nat), n: k.who === 'mate' ? P.mates++ : k.who === 'opp' ? P.opps++ : 0,
-        auto: k.who === 'mate' ? true : P.auto, fast: quick, slow: !!k.decisive, forced: k.forced, ourK: S.ourK, oppMiss: S.oppMiss, rng: this.rng
+        auto: k.who === 'mate' ? true : P.auto, fast: quick, slow: !!k.decisive, forced: k.forced, ourK: S.ourK, oppMiss: S.oppMiss, rage: S.rage, rng: this.rng
       });
-      P.shouted = false; P.lastPhase = null;
+      P.shouted = false; P.lastPhase = null; P.lastReact = false;
       this.pkScore();
       if (!P.hold) { RS.Audio.sfx('whistle'); this.pkHint(); }
     },
@@ -93,9 +95,17 @@
         sc.update(dt);
         for (const n of sc.sfx) this.pkSfx(n, sc);
         sc.sfx.length = 0;
-        if (sc.phase !== P.lastPhase) { P.lastPhase = sc.phase; this.pkHint(); }
+        if (sc.phase !== P.lastPhase || sc.reactOpen !== P.lastReact) { P.lastPhase = sc.phase; P.lastReact = sc.reactOpen; this.pkHint(); }
         if (sc.hitDone && !P.shouted) { P.shouted = true; this.pkShout(sc); }
-        if (sc.done && !P.ending) { P.S.record(sc.result); P.kick = null; this.pkScore(); P.ending = true; P.gap = 0.35; }
+        if (sc.done && !P.ending) {
+          P.S.record(sc.result); P.kick = null; this.pkScore(); P.ending = true; P.gap = 0.35;
+          if (P.S.rageNew) { // he read our 파넨카: he burns from now on
+            P.S.rageNew = false; P.gap = 1.3;
+            this.pkShout(null, '🔥 ' + P.S.keeper.name + ' 분노 모드!', 'miss');
+            RS.Audio.sfx('boss'); this.renderer.shake = Math.max(this.renderer.shake, 0.4);
+            $('pk-sub').textContent = '🔥 ' + P.S.keeper.name + ' (분노) · ' + RS.pkTier(P.S.keeper);
+          }
+        }
         if (P.ending && (P.gap -= dt) <= 0) { P.ending = false; this.pkNext(); }
       }
       this.renderer.renderPK(P.scene);
@@ -116,21 +126,26 @@
       let t = '';
       if (INPUT.includes(sc.phase) && sc.o.auto && sc.who !== 'mate') t = sc.mode === 'keep' ? '🤖 ' + who + '가 찬다 · 우리 골키퍼가 방향을 고른다' : '🤖 ' + who + '가 자동으로 찬다';
       else if (sc.phase === 'aim') t = '👆 노릴 칸을 누르세요 · 숫자는 성공 확률';
-      else if (sc.phase === 'power') t = '👆 지금 눌러 파워 결정! 초록 칸이 최고';
-      else if (sc.phase === 'acc') t = '👆 바늘이 하얀 칸에 올 때 누르세요 · 노란 칸이면 완벽';
-      else if (sc.phase === 'guess') t = '🧤 ' + who + '가 찬다! 막을 방향(◀ ▲ ▶)을 누르세요';
-      else if (sc.phase === 'runup' || sc.phase === 'flight') t = (sc.slow ? '⏱ 이 한 방에 갈린다 · ' : '') + who + '가 찬다';
+      else if (sc.phase === 'power') t = '👆 지금 눌러 파워 결정! 초록이 좋고, 가운데 파란 줄이 퍼펙트' + (RS.pkCol(sc.zone) === 1 ? ' · 빨강이면 파넨카' : '');
+      else if (sc.phase === 'acc') t = '👆 바늘이 하얀 칸에 올 때 누르세요 · 노란 칸 + 파란 줄이면 퍼펙트';
+      else if (sc.phase === 'guess') t = '🧤 ' + who + '가 찬다! 막을 칸(6칸)을 미리 누르거나, 기다렸다가 공 보고 막기';
+      else if (sc.reactOpen) t = '👀 지금! 공이 가는 칸을 누르세요 (1초 안에)';
+      else if (sc.phase === 'runup' || sc.phase === 'flight') t = (sc.slow ? '⏱ 이 한 방에 갈린다 · ' : '') + (sc.watch && sc.phase === 'runup' ? '👀 공을 보고 있다가 누르세요 · ' : '') + who + '가 찬다';
       el.textContent = t;
     },
-    pkShout(sc) {
-      const r = sc.result.res, S = this.pk.S;
-      let text, cls;
-      if (sc.mode === 'shoot') {
-        if (r === 'goal') { text = sc.who === 'hero' ? (S.hero === 'ronaldo' ? 'GOAL!! SIUUU!' : 'GOAL!! ☝️') : 'GOAL!'; cls = 'goal'; }
-        else if (r === 'save') { text = sc.o.keeper.name + ' 선방!'; cls = 'miss'; }
-        else { text = { post: '골대!', bar: '크로스바!', over: '홈런…', wide: '빗나갔다…' }[r]; cls = 'miss'; }
-      } else if (r === 'goal') { text = '실점…'; cls = 'miss'; }
-      else { text = r === 'save' ? '막았다!!' : '상대 실축!'; cls = 'save'; }
+    pkShout(sc, text, cls) {
+      const S = this.pk.S;
+      if (sc) {
+        const r = sc.result.res, kind = sc.result.kind;
+        if (sc.mode === 'shoot') {
+          if (r === 'goal') {
+            text = kind === 'perfect' ? '★ PERFECT GOAL ★' : kind === 'panenka' ? '파넨카 성공!!' : sc.who === 'hero' ? (S.hero === 'ronaldo' ? 'GOAL!! SIUUU!' : 'GOAL!! ☝️') : 'GOAL!';
+            cls = 'goal';
+          } else if (r === 'save') { text = kind === 'panenka' ? '파넨카 읽혔다! 키퍼가 공을 차버렸다' : kind === 'tbag' ? sc.o.keeper.name + '가 비웃으며 걷어낸다' : sc.o.keeper.name + ' 선방!'; cls = 'miss'; }
+          else { text = { post: '골대!', bar: '크로스바!', over: '홈런…', wide: '빗나갔다…' }[r]; cls = 'miss'; }
+        } else if (r === 'goal') { text = '실점…'; cls = 'miss'; }
+        else { text = r === 'save' ? (sc.dive && sc.dive.rt != null ? '보고 막았다!!' : '막았다!!') : '상대 실축!'; cls = 'save'; }
+      }
       const el = $('pk-shout');
       el.textContent = text;
       el.className = 'pk-shout ' + cls;
@@ -176,7 +191,12 @@
       if (!sc || sc.o.auto) return;
       if (sc.phase === 'aim' && /^[1-9]$/.test(e.key) && +e.key <= sc.zones) { sc.pickZone(+e.key); e.preventDefault(); }
       else if ((sc.phase === 'power' || sc.phase === 'acc') && (e.code === 'Space' || e.key === 'Enter')) { e.preventDefault(); if (sc.phase === 'power') sc.stopPower(sc.gauge()); else sc.stopNeedle(sc.needle()); }
-      else if (sc.phase === 'guess' && ['ArrowLeft', 'ArrowUp', 'ArrowRight'].includes(e.key)) { e.preventDefault(); sc.pickDive(['ArrowLeft', 'ArrowUp', 'ArrowRight'].indexOf(e.key)); }
+      else if (sc.phase === 'guess' || sc.reactOpen) { // keeper: 1–3 low, 7–9 high (as on a numpad), Space waits to watch
+        if (sc.phase === 'guess' && (e.code === 'Space' || e.key === 'Enter')) { e.preventDefault(); sc.watchNow(); return; }
+        const n = /^[1-9]$/.test(e.key) ? +e.key : 0;
+        if (n && n !== 5 && (n <= 3 || n >= 7)) { e.preventDefault(); sc.keepInput({ col: (n - 1) % 3, row: n >= 7 ? 1 : 0 }); }
+        else if (n === 4 || n === 6) { e.preventDefault(); sc.keepInput({ col: n === 4 ? 0 : 2, row: 0 }); }
+      }
     },
     pkToggleAuto() {
       const P = this.pk;
@@ -306,4 +326,4 @@
     }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkui = 'R15';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkui = 'R16';

@@ -618,6 +618,25 @@ for passives, weapons and items alike.
 - Tests: `tests/round14.test.js` (ladder and odds, the schema-4 cap, 제토라인 gating and firing, both 월드컵 choices,
   both 2011 paths to their ends including the cinematic and the unlock, 날두 untouched).
 
+### Round 16: a harder spot kick (pk.js · pkscene.js · pkrender.js · pkui.js)
+- Gauge `RS.PK_POWER`: red < 0.16, grey 'weak' < 0.55, yellow 'ok', green 'good' 0.70–0.88, and inside the green a
+  thin blue 'perfect' band around 0.79 (`RS.pkBlueHalf(fin)`: ±1.35 % at fin 55, ±1.75 % at 95), yellow, red 'over'.
+  The needle's gold arc is narrower (`great = 1 + fin·0.08`°).
+- Blue band + gold needle (`RS.pkPerfect`) = a perfect strike: it bends into the zone's own corner, never misses the
+  frame, only a legend reaches it; `perfectLock` sound on the lock, blue-gold burst, flash, shake and `perfect` sound
+  on the goal. Otherwise the 영점 error `RS.pkAimErr` (distance from the blue band, needle off the gold) widens misses
+  (wide/over from the corners, up or sideways from the middle) and brings the ball nearer the keeper.
+- The aim grid's % is the zone's chance at a perfect strike (`RS.pkZoneBest`).
+- Middle column: grey = 티배깅 (the keeper starts to go, walks back, ~80 % save, half booted away); red = 파넨카
+  (beats a diving keeper; one who stays — 30 % × keeper² — saves it, boots it away and turns on 분노 모드 for the
+  rest of the session: saves × `RS.PK_RAGE` 1.2, 파넨카 read ×1.5, flames on screen).
+- Our keeper: six cells (three columns × low/high; a third of kicks go high). An early pick saves 70 % in the right
+  cell, 20 % right side wrong height. No pick within 2.6 s = 보고 막기: during the first `RS.SO_REACT` = 1 s of the
+  flight a tap reacts, saving (0.8 − 0.75·seconds) in the right cell. PC keys: 1–3 low, 7–9 high, Space = watch.
+- Balance (sim, 1,500 cups each, 날두/메시): auto kicks + guessing keeper 2–5 % champions; a good human who watches
+  14–18 %; a very good one 21–26 % (round 15 was about 22–25 % for a good human).
+- Tests: `tests/round16.test.js`; round 10/15 balance bounds lowered for the harder spot.
+
 ### Round-2 tuning (before → after)
 
 | Value | Before | After |

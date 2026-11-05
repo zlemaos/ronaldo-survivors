@@ -118,7 +118,7 @@ test('PK odds: 골결정력 helps, a legend keeper saves more, 날두 beats 메�
   assert.ok(o(95, 'cech', 1, 'great', 'ronaldo').goal > 0.5, 'only 메시 has the 쩨흐 curse');
   for (const lv of [10, 60, 120]) assert.ok(botRate('ronaldo', lv, 'national', 3000) > botRate('messi', lv, 'national', 3000), 'Lv.' + lv);
   const end = botRate('ronaldo', 120, 'national', 4000);
-  assert.ok(end > 0.78 && end < 0.92, '날두 late career ' + end);
+  assert.ok(end > 0.66 && end < 0.85, '날두 late career ' + end); // round 16 made the spot harder
   assert.ok(botRate('messi', 60, 'cech', 3000) <= 0.11);
 });
 

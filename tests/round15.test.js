@@ -171,7 +171,8 @@ test('the three moves fight: at SIUUU each one out-kills the hero\'s starting we
   }
 }));
 
-test('the cup is winnable but not given: a sensible bot wins one run in four to twenty', () => withRonaldo(() => {
+// (round 16: harder — the bot neither finds the blue band often nor watches the ball, so it seldom wins)
+test('the cup is winnable but not given: a sensible bot that only guesses wins now and then', () => withRonaldo(() => {
   const rng = RS.makeRng(7), N = 600;
   for (const hero of ['ronaldo', 'messi']) {
     let wins = 0;
@@ -186,6 +187,6 @@ test('the cup is winnable but not given: a sensible bot wins one run in four to 
       if (r === 4) wins++;
     }
     const p = wins / N;
-    assert.ok(p > 0.05 && p < 0.25, hero + ' bot champion rate ' + (p * 100).toFixed(1) + '%');
+    assert.ok(p > 0.01 && p < 0.15, hero + ' bot champion rate ' + (p * 100).toFixed(1) + '%');
   }
 }));
