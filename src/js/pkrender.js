@@ -504,15 +504,16 @@
     L.fillStyle = '#ffffff'; L.fillRect(mx - 0.5, y - 3, 1, h + 6);
     L.beginPath(); L.moveTo(mx - 2.5, y - 4.5); L.lineTo(mx + 2.5, y - 4.5); L.lineTo(mx, y - 1.5); L.fill();
   };
-  // 정확도 (a Dead by Daylight skill check): the needle turns from the top; stop it on the white arc, the gold one
-  // in its middle is perfect
+  // 정확도 (a Dead by Daylight skill check): the needle turns from the top; stop it on the white arc — better on the
+  // yellow one inside it, best on the blue one in the middle (round 22)
   R.pkDial = function (L, g, sc) {
     const x = g.dialX, y = g.dialY, r = g.dialR, T = sc.timing, rad = (deg) => (deg - 90) * Math.PI / 180;
     L.fillStyle = 'rgba(0,0,0,0.6)'; L.beginPath(); L.arc(x, y, r + 3.5, 0, TAU); L.fill();
     L.strokeStyle = 'rgba(255,255,255,0.35)'; L.lineWidth = 1; L.beginPath(); L.arc(x, y, r, 0, TAU); L.stroke();
     L.lineWidth = 3;
     L.strokeStyle = '#f4f4f4'; L.beginPath(); L.arc(x, y, r, rad(sc.target - T.good / 2), rad(sc.target + T.good / 2)); L.stroke();
-    L.strokeStyle = '#ffd23a'; L.beginPath(); L.arc(x, y, r, rad(sc.target - T.great / 2), rad(sc.target + T.great / 2)); L.stroke();
+    L.strokeStyle = '#ffd23a'; L.beginPath(); L.arc(x, y, r, rad(sc.target - T.fine / 2), rad(sc.target + T.fine / 2)); L.stroke();
+    L.strokeStyle = '#3a8cff'; L.lineWidth = 3.6; L.beginPath(); L.arc(x, y, r, rad(sc.target - T.great / 2), rad(sc.target + T.great / 2)); L.stroke();
     const a = rad(sc.phase === 'acc' ? sc.needle() : sc.needleAt);
     L.strokeStyle = '#ff3a3a'; L.lineWidth = 1.5;
     L.beginPath(); L.moveTo(x, y); L.lineTo(x + Math.cos(a) * (r + 2.5), y + Math.sin(a) * (r + 2.5)); L.stroke();
@@ -547,7 +548,7 @@
         if (z <= sc.zones) {
           text(Math.round(sc.zoneOdds(z) * 100) + '%', x, y + 0.5, base * 0.95, '#ffffff');
           text(String(z), c.x0 + 3, c.y0 + 3.2, base * 0.6, 'rgba(255,255,255,0.8)');
-        } else text('🔒Lv.' + RS.PK_ZONE_LV[z <= 6 ? 0 : 1], x, y, base * 0.7, 'rgba(255,255,255,0.6)');
+        } else text(sc.o.lockNote ? '🔒' : '🔒Lv.' + RS.PK_ZONE_LV[z <= 6 ? 0 : 1], x, y, base * 0.7, 'rgba(255,255,255,0.6)');
       }
     }
     if (own && (ph === 'power' || ph === 'acc' || ph === 'runup')) {
@@ -563,7 +564,7 @@
     if (own && ph === 'acc') text('정확도', g.dialX, g.dialY + g.dialR + 8, base * 0.75, '#ffffff');
     if (own && ph === 'runup' && sc.acc) {
       if (sc.perfect) text('★ PERFECT ★', g.cx, g.gaugeY + 16 - Math.min(1, sc.t / 0.15) * 4, base * 1.5, Math.floor(sc.t * 12) % 2 ? '#ffffff' : '#6ab8ff');
-      else text({ great: '완벽!', good: '좋아', miss: '빗나간다…' }[sc.acc], g.dialX, g.dialY - g.dialR - 8, base * 0.95, { great: '#ffd23a', good: '#ffffff', miss: '#ff6a6a' }[sc.acc]);
+      else text({ great: '파랑! 정조준', fine: '노랑! 좋아', good: '하양 · 조금 흔들', miss: '빗나간다…' }[sc.acc], g.dialX, g.dialY - g.dialR - 8, base * 0.95, { great: '#6ab8ff', fine: '#ffd23a', good: '#ffffff', miss: '#ff6a6a' }[sc.acc]);
     }
     if (sc.mode === 'keep' && (ph === 'guess' || sc.reactOpen)) {
       const col = sc.reactOpen ? '#ffb070' : '#7fe0ff';
@@ -656,4 +657,4 @@
     A.length = n;
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkrender = 'R20';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkrender = 'R21';

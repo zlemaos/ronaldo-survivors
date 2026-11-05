@@ -29,7 +29,7 @@ test('a perfect strike beats the shown odds; the strike drifts the further it is
     assert.ok(best.goal > green.goal && green.goal > yellow.goal, 'zone ' + z + ': ' + [best.goal, green.goal, yellow.goal].map((x) => x.toFixed(2)));
     assert.ok(yellow.off > green.off, 'more drift, more misses');
   }
-  assert.ok(RS.pkAimErr(P.blue, 'great', 80) === 0 && RS.pkAimErr(P.good[1], 'great', 80) > 0.8);
+  assert.ok(RS.pkAimErr(P.blue, 'great', 80) === 0 && RS.pkAimErr(P.good[1], 'great', 80) > 0.6);
 });
 
 test('down the middle: too soft is a 티배깅 save, the red band is a 파넨카 that beats a diving keeper', () => {
@@ -132,14 +132,18 @@ test('round 20: a perfect strike goes in 99 %; an angry keeper saves only when h
   assert.ok(Math.abs(calm / 20000 - 0.99) < 0.004, 'calm keeper: 99 %, ' + (calm / 20000).toFixed(4));
 });
 
-// Round 21 (the user: 정확도 다이얼 잘 못 맞춰도 별 차이가 없네): the needle decides a lot.
-test('round 21: gold, white and a missed needle are far apart', () => {
+// Round 21 (the user: 정확도 다이얼 잘 못 맞춰도 별 차이가 없네): a missed needle costs a lot. Round 22 (the user:
+// 정확도 좋음인데도 다 빗나감 … 파란색 노란색 흰색): blue > yellow > white, and white on a green strike mostly stays on target.
+test('round 22: blue, yellow and white are steps; white mostly on target; a missed needle far behind', () => {
   for (const keeper of ['pro', 'neuer']) for (const z of [1, 7, 9]) {
-    const at = (acc) => RS.pkOdds({ fin: 76, keeper: K[keeper], hero: 'ronaldo', zone: z, power: P.blue + 0.02, acc }).goal;
-    const gold = at('great'), white = at('good'), miss = at('miss');
-    assert.ok(gold - white >= 0.1, keeper + ' z' + z + ' gold ' + gold.toFixed(2) + ' white ' + white.toFixed(2));
-    assert.ok(white - miss >= 0.25, keeper + ' z' + z + ' white ' + white.toFixed(2) + ' miss ' + miss.toFixed(2));
+    const at = (acc) => RS.pkOdds({ fin: 76, keeper: K[keeper], hero: 'ronaldo', zone: z, power: P.blue + 0.02, acc });
+    const blue = at('great').goal, yellow = at('fine').goal, white = at('good'), miss = at('miss').goal;
+    assert.ok(blue > yellow && yellow > white.goal, keeper + ' z' + z + ' ' + [blue, yellow, white.goal].map((v) => v.toFixed(3)));
+    assert.ok(white.off < 0.2, keeper + ' z' + z + ' white wide ' + white.off.toFixed(2));
+    assert.ok(white.goal - miss >= 0.25, keeper + ' z' + z + ' white ' + white.goal.toFixed(2) + ' miss ' + miss.toFixed(2));
   }
+  const T = RS.pkTiming(76);
+  assert.ok(T.great < T.fine && T.fine < T.good, 'the bands nest: blue inside yellow inside white');
 });
 
 test('a perfect strike bends into its corner and gets the full effect and sound', () => {

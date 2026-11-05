@@ -47,12 +47,15 @@
     return p < P.red ? 'red' : p < P.weak ? 'weak' : 'ok';
   };
   // 영점: how far the strike drifts from the point aimed at — 0 on the blue band with the needle in gold; it grows with
-  // the distance from the blue band (1 at the green's edge) and with a needle off the gold (good +0.35, miss +1)
+  // the distance from the blue band (1 at the green's edge; round 22: about 0.7) and with a needle off the gold (good +0.35, miss +1)
   // (round 21, the user: 정확도 다이얼 잘 못 맞춰도 별 차이가 없네 — the needle now weighs much more: good +0.8, miss
   // +2.2; a clean strike is saved a little less (RS.PK_SAVE_K) so the whole stays about as hard)
-  RS.PK_ACC_ERR = { great: 0, good: 0.8, miss: 2.2 };
-  RS.PK_SAVE_K = 0.7;
-  RS.pkAimErr = (power, acc, fin) => Math.max(0, Math.abs(power - RS.PK_POWER.blue) - RS.pkBlueHalf(fin)) / 0.09 + (RS.PK_ACC_ERR[acc] || 0);
+  // (round 22, the user: 정확도 좋음인데도 다 빗나감 … 파란색 노란색 흰색 이렇게 — white sent a third of the top-corner
+  // strikes wide. The dial has three bands now: blue 'great' in the middle (the old gold: with the blue power band a
+  // perfect strike), yellow 'fine' around it, then white 'good'; white drifts a little, a missed needle as before.)
+  RS.PK_ACC_ERR = { great: 0, fine: 0.15, good: 0.35, miss: 2.2 };
+  RS.PK_SAVE_K = 0.8;
+  RS.pkAimErr = (power, acc, fin) => Math.max(0, Math.abs(power - RS.PK_POWER.blue) - RS.pkBlueHalf(fin)) / 0.11 + (RS.PK_ACC_ERR[acc] || 0);
   RS.pkPerfect = (power, acc, fin) => acc === 'great' && RS.pkPowerGrade(power, fin) === 'perfect';
   // How fast the gauge and the 정확도 needle move and how wide the needle's target is (degrees of the dial; the
   // 'great' band sits in the middle of 'good'). The lower the 골결정력 the faster and the narrower: a young
@@ -67,13 +70,15 @@
       gauge: 1.5 - fin * 0.006, // sweeps a second: fin 55 → 1.17, fin 95 → 0.93
       needle: (0.95 - fin * 0.003) * h, // turns a second: 0.785 → 0.665 (on the blue band)
       good: Math.max(8, Math.round((18 + fin * 0.32) / h)), // 36° → 48°
-      great: Math.max(2, Math.round((1 + fin * 0.08) / h)) // 5° → 9° (round 16: the gold is half of a perfect strike, so it is narrow)
+      great: Math.max(2, Math.round((1 + fin * 0.08) / h)), // 5° → 9°, blue (round 16: half of a perfect strike, so it is narrow)
+      fine: Math.max(6, Math.round((4 + fin * 0.15) / h)) // 12° → 18°, the yellow band around the blue (round 22)
     };
   };
-  // Where the needle stopped: within great/2 of the target's centre 'great', within good/2 'good', else 'miss'.
+  // Where the needle stopped: within great/2 of the target's centre 'great' (blue), within fine/2 'fine' (yellow),
+  // within good/2 'good' (white), else 'miss'.
   RS.pkNeedleGrade = (diffDeg, timing) => {
     const d = Math.abs(((diffDeg % 360) + 540) % 360 - 180);
-    return d <= timing.great / 2 ? 'great' : d <= timing.good / 2 ? 'good' : 'miss';
+    return d <= timing.great / 2 ? 'great' : d <= timing.fine / 2 ? 'fine' : d <= timing.good / 2 ? 'good' : 'miss';
   };
 
   // ---------------------------------------------------------------- shot types (round 18)
@@ -122,7 +127,13 @@
     ospina: { name: '오스삐나', rating: 82, look: { K: '#f0c000', k2: '#1a3a8a', H: '#1a1a1a', style: 'long' } },
     lloris: { name: '요리쓰', rating: 86, look: { K: '#ffd400', k2: '#1a1a1a', H: '#4a3020', style: 'short' } },
     willis: { name: '윌리쓰', rating: 70, look: { K: '#ffd400', k2: '#1a1a1a', H: '#d8b870', style: 'bald' } },
-    dominguez: { name: '도밍게쓰', rating: 74, look: { K: '#e06a1a', k2: '#1a1a1a', H: '#1a1a1a', style: 'short' } }
+    dominguez: { name: '도밍게쓰', rating: 74, look: { K: '#e06a1a', k2: '#1a1a1a', H: '#1a1a1a', style: 'short' } },
+    // the youth keepers of the 승부차기 토너먼트's first two stages (round 22, RS.CUP_STAGES)
+    u17: { name: '유소년 수문장', rating: 58, look: { K: '#3ab0e0', k2: '#1a1a1a', H: '#3a2a1a', style: 'short' } },
+    u17b: { name: '유소년 대표 수문장', rating: 63, look: { K: '#e0a020', k2: '#1a1a1a', H: '#1a1a1a', style: 'fade' } },
+    u20: { name: 'U-20 수문장', rating: 68, look: { K: '#8a5ad8', k2: '#1a1a1a', H: '#2a1a10', style: 'slick' } },
+    u20b: { name: 'U-20 대표 수문장', rating: 73, look: { K: '#d83a5a', k2: '#1a1a1a', H: '#4a3020', style: 'short' } },
+    u20s: { name: 'U-20 에이스 수문장', rating: 77, look: { K: '#1a1a1a', k2: '#ffd400', H: '#1a1a1a', style: 'long' } }
   };
   // our own keeper when the other side kicks (a shootout): the squad's green keeper kit
   RS.PK_OUR_LOOK = { K: '#2fd36b', k2: '#1a1a1a', H: '#2a1a10', style: 'cap', C: '#1a1a1a' };
@@ -151,7 +162,7 @@
 
   // ---------------------------------------------------------------- one kick
   // Chance of a goal, a save or a miss. o: { fin, keeper (RS.PK_KEEPERS entry), zone, power (0–1),
-  // acc: 'great' | 'good' | 'miss', hero, rage (the keeper's 분노 모드) }. Sums to 1. kind: 'perfect' (blue band and
+  // acc: 'great' | 'fine' | 'good' | 'miss', hero, rage (the keeper's 분노 모드) }. Sums to 1. kind: 'perfect' (blue band and
   // gold needle: it bends into the zone's own corner — no miss, and only a legend's fingertips), 'panenka' (the red
   // band down the middle: a chip that beats a keeper who dives and dies in the arms of one who stays), 'tbag' (too
   // soft down the middle: the keeper starts to go, stops and walks back to it), else a strike that drifts with its
@@ -242,7 +253,7 @@
     const spread = (0.2 - fin * 0.0013) * RS.pkShot(shot).gauge;
     const power = clamp(RS.PK_POWER.blue + (rng() * 2 - 1) * spread, 0.6, 1);
     const r = rng(), great = (0.12 + fin * 0.0035) / RS.pkPowerHard(power); // a harder strike, a harder dial
-    return { zone, power, acc: r < great ? 'great' : r < great + 0.55 ? 'good' : 'miss', shot };
+    return { zone, power, acc: r < great ? 'great' : r < great + 0.15 ? 'fine' : r < great + 0.55 ? 'good' : 'miss', shot };
   };
   RS.pkBotShot = (zone, keeper) => (RS.pkRow(zone) === 2 ? 'curl' : RS.pkCol(zone) === 1 || ((keeper && keeper.rating) || 80) >= 88 ? 'drive' : 'push');
 
@@ -430,17 +441,62 @@
   // the champion's reward: one hero's move (RS.SKILLS, gift), held at SIUUU by every career of that hero
   RS.CUP_REWARDS = [{ id: 'penaldo', hero: 'ronaldo' }, { id: 'bribe', hero: 'messi' }, { id: 'hollywood', hero: 'torres' }];
   RS.CUP_GRADE = RS.GRADES.length - 1;
+
+  // Round 22 (the user: 바로 첨부터 월드컵이 아니라 청소년때부터 올라가게해 서사 있게): each hero climbs four stages,
+  // one tournament a run — 유소년 대회 (U-17, the ground only: three zones) → 청소년 대회 (U-20, six zones) → his
+  // continent's cup (유로 / 코파 아메리카, nine zones) → the 월드컵 (RS.CUP_ROUNDS, the SIUUU reward). A title opens the
+  // next stage for that hero and pays its coins; a loss replays the same stage. lv: the kicker's level there (the
+  // zones and his 골결정력); ourK: our keeper; pre: the youth teams' prefix. A stage's story: RS.CUP_STORY.
+  RS.CUP_STAGES = [
+    { id: 'u17', name: '유소년 대회', icon: '🧒', pre: 'U-17 ', lv: 20, ourK: 64, coins: 150, rounds: [
+      { name: '4강', miss: 0.34, pool: [{ vs: '스위쓰', keeper: 'u17' }, { vs: '미국', keeper: 'u17' }, { vs: '일본', keeper: 'u17' }] },
+      { name: '결승', miss: 0.28, pool: [{ vs: '브라질', keeper: 'u17b' }, { vs: '프랑스', keeper: 'u17b' }, { vs: '잉글랜드', keeper: 'u17b' }] }] },
+    { id: 'u20', name: '청소년 대회', icon: '🎓', pre: 'U-20 ', lv: 45, ourK: 72, coins: 300, rounds: [
+      { name: '8강', miss: 0.28, pool: [{ vs: '나이지리아', keeper: 'u20' }, { vs: '멕시코', keeper: 'u20' }, { vs: '한국', keeper: 'u20' }] },
+      { name: '4강', miss: 0.22, pool: [{ vs: '네덜란드', keeper: 'u20b' }, { vs: '우루과이', keeper: 'u20b' }, { vs: '이탈리아', keeper: 'u20b' }] },
+      { name: '결승', miss: 0.18, pool: [{ vs: '브라질', keeper: 'u20s' }, { vs: '독일', keeper: 'u20s' }, { vs: '아르헨티나', keeper: 'u20s' }, { vs: '스페인', keeper: 'u20s' }] }] },
+    { id: 'conti', name: '유로', icon: '🏟️', pre: '', lv: 70, ourK: 80, coins: 500, rounds: [
+      { name: '8강', miss: 0.2, pool: [{ vs: '잉글랜드', keeper: 'robinson' }, { vs: '스위쓰', keeper: 'national' }] },
+      { name: '4강', miss: 0.15, pool: [{ vs: '프랑스', keeper: 'lloris' }, { vs: '네덜란드', keeper: 'vdsar' }, { vs: '체코', keeper: 'cech' }] },
+      { name: '결승', miss: 0.12, pool: [{ vs: '독일', keeper: 'neuer' }, { vs: '이탈리아', keeper: 'buffon' }, { vs: '스페인', keeper: 'casillas' }] }],
+      // 메시's continent: the 코파 아메리카 (and its final against 칠레, the side that beat him twice on penalties)
+      sa: { name: '코파 아메리카', rounds: [
+        { name: '8강', miss: 0.2, pool: [{ vs: '에콰도르', keeper: 'dominguez' }, { vs: '미국', keeper: 'willis' }] },
+        { name: '4강', miss: 0.15, pool: [{ vs: '콜롬비아', keeper: 'ospina' }, { vs: '우루과이', keeper: 'national' }] },
+        { name: '결승', miss: 0.12, pool: [{ vs: '칠레', keeper: 'bravo' }, { vs: '브라질', keeper: 'alisson' }] }] } },
+    { id: 'wc', name: '월드컵', icon: '🌍', pre: '', lv: RS.CUP_LEVEL, ourK: RS.CUP_KEEPER, rounds: RS.CUP_ROUNDS }
+  ];
+  RS.CUP_WC = RS.CUP_STAGES.length - 1;
+  RS.CUP_SA = { messi: true };
+  // one stage as this hero plays it: { id, name, icon, pre, lv, ourK, coins, rounds }
+  RS.cupStage = function (stage, hero) {
+    const st = RS.CUP_STAGES[stage == null ? RS.CUP_WC : clamp(stage | 0, 0, RS.CUP_WC)];
+    return st.sa && RS.CUP_SA[hero] ? Object.assign({}, st, st.sa) : st;
+  };
+  // one line of each hero's story per stage (the intro of its first round)
+  RS.CUP_STORY = {
+    ronaldo: ['마데이라 섬에서 올라온 깡마른 소년. 첫 유소년 대회, 승부차기는 전부 내가 찬다.', 'U-20 대표팀의 7번. 관중석에는 유럽 빅클럽 스카우트들이 앉아 있다.',
+      '안방 유로 결승에서 울던 열아홉 살을 기억한다. 이번엔 조국에 트로피를.', '남은 꿈은 하나, 월드컵. 시우우우를 외칠 시간이다.'],
+    messi: ['로사리오의 작은 소년. 키는 작아도 공은 발에 붙어 다닌다.', '바다 건너에서 자란 U-20 에이스. 조국이 그를 부른다.',
+      '코파 결승 승부차기에서 두 번 울었다. 세 번은 없다.', '마지막 남은 단 하나, 월드컵.'],
+    torres: ['마드리드의 금발 소년. 꼬마 때부터 골문만 봤다.', 'U-20 스페인의 9번. "꼬마"라는 별명이 붙기 시작했다.',
+      '유로 결승, 한 골이면 역사가 된다.', '무적함대의 마지막 퍼즐, 월드컵.']
+  };
   RS.normalizeCup = function (c) {
     c = c && typeof c === 'object' ? c : {};
-    return { played: Math.max(0, c.played | 0), wins: Math.max(0, c.wins | 0), best: Math.max(0, Math.min(RS.CUP_ROUNDS.length, c.best | 0)) };
+    const st = {}, s0 = c.stage && typeof c.stage === 'object' ? c.stage : {};
+    for (const h of Object.keys(RS.PK_BASE)) st[h] = clamp(s0[h] | 0, 0, RS.CUP_WC);
+    return { played: Math.max(0, c.played | 0), wins: Math.max(0, c.wins | 0), best: Math.max(0, Math.min(RS.CUP_ROUNDS.length, c.best | 0)), stage: st };
   };
+  RS.cupHeroStage = (meta, hero) => RS.normalizeCup(meta.cup).stage[hero] || 0;
   RS.cupLeft = (meta) => RS.CUP_REWARDS.filter((r) => !(meta.unlocked && meta.unlocked[r.id]));
-  // The four opponents of one run for this hero.
-  RS.cupDraw = function (rng, hero) {
-    const us = RS.soUsName(hero, 0, { nat: true });
-    return RS.CUP_ROUNDS.map((r) => {
+  // The opponents of one run for this hero at this stage (the 월드컵 when no stage is given).
+  RS.cupDraw = function (rng, hero, stage) {
+    const st = RS.cupStage(stage, hero), us = RS.soUsName(hero, 0, { nat: true });
+    return st.rounds.map((r) => {
       const ok = r.pool.filter((m) => { const K = RS.PK_KEEPERS[m.keeper]; return m.vs !== us && K.mate !== hero && !(K.nemesis && K.nemesis[hero] != null); });
-      return Object.assign({}, ok[Math.floor(rng() * ok.length)]);
+      const m = ok[Math.floor(rng() * ok.length)];
+      return { vs: st.pre + m.vs, keeper: m.keeper };
     });
   };
   RS.cupStart = function (save) {
@@ -448,14 +504,25 @@
     save.meta.cup.played++;
   };
   // A round played: the record, and on the 결승 the reward. Returns { round, won, next (the round to play, or
-  // null), champion, reward: { id, hero } | { coins } }. (round 19: the move only unlocks; level-ups deal it now and then)
-  RS.cupResult = function (save, round, won, rng) {
-    const m = save.meta, last = RS.CUP_ROUNDS.length - 1, out = { round, won, next: null, champion: false, reward: null };
+  // null), champion, stage, stageUp (the stage it opened, or null), reward: { id, hero } | { coins } }.
+  // (round 19: the move only unlocks; level-ups deal it now and then. round 22: below the 월드컵 a title opens the next
+  // stage for this hero and pays the stage's coins.)
+  RS.cupResult = function (save, round, won, rng, stage, hero) {
+    const m = save.meta, si = stage == null ? RS.CUP_WC : clamp(stage | 0, 0, RS.CUP_WC);
+    const st = RS.cupStage(si, hero), last = st.rounds.length - 1;
+    const out = { round, won, next: null, champion: false, stage: si, stageUp: null, reward: null };
     m.cup = RS.normalizeCup(m.cup);
     if (!won) return out;
-    m.cup.best = Math.max(m.cup.best, round + 1);
+    if (si === RS.CUP_WC) m.cup.best = Math.max(m.cup.best, round + 1);
     if (round < last) { out.next = round + 1; return out; }
     out.champion = true;
+    if (si < RS.CUP_WC) {
+      const h = hero && m.cup.stage[hero] != null ? hero : 'ronaldo';
+      if (m.cup.stage[h] <= si) { m.cup.stage[h] = si + 1; out.stageUp = si + 1; }
+      m.coins += st.coins;
+      out.reward = { coins: st.coins };
+      return out;
+    }
     m.cup.wins++;
     const left = RS.cupLeft(m);
     if (!left.length) { m.coins += RS.CUP_COINS; out.reward = { coins: RS.CUP_COINS }; return out; }
@@ -476,16 +543,19 @@
       this.save = save; this.kind = opt.kind; this.idx = opt.idx | 0; this.replay = !!opt.replay;
       this.rng = opt.rng || Math.random;
       this.hero = RS.HEROES[b.hero] ? b.hero : 'ronaldo';
-      this.level = opt.kind === 'cup' ? Math.max(b.level || 1, RS.CUP_LEVEL) : b.level || 1;
+      // the 토너먼트 (round 22): its stage (the 월드컵 when none is given) sets the level — fixed for the youth stages
+      this.stage = opt.kind === 'cup' ? (opt.stage == null ? RS.CUP_WC : clamp(opt.stage | 0, 0, RS.CUP_WC)) : null;
+      this.st = opt.kind === 'cup' ? RS.cupStage(this.stage, RS.HEROES[b.hero] ? b.hero : 'ronaldo') : null;
+      this.level = opt.kind === 'cup' ? (this.stage === RS.CUP_WC ? Math.max(b.level || 1, RS.CUP_LEVEL) : this.st.lv) : b.level || 1;
       this.small = RS.smallBody(b);
       this.fin = RS.pkFinishing({ hero: this.hero, level: this.level }, save.meta);
       this.zones = RS.pkZoneCount(this.level);
       if (opt.kind === 'cup') {
-        this.round = Math.max(0, Math.min(RS.CUP_ROUNDS.length - 1, opt.round | 0));
-        this.def = { cup: true, all: true, nat: true, title: '승부차기 토너먼트 · ' + RS.CUP_ROUNDS[this.round].name, vs: opt.vs, keeper: opt.keeper };
+        this.round = Math.max(0, Math.min(this.st.rounds.length - 1, opt.round | 0));
+        this.def = { cup: true, all: true, nat: true, title: this.st.icon + ' ' + this.st.name + ' · ' + this.st.rounds[this.round].name, vs: opt.vs, keeper: opt.keeper };
         this.keeperId = opt.keeper;
         this.so = RS.newShootout(this.rng() < 0.5 ? 'us' : 'them');
-        this.us = RS.soUsName(this.hero, 0, this.def);
+        this.us = this.st.pre + RS.soUsName(this.hero, 0, this.def);
       } else if (opt.kind === 'shootout') {
         this.def = RS.shootoutFor(this.hero, this.idx);
         this.keeperId = this.def.keeper;
@@ -497,8 +567,9 @@
       }
       this.keeper = RS.PK_KEEPERS[this.keeperId];
       // the 토너먼트: the national team's keeper (RS.CUP_KEEPER at least) and each round's opposing kickers (oppMiss)
-      this.ourK = this.kind === 'cup' ? Math.max(RS.CUP_KEEPER, RS.soOurKeeper(b)) : RS.soOurKeeper(b);
-      this.oppMiss = this.kind === 'cup' ? RS.CUP_ROUNDS[this.round].miss : null;
+      // (round 22: a youth stage has its own keeper, not the career's)
+      this.ourK = this.kind !== 'cup' ? RS.soOurKeeper(b) : this.stage === RS.CUP_WC ? Math.max(RS.CUP_KEEPER, RS.soOurKeeper(b)) : this.st.ourK;
+      this.oppMiss = this.kind === 'cup' ? this.st.rounds[this.round].miss : null;
       this.ourKeeper = { name: '우리 골키퍼', rating: this.ourK, look: RS.PK_OUR_LOOK };
       this.rage = false; // the other keeper's 분노 모드 (round 16)
       this.kicks = []; // the hero's own kicks: { goal, res }
@@ -551,7 +622,7 @@
         out.score = [this.so.us.filter(Boolean).length, this.so.them.filter(Boolean).length];
         const rec = RS.normalizePk(this.save.meta.pk).heroes[this.hero];
         if (out.won) rec.won++; else rec.lost++;
-        out.cup = RS.cupResult(this.save, this.round, out.won, this.rng);
+        out.cup = RS.cupResult(this.save, this.round, out.won, this.rng, this.stage, this.hero);
         if (out.cup.reward && out.cup.reward.coins) out.coins = out.cup.reward.coins;
       } else {
         const won = this.so ? !!this.so.won : goals > 0;
@@ -563,4 +634,4 @@
   }
   RS.PKSession = PKSession;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R20';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R21';

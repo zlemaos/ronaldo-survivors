@@ -145,7 +145,7 @@
       this.needleAt = deg;
       this.acc = RS.pkNeedleGrade(deg - this.target, this.timing);
       this.perfect = RS.pkPerfect(this.power, this.acc, this.o.fin);
-      this.sfx.push(this.perfect ? 'perfectLock' : this.acc === 'great' ? 'sparkle' : this.acc === 'good' ? 'tap' : 'warn');
+      this.sfx.push(this.perfect ? 'perfectLock' : this.acc === 'great' || this.acc === 'fine' ? 'sparkle' : this.acc === 'good' ? 'tap' : 'warn');
       this.go('runup');
     }
     pickDive(c) { this.dive = c; this.sfx.push('click'); this.go('runup'); }
@@ -175,7 +175,7 @@
         case 'acc': {
           // the AI stops the needle where its roll says; a player who lets it run two turns misses
           if (b) {
-            const off = b.acc === 'great' ? 0 : b.acc === 'good' ? this.timing.great / 2 + (this.timing.good - this.timing.great) / 4 : this.timing.good / 2 + 12;
+            const T = this.timing, off = b.acc === 'great' ? 0 : b.acc === 'fine' ? T.great / 2 + (T.fine - T.great) / 4 : b.acc === 'good' ? T.fine / 2 + (T.good - T.fine) / 4 : T.good / 2 + 12;
             const stopAt = (this.target + off) / 360 / this.timing.needle;
             if (this.t >= stopAt) this.stopNeedle(this.target + off);
           } else if (this.t * this.timing.needle >= 2) this.stopNeedle(this.target + 180);
@@ -350,4 +350,4 @@
   }
   RS.PKScene = PKScene;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkscene = 'R20';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkscene = 'R21';

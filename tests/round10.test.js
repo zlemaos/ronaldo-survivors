@@ -128,6 +128,7 @@ test('PK zones open with the level (3 → 6 → 9); the needle grades great / go
   const lo = RS.pkTiming(55), hi = RS.pkTiming(95);
   assert.ok(lo.needle > hi.needle && lo.good < hi.good && lo.great < hi.great, 'a young kicker gets a faster needle and narrower arcs');
   assert.equal(RS.pkNeedleGrade(lo.great / 2 - 0.5, lo), 'great');
+  assert.equal(RS.pkNeedleGrade(lo.fine / 2 - 0.5, lo), 'fine', 'round 22: the yellow band between blue and white');
   assert.equal(RS.pkNeedleGrade(-(lo.good / 2 - 0.5), lo), 'good');
   assert.equal(RS.pkNeedleGrade(lo.good / 2 + 1, lo), 'miss');
   assert.equal(RS.pkNeedleGrade(360 + 1, lo), 'great', 'wraps around the dial');

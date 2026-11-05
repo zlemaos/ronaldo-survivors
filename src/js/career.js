@@ -35,7 +35,7 @@
       // pk: matches played and each hero's penalties (RS.normalizePk)
       // unlocked: heroes opened in play (round 11: torres, by beating him after 드록빠)
       // cup: the 승부차기 토너먼트 record (RS.normalizeCup); its rewards are unlocked keys too (RS.CUP_REWARDS)
-      meta: { coins: 0, ballons: 0, upgrades: {}, ballonYears: [], muted: false, totalKills: 0, wins: 0, diff: 'normal', auto: 'off', pk: { games: 0, heroes: {} }, unlocked: {}, cup: { played: 0, wins: 0, best: 0 } }
+      meta: { coins: 0, ballons: 0, upgrades: {}, ballonYears: [], muted: false, totalKills: 0, wins: 0, diff: 'normal', auto: 'off', pk: { games: 0, heroes: {} }, unlocked: {}, cup: { played: 0, wins: 0, best: 0, stage: { ronaldo: 0, messi: 0, torres: 0 } } }
     };
   };
   RS.AUTO_MODES = ['off', 'semi', 'full'];
@@ -578,4 +578,4 @@
     return true;
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).career = 'R20';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).career = 'R21';

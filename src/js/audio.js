@@ -88,17 +88,21 @@
       if (this.ctx && this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
       if (this.routeEl && this.routeEl.paused) { const p = this.routeEl.play(); if (p && p.catch) p.catch(() => {}); }
     },
+    // round 22 (the user: siuuu소리가 너무 커): the clip is mastered far louder than the chiptune, so it plays at
+    // SIU_TRIM of the slider — saved slider values get quieter too
+    SIU_TRIM: 0.45,
     siuu() {
       if (this.muted || !this.unlocked) return;
+      const v = this.vol.siu * this.SIU_TRIM;
       if (this.ctx && this.siuuBuf && this.ctx.state === 'running') {
         try {
           const s = this.ctx.createBufferSource(); s.buffer = this.siuuBuf;
-          const g = this.ctx.createGain(); g.gain.value = this.vol.siu;
+          const g = this.ctx.createGain(); g.gain.value = v;
           s.connect(g); g.connect(this.siuGain); s.start();
           return;
         } catch (e) { /* fall through to the element */ }
       }
-      if (this.siuuEl) { try { this.siuuEl.volume = this.vol.siu; this.siuuEl.currentTime = 0; const p = this.siuuEl.play(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* ignore */ } }
+      if (this.siuuEl) { try { this.siuuEl.volume = v; this.siuuEl.currentTime = 0; const p = this.siuuEl.play(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* ignore */ } }
     },
     tone(freq, dur, type, vol, slide, delay) {
       const c = this.ctx;
@@ -228,4 +232,4 @@
   };
   RS.Audio = A;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).audio = 'R20';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).audio = 'R21';

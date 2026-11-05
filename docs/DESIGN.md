@@ -665,6 +665,20 @@ for passives, weapons and items alike.
   ~17.5 % 날두 / ~10 % 메시 champions). Example, 노이어르 top-left corner: gold 87 %, white 71 %, missed 21 %.
   Shot types re-tuned to keep their niches: 발등슛 drift 1.3, 감아차기 drift 0.88 / save 1.45.
 
+### Round 22 (version R21): a three-band dial, the cup climbs from the youth stages, a quieter SIUUU
+- The user: "정확도 좋음인데도 다 빗나감 … 파란색 노란색 흰색 이렇게". White sent about a third of top-corner strikes
+  wide. The dial now has blue `great` in the middle (the old gold width: with the blue power band the perfect strike),
+  yellow `fine` (`RS.pkTiming().fine`, 12°–18°) and white `good`. `RS.PK_ACC_ERR` great 0 / fine 0.15 / good 0.35 /
+  miss 2.2; the power-distance term is divided by 0.11 (was 0.09); `RS.PK_SAVE_K` 0.8. Top corner on a green strike:
+  white wide 27 % → 14 %, a missed needle still ~73 % wide.
+- The user: "승부차기도 바로 첨부터 월드컵이 아니라 청소년때부터 올라가게해 서사 있게". `RS.CUP_STAGES`: 유소년 대회
+  (U-17, Lv.20: three ground zones, 2 rounds, youth keepers 58–63) → 청소년 대회 (U-20, Lv.45: six zones, 3 rounds,
+  68–77) → the continent's cup (유로; 메시 the 코파 아메리카 with 칠레 in the final pool; Lv.70, 3 rounds) → 월드컵
+  (`RS.CUP_ROUNDS`, the SIUUU reward as before). Per hero in `meta.cup.stage`; a title opens the next stage and pays
+  its coins (150 / 300 / 500), a loss replays the stage. A stage's first round shows its line of `RS.CUP_STORY`.
+  No stage given = the 월드컵 (older callers). Sim, a good player: about 57 % → 24 % → 14 % → 9 % per stage.
+- SIUUU clip at `RS.Audio.SIU_TRIM` (0.45) of its slider. Tests `tests/round22.test.js`.
+
 ### Round-2 tuning (before → after)
 
 | Value | Before | After |

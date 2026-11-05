@@ -113,7 +113,7 @@ test('each reward is its hero\'s gift move; unlocking it puts nothing in hand', 
   assert.deepEqual(back.meta.cup, s.meta.cup);
   // a save from before round 15 loads with an empty record
   const pre = JSON.parse(JSON.stringify(s)); delete pre.meta.cup;
-  assert.deepEqual(RS.loadSave(memStore(JSON.stringify(pre))).meta.cup, { played: 0, wins: 0, best: 0 });
+  assert.deepEqual(RS.loadSave(memStore(JSON.stringify(pre))).meta.cup, { played: 0, wins: 0, best: 0, stage: { ronaldo: 0, messi: 0, torres: 0 } });
 }));
 
 // A player's save (2026-11-05): the active 메시 career at schema 3 and a 날두 career parked before round 11, with no

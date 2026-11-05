@@ -380,4 +380,4 @@
   };
   R.pkKickPose = poseAt; // for checks
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkkick = 'R20';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkkick = 'R21';
