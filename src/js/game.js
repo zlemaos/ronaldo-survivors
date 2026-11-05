@@ -55,8 +55,15 @@
   RS.weaponMul = (w) => (w ? RS.gradeOf(w.g).mul * (1 + RS.PLUS_STEP * (RS.plusOf(w.p) - 1)) : 1);
   RS.weaponPower = (w) => Math.round(100 * RS.weaponMul(w)); // 무기 공격력 on the cards (일반 +1 = 100)
   RS.weaponBetter = (a, b) => !b || RS.weaponMul(a) > RS.weaponMul(b) + 1e-9;
-  // Moves a hero can wield at grade g: his own, no story gifts (RS.EVENTS teach those), 합체 moves from 영웅 up.
-  RS.weaponIds = (hero, g) => Object.keys(RS.SKILLS).filter((id) => RS.skillFor(id, hero) && !RS.SKILLS[id].gift && (!RS.SKILLS[id].fusion || g >= RS.FUSED_FROM));
+  // Moves a hero can wield at grade g: his own, no story gifts (RS.EVENTS teach those), 합체 moves from SS up, and a
+  // move with a story condition (need: a build flag, e.g. 제토라인 once 제라두 has joined) only for a build that met it.
+  RS.weaponIds = (hero, g, b) => Object.keys(RS.SKILLS).filter((id) => RS.skillFor(id, hero) && !RS.SKILLS[id].gift && (!RS.SKILLS[id].fusion || g >= RS.FUSED_FROM) && (!RS.SKILLS[id].need || !!(b && b.flags && b.flags[RS.SKILLS[id].need])));
+  // Every owned weapon loses n grades (a knee that gave way: RS.EVENTS.wc2010). Never below B; the hand is re-synced.
+  RS.downgradeWeapons = function (b, n) {
+    for (const w of [b.weapon].concat(b.armory || [])) w.g = RS.clampGrade(w.g - (n || 1));
+    RS.syncWeapon(b);
+    return b;
+  };
   // The mirror the World and the Renderer read: one move at the grade's table row (RS.GRADES lv); 전설 is its
   // evolved form (the 회전 공 only once a 발롱도르 is won), with the variant w.v for moves that have several.
   RS.syncWeapon = function (b) {
@@ -121,7 +128,7 @@
   // A random weapon: a grade from `odds` (a season's RS.GRADE_STAGES row, a 무기 상자, 토레쓰's reward), a move of
   // this hero for that grade, a 강화.
   RS.rollWeapon = function (b, rng, odds) {
-    const g = RS.rollGrade(rng, odds), ids = RS.weaponIds(b.hero, g);
+    const g = RS.rollGrade(rng, odds), ids = RS.weaponIds(b.hero, g, b);
     const id = ids[Math.floor(rng() * ids.length)], evos = RS.SKILLS[id].evos;
     const w = { id, g, p: RS.rollPlus(rng, RS.WEAPON_PLUS_W) };
     if (evos) { const ks = Object.keys(evos); w.v = ks[Math.floor(rng() * ks.length)]; }
@@ -135,7 +142,7 @@
     const top = (RS.DIFFS[RS.DIFF] || RS.DIFFS.normal).top;
     if (top == null || top === 1) return o;
     const r = o.slice();
-    for (const g of [3, 4]) { r[2] += r[g] * (1 - top); r[g] *= top; }
+    for (let g = 3; g < r.length; g++) { r[2] += r[g] * (1 - top); r[g] *= top; }
     return r;
   };
   // The weapon card of a level-up: a few rolls for one worth taking (a move not owned, or a better copy).
@@ -347,8 +354,13 @@
     if (!COACH_CARDS) {
       COACH_CARDS = {};
       for (const ck of Object.keys(RS.COACHES)) for (const c of RS.COACHES[ck].cards) COACH_CARDS[c.id] = c;
-      // story-event lessons with a lasting effect are kept like coach cards
-      for (const ev of Object.values(RS.EVENTS || {})) for (const c of ev.cards) if (c.mods) COACH_CARDS[c.id] = c;
+      // story-event lessons with a lasting effect are kept like coach cards (round 14: the fx of a card or of each
+      // of its rolled outcomes too, under the card id + the outcome index — RS.applyEvent)
+      for (const ev of Object.values(RS.EVENTS || {})) for (const c of RS.eventCards(ev)) {
+        if (c.mods) COACH_CARDS[c.id] = c;
+        if (c.fx && c.fx.mods) COACH_CARDS[c.id] = { id: c.id, name: ev.title, icon: c.icon, desc: c.desc, mods: c.fx.mods };
+        (c.rolls || []).forEach((o, i) => { if (o.fx && o.fx.mods) COACH_CARDS[c.id + '_' + i] = { id: c.id + '_' + i, name: ev.title, icon: c.icon, desc: o.text, mods: o.fx.mods }; });
+      }
       // press-conference outcomes too (RS.pressCardId), and the stand-in for a move taught on a full skill bar
       for (const pid of Object.keys(RS.PRESS || {})) for (const ch of RS.PRESS[pid].choices) {
         const outs = ch.rolls ? ch.rolls.map((o, i) => [o, i]) : [[ch.result, null]];
@@ -383,9 +395,11 @@
     add(RS.fanTier(build).mods, 1); // 민심
     if (RS.smallBody(build)) add(RS.SMALL_BODY, 1);
     const hero = (RS.HEROES && RS.HEROES[build.hero]) || { moveMul: 1 };
+    // 첼씨 토레쓰 (round 14): his own grade scales his damage and HP (RS.CHELSEA; B fights at 82 %, SSS at 125 %)
+    const hg = RS.heroGrade ? RS.heroGrade(build) : null, hgMul = hg == null ? 1 : RS.CHELSEA.mul[hg], hgHp = hg == null ? 0 : RS.CHELSEA.hp[hg];
     return {
-      dmg: 1 + a.dmg, cd: Math.max(0.45, 1 + a.cd), area: 1 + a.area, projSpeed: 1 + a.projSpeed,
-      move: RS.BASE_MOVE * hero.moveMul * (1 + a.moveSpeed), maxHp: Math.round(100 + a.hp + (build.bonusHp || 0)), magnet: 38 * (1 + a.magnet),
+      dmg: (1 + a.dmg) * hgMul, cd: Math.max(0.45, 1 + a.cd), area: 1 + a.area, projSpeed: 1 + a.projSpeed,
+      move: RS.BASE_MOVE * hero.moveMul * (1 + a.moveSpeed), maxHp: Math.round(100 + a.hp + hgHp + (build.bonusHp || 0)), magnet: 38 * (1 + a.magnet),
       crit: Math.min(0.9, 0.05 + a.crit), dur: 1 + a.dur, regen: a.regen, armor: a.armor, xp: 1 + a.xp,
       gold: 1 + a.gold, teamDmg: 1 + a.teamDmg, teamCd: Math.max(0.5, 1 + a.teamCd), bossDmg: 1 + a.bossDmg,
       revive: a.revive, reroll: a.reroll + (build.bonusReroll || 0), armor: Math.round(a.armor), luck: a.luck,
@@ -451,7 +465,7 @@
         if (RS.mateInSeason(list[i].id, yearIdx)) continue;
         out.gone.push(list[i].id);
         const next = RS.mateCandidates(build, yearIdx).sort((a, b) => RS.TEAMMATES[b].ovr - RS.TEAMMATES[a].ovr)[0];
-        if (next) { list[i] = { id: next, lv: list[i].lv }; out.joined.push(list[i]); } else list.splice(i--, 1);
+        if (next) { list[i] = { id: next, lv: list[i].lv }; out.joined.push(list[i]); RS.mateJoined(build, next); } else list.splice(i--, 1);
       }
     }
     while (build.teammates.length < RS.MAX_MATES && build.bench.length) build.teammates.push(build.bench.shift());
@@ -463,9 +477,28 @@
   RS.addMate = function (build, id, lv) {
     if (!RS.TEAMMATES[id] || RS.allMates(build).some((m) => RS.samePerson(m.id, id))) return false;
     const m = { id, lv: Math.max(1, Math.min(RS.MATE_MAX_LV, lv | 0 || 1)) };
-    if (build.teammates.length < RS.MAX_MATES) { build.teammates.push(m); return 'pitch'; }
-    if (build.bench.length < RS.MAX_BENCH) { build.bench.push(m); return 'bench'; }
+    if (build.teammates.length < RS.MAX_MATES) { build.teammates.push(m); RS.mateJoined(build, id); return 'pitch'; }
+    if (build.bench.length < RS.MAX_BENCH) { build.bench.push(m); RS.mateJoined(build, id); return 'bench'; }
     return false;
+  };
+  // A teammate joined (any way in): the story marks he leaves. 제라두 (round 14) unlocks 제토라인 for the career
+  // (RS.SKILLS.zeto need 'zeto'); the UI tells the player once (RS.unlockNote).
+  RS.MATE_UNLOCKS = { gerrardo: { flag: 'zeto', note: '🔗 제토라인 해금! 제라두와 호흡을 맞췄다 · 이제 레벨업·무기 상자에서 제토라인이 나온다' } };
+  RS.mateJoined = function (build, id) {
+    const u = RS.MATE_UNLOCKS[id];
+    if (!u || !build.flags) return null;
+    if (build.flags[u.flag]) return null;
+    build.flags[u.flag] = true;
+    build.flags[u.flag + 'New'] = true; // shown once by the UI
+    return u.note;
+  };
+  // The one-time notice of an unlock still to show (cleared when read).
+  RS.unlockNote = function (build) {
+    for (const id of Object.keys(RS.MATE_UNLOCKS)) {
+      const u = RS.MATE_UNLOCKS[id];
+      if (build.flags && build.flags[u.flag + 'New']) { delete build.flags[u.flag + 'New']; return u.note; }
+    }
+    return null;
   };
   // 뻽's 티키타카 (RS.EVENTS.pep): 챠비 and 니에미스타 take the two pitch places (keeping their level when already in
   // the squad, else Lv.1). Whoever stood there steps down to the bench; when it overflows, the lowest-level bench
@@ -705,7 +738,7 @@
     if (!RS.TEAMMATES[newId] || RS.allMates(build).some((m) => m.id !== outId && RS.samePerson(m.id, newId)) || outId === newId) return false;
     for (const list of [build.teammates, build.bench]) {
       const i = list.findIndex((m) => m.id === outId);
-      if (i >= 0) { list[i] = { id: newId, lv: lv ? Math.max(1, Math.min(RS.MATE_MAX_LV, lv | 0)) : list[i].lv }; return true; }
+      if (i >= 0) { list[i] = { id: newId, lv: lv ? Math.max(1, Math.min(RS.MATE_MAX_LV, lv | 0)) : list[i].lv }; RS.mateJoined(build, newId); return true; }
     }
     return false;
   };
@@ -857,6 +890,7 @@
 
     // ------------------------------------------------------------ main step
     update(dt, input) {
+      if (this.phase === 'cine') { this.updateCine(dt); return; }
       if (this.phase !== 'play') { this.updateFx(dt); return; }
       this.snapPrev();
       this.frame++;
@@ -981,13 +1015,16 @@
         const n = this.tune.minis;
         this.makeRoom(n);
         const base = this.rng() * TAU, R = this.spawnRadius() * 0.9;
+        // 이빨괴물 수아레즈 (round 14): beaten once as a season boss (build.flags.suarez), he takes one 준보스 place
+        // some waves — never in the season that has him as its boss
+        const suarez = !!(this.build.flags && this.build.flags.suarez) && this.yearDef.boss.type !== 'suarez' && this.rng() < RS.SUAREZ.miniOdds;
         for (let i = 0; i < n; i++) {
           const a = base + i * (TAU / n);
-          const type = this.rng.pick(RS.MINI_TYPES);
+          const type = suarez && i === 0 ? 'suarezmini' : this.rng.pick(RS.MINI_TYPES);
           this.spawnEnemy(type, this.player.x + Math.cos(a) * R, this.player.y + Math.sin(a) * R, { mini: true });
         }
         this.emit('mini', { n });
-        this.emit('banner', { text: n > 1 ? '⚠️ 준보스 ' + n + '명 등장!' : '⚠️ 준보스 등장!' });
+        this.emit('banner', { text: suarez ? '🦷 이빨괴물 수아레즈 난입!' + (n > 1 ? ' 준보스 ' + n + '명' : '') : n > 1 ? '⚠️ 준보스 ' + n + '명 등장!' : '⚠️ 준보스 등장!' });
       } else if (kind === 'bus') { // 버스 수비 / 철벽: two rows of heavy defenders sweep straight across the pitch —
         // break a gap through the line or run around its end
         const n = 5 + Math.min(5, Math.floor(idx / 4)); // per row (round 11: was 7 + idx / 3, the 첼씨 seasons were a wall of men)
@@ -1070,6 +1107,82 @@
       this.emit('torresEnd', { win: false, name: e.name });
       this.phase = 'clear';
       this.emit('clear');
+    }
+
+    // 캄프 누 900억 일시불 골 (round 14, RS.YEARS[].cine): the last 첼씨 시련 ends with the goal played out in the
+    // game's own pixels — the crowd walks off, a goal appears up the pitch with the keeper (발기스) in front of it,
+    // 토레쓰 runs on alone from the half line, steps round the keeper's dive, rolls the ball in, and slides on his
+    // knees — then the season clears like any other. Scripted on the fixed step (World.updateCine), so a seed replays
+    // it the same; the renderer only reads fx ('goal', 'cball', 'lob') and the player's usual poses.
+    startCine(kind, boss) {
+      const p = this.player;
+      this.phase = 'cine';
+      this.boss = null; this.torres = null;
+      for (const e of this.enemies) if (e.alive) { e.alive = false; this.addFx('poof', e.x, e.y, { dur: 0.35, seed: e.uid }); }
+      this.eprojs.length = 0; this.projs.forEach((pr) => { pr.alive = false; });
+      p.dash = null; p.jump = 0; p.kickT = 0; p.iframe = 0; p.hurtT = 0; p.moving = false; p.vx = p.vy = 0; // nobody hits him now; no blink
+      const gx = p.x + 44, gy = p.y - 196; // the goal, up the pitch (a little right: the sidestep ends under it); the run covers most of it
+      const k = this.spawnEnemy('grunt', gx, gy + 22, {});
+      k.boss = true; k.sprite = boss && boss.sprite !== 'bkeeper' ? 'bkeeper' : 'bkeeper'; k.cine = true; k.ai = null; k.invuln = true;
+      k.r = 14; k.name = this.yearDef.boss.name; k.maxHp = k.hp = 1e9; k.face = p.x < k.x ? -1 : 1; k.xp = 0;
+      this.addFx('goal', gx, gy, { dur: 99, w: 60 });
+      this.addFx('cball', p.x, p.y, { dur: 99, follow: true, side: 1 });
+      this.cine = { t: 0, step: 0, gx, gy, k, y0: p.y, x0: p.x, kind };
+      this.emit('cine', { kind, text: '⏱ 추가시간 — 하프라인에 토레쓰 혼자!' });
+      this.emit('sfx', { name: 'whistle' });
+    }
+    updateCine(dt) {
+      const c = this.cine, p = this.player, k = c.k;
+      if (!c) { this.phase = 'clear'; this.emit('clear'); return; }
+      this.snapPrev();
+      this.frame++;
+      c.t += dt; this.t += dt;
+      p.animT += dt;
+      if (p.kickT > 0) p.kickT -= dt;
+      const at = (n, t0) => { if (c.step === n && c.t >= t0) { c.step = n + 1; return true; } return false; };
+      if (c.step <= 0) { // the run from the half line, ball at his feet; the keeper edges out to meet him
+        p.moving = true; p.diry = -1; p.dirx = 0; p.y -= 82 * dt;
+        k.y += 10 * dt;
+        if (Math.floor(c.t * 12) !== Math.floor((c.t - dt) * 12)) this.addFx('poof', p.x, p.y + 6, { dur: 0.18, seed: c.t });
+      }
+      if (at(0, 1.75)) { c.dive = { x: k.x, y: k.y, tx: p.x - 4, ty: p.y - 22 }; this.emit('sfx', { name: 'warn' }); }
+      if (c.step === 1) { // the keeper dives at the ball; 토레쓰 drags it to the right and steps round him
+        const d = c.dive, u = Math.min(1, (c.t - 1.75) / 0.4);
+        k.x = d.x + (d.tx - d.x) * u; k.y = d.y + (d.ty - d.y) * u; k.face = -1;
+        p.moving = true; p.face = 1; p.dirx = 1; p.x += 118 * dt; p.y -= 26 * dt;
+        if (Math.floor(c.t * 20) % 2 === 0) this.addFx('strail', p.x, p.y, { dur: 0.3, dx: 1, dy: -0.2 });
+      }
+      if (at(1, 2.2)) { // the finish: a roll into the far side of the goal
+        p.moving = false; p.kickT = 0.35; p.face = -1;
+        for (const f of this.fx) if (f.kind === 'cball') f.dur = 0;
+        this.addFx('lob', c.gx - 16, c.gy - 2, { dur: 0.55, x0: p.x - 6, y0: p.y, white: true, low: true });
+        this.emit('sfx', { name: 'kick' });
+      }
+      if (at(2, 2.8)) { // GOAL
+        this.addFx('shock', c.gx - 16, c.gy - 2, { r: 30, dur: 0.5, color: '#ffffff' });
+        this.addFx('boom', c.gx - 16, c.gy, { r: 44, dur: 0.7 });
+        this.pfx('bigExplosion', c.gx - 16, c.gy + 2, { palette: RS.PFX_GOLD });
+        this.emit('shake', { k: 0.4 });
+        this.emit('banner', { text: '⚽ GOAL!!! 캄프 누 900억 일시불 골' });
+        this.emit('sfx', { name: 'horn' }); this.emit('sfx', { name: 'cheer' });
+        this.emit('siuu');
+        this.cleared = true;
+      }
+      if (c.step === 3 && c.t >= 3.25) { // the knee slide, back down the pitch toward the camera
+        if (!c.slid) { c.slid = true; p.face = -1; this.emit('sfx', { name: 'dash' }); this.addFx('martial', p.x, p.y, { dur: 1.2, ch: '900억!', n: 2, follow: true }); }
+        const u = Math.min(1, (c.t - 3.25) / 1.1);
+        p.moving = false; p.kickT = 0; p.jump = 0;
+        p.y += (1 - u) * 110 * dt; p.x -= (1 - u) * 20 * dt;
+        if (Math.floor(c.t * 24) % 2 === 0 && u < 1) this.addFx('strail', p.x, p.y + 4, { dur: 0.35, dx: -0.2, dy: 1 });
+      }
+      if (at(3, 5.2)) {
+        for (const f of this.fx) if (f.kind === 'goal') f.dur = 0;
+        k.alive = false;
+        this.phase = 'clear';
+        this.emit('clear');
+      }
+      this.updateFx(dt);
+      this.cleanup();
     }
 
     // The season boss, the 클라시코 rival and 토레쓰 get the stage (RS.BOSS_CROWD): the ordinary crowd but the `keep`
@@ -2154,6 +2267,8 @@
         if (this.yearDef.final) {
           this.phase = 'victory';
           this.emit('victory');
+        } else if (this.yearDef.cine) { // round 14: the 캄프 누 goal is played out before the clear (World.startCine)
+          this.startCine(this.yearDef.cine, e);
         } else {
           this.phase = 'clear';
           this.emit('clear');
@@ -3159,7 +3274,7 @@
     exportBuild() { return RS.cloneBuild(this.build); }
     power() { return RS.powerScore(this.build, this.youth); }
     result() {
-      const cleared = this.phase === 'clear' || this.phase === 'victory';
+      const cleared = this.phase === 'clear' || this.phase === 'victory' || this.phase === 'cine'; // cine: the boss is down, the goal is playing out
       const base = this.coinsPicked + this.kills * RS.CROWD.value / 8 + (cleared ? 40 + 8 * this.lvl : 0);
       return { cleared, kills: this.kills, time: this.t, level: this.build.level, coins: Math.round(base * this.stats.gold), recruited: this.recruitedThisRun.slice(),
         rival: this.rivalResult, rivalName: this.yearDef.rival ? RS.RIVAL[this.yearDef.rival].name : null, torres: this.torresResult };
@@ -3286,4 +3401,4 @@
     };
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).game = 'R13.3';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).game = 'R14';

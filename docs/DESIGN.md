@@ -569,6 +569,44 @@ for passives, weapons and items alike.
   에바야"): off it he only walks in (and still catches up on a runner), so fleeing buys a breather. An attack already
   under way finishes.
 
+### Round 14: letter ranks with GOAT · SIUUU, 제토라인, 토레쓰's 2010 · 2011 · 2014 choices, the 캄프 누 goal
+
+- **Ladder** (`RS.GRADES`, `RS.GRADE_TOP` = 4): 일반 · 고급 · 희귀 · 영웅 · 전설 read as B · A · S · SS · SSS (the user:
+  "직관적으로 알파벳으로 … 제일 높은 걸 SSS로"); above them GOAT (×3.7, pmul 2.2, magenta) and SIUUU (×5, pmul 3,
+  ice-cyan with a cycling edge). Odds (`RS.GRADE_STAGES`, 7 columns): GOAT one card in 100,000 until the wall
+  season, then 0.05 % → 0.6 % taken from SSS; SIUUU one in a million from the debut ("벼락맞을 확률"). Items stop at
+  SSS; 하드's `top` cuts every grade above SS; `RS.ENHANCE.cost` has two more steps. Saves before schema 4 cap any
+  grade index at SSS (`RS.migrateCareer`). CSS: `.card.g-5` / `.g-6`, `.g-text`, `.chip`, `.shop-item`.
+- **제토라인** (`RS.SKILLS.zeto`, 토레쓰, `need: 'zeto'`): 제라두's homing long balls played from him (`passer`, the
+  'missile' behaviour) and finished by 토레쓰. `RS.weaponIds(hero, g, build)` only deals a `need` move to a build whose
+  flag is set; the flag is set the moment 제라두 joins by any route (`RS.addMate` / `swapMate` / `releaseOffSeason` →
+  `RS.mateJoined`, `RS.MATE_UNLOCKS`) and the UI tells it once (`RS.unlockNote`). Unlocked, not given: it then comes
+  from level-up cards and 무기 상자 at the usual grade odds.
+- **2010 월드컵** (`RS.EVENTS.wc2010` on the 2010 season): play on the knee — 60 % 우승 (+12 % boss damage), 40 % the
+  knee gives way (`fx.gradeDown: 2`: every owned weapon −2 grades, `RS.downgradeWeapons`) — or rest (+15 HP, knee
+  `fit`). **2014** (`wc2014`, both paths; `variants` by `flags.knee`): fit → safe +8 % / +10 HP; ok → 25 % −1 grade;
+  bad → the gamble, 40 % +15 % / 60 % −2 grades −10 HP. Event cards may now carry `fx` / `rolls` like press answers
+  (`RS.applyEvent`, `RS.applyEventFx`; lasting mods register as coach cards under the card id + roll index).
+- **2011 crossroads** (`RS.PRESS.crossroads`, `prevLook` so he still stands in 리버풀 red): "런던으로" or "안필드에".
+  The career's path (`build.flags.path`) picks its season list — `RS.HEROES.torres.paths`, `RS.yearsFor`,
+  `RS.selectHero(hero, build)`; saves re-point on load. 첼씨: four 시련 seasons (`ctrial` 1–4, two 2011 and two 2012
+  entries; 21 seasons), each opened by a 회상 of a flop (`recall`: a one-answer `RS.PRESS` scene, `career.recallDone`,
+  `RS.needsRecall`) and each clear lifting 첼씨 토레쓰 one grade (`flags.cgrade`; `RS.heroGrade`, `RS.CHELSEA.mul` ×0.82
+  … ×1.25 on damage and −15 … +25 HP in `RS.computeStats`). 리버풀 (`RS.YEARS_TORRES_LFC`, 19 seasons): 칭호 안필드의
+  9번 (+5 % / +10 HP, `flags.lfcTitle`), 이빨괴물 수아레즈 as the 2011 boss (`RS.BOSS_TYPES.suarez`) who, once beaten
+  (`flags.suarez`), takes a 준보스 place in `RS.SUAREZ.miniOdds` of later waves (`RS.ENEMIES.suarezmini`, sprite
+  `bsuarez`); 제라두 and the 리버풀 men stay through 2014 (new: 헨더쓴, 슈크르뗄, 미뇰레, 스터리지, 쿠치뉴); coaches
+  킹 케니, 로저쓰.
+- **The 캄프 누 goal** (`RS.YEARS[13].cine = 'goal900'`, `World.startCine` / `updateCine`, phase `cine`): when the last
+  시련's boss falls the crowd walks off, a goal (`fx 'goal'`) stands up the pitch with the keeper in front, 토레쓰 runs
+  on with the ball at his feet (`fx 'cball'`), steps round the dive, rolls it in (`fx 'lob'`, `low`), GOAL banner,
+  then slides on his knees — about 5 s on the fixed step, then the usual clear (`World.result` counts `cine` as
+  cleared). All four cleared: `meta.unlocked.torresBlue`; every new 토레쓰 career is then 성공한 첼씨 토레쓰
+  (`RS.dressBuild`: `flags.blue`, SSS, the 첼씨 path from the start, no crossroads; `RS.TORRES_BLUE` dresses the
+  sprite in blue all career).
+- Tests: `tests/round14.test.js` (ladder and odds, the schema-4 cap, 제토라인 gating and firing, both 월드컵 choices,
+  both 2011 paths to their ends including the cinematic and the unlock, 날두 untouched).
+
 ### Round-2 tuning (before → after)
 
 | Value | Before | After |

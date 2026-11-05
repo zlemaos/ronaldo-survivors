@@ -4,7 +4,7 @@ body.hurt-flash::after {
   box-shadow: inset 0 0 70px 24px rgba(255, 40, 40, 0.55);
 }
 :root {
-  --build: "R13.3"; /* the build of this file (App.mixedFiles; bump with RS.VERSION) */
+  --build: "R14"; /* the build of this file (App.mixedFiles; bump with RS.VERSION) */
   --bg: #0b1d12;
   --panel: rgba(12, 22, 16, 0.94);
   --line: rgba(255, 255, 255, 0.14);
@@ -194,6 +194,7 @@ h2 { font-size: 22px; }
 .shop-h .dim { color: var(--muted); font-weight: 700; font-size: 11px; }
 .shop-item.g-0 { border-color: #7d8693; } .shop-item.g-1 { border-color: #46d36e; } .shop-item.g-2 { border-color: #3d8bff; }
 .shop-item.g-3 { border-color: #b05cff; } .shop-item.g-4 { border-color: #ffc83a; box-shadow: 0 0 12px rgba(255,200,58,0.35); }
+.shop-item.g-5 { border-color: #ff4fd8; box-shadow: 0 0 14px rgba(255,79,216,0.4); } .shop-item.g-6 { border-color: #8df9ff; box-shadow: 0 0 16px rgba(141,249,255,0.5); }
 .shop-item.hand { background: rgba(255,214,102,0.08); }
 .shop-item .btn + .btn { margin-left: 4px; }
 .shop-btns { display: flex; flex-direction: column; gap: 4px; }
@@ -253,13 +254,30 @@ ul.howto { text-align: left; padding-left: 4px; list-style: none; margin: 0; dis
   background-image: linear-gradient(110deg, transparent 38%, rgba(255,246,205,0.38) 50%, transparent 62%); animation: shine 2.4s ease-in-out infinite; }
 .card.g-4 .tg { background: #ffc83a; color: #2a1a00; }
 .card.g-4 .n { color: #ffe9a0; }
-.card.g-2 .hn, .card.g-3 .hn, .card.g-4 .hn { color: #eef0ff; }
+.card.g-2 .hn, .card.g-3 .hn, .card.g-4 .hn, .card.g-5 .hn, .card.g-6 .hn { color: #eef0ff; }
 @keyframes shine { from { background-position: 130% 0; } to { background-position: -130% 0; } }
+/* round 14: GOAT (magenta, a fast sweep) and SIUUU (ice white-cyan, a rainbow edge that cycles) above SSS */
+.card.g-5 { position: relative; overflow: hidden; border: 3px solid #ff4fd8; background: linear-gradient(180deg, #5a0f48, #2a0622);
+  box-shadow: 0 0 26px rgba(255,79,216,0.8); }
+.card.g-5::after { content: ''; position: absolute; inset: 0; pointer-events: none; background-size: 260% 100%;
+  background-image: linear-gradient(110deg, transparent 36%, rgba(255,220,250,0.45) 50%, transparent 64%); animation: shine 1.6s ease-in-out infinite; }
+.card.g-5 .tg { background: #ff4fd8; color: #2a0622; }
+.card.g-5 .n { color: #ffc4f2; }
+.card.g-6 { position: relative; overflow: hidden; border: 3px solid #8df9ff; background: linear-gradient(180deg, #0d3a44, #061a22);
+  box-shadow: 0 0 32px rgba(141,249,255,0.9); animation: siuuu 1.2s linear infinite; }
+.card.g-6::after { content: ''; position: absolute; inset: 0; pointer-events: none; background-size: 260% 100%;
+  background-image: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.55) 50%, transparent 70%); animation: shine 1s ease-in-out infinite; }
+.card.g-6 .tg { background: #8df9ff; color: #06303a; }
+.card.g-6 .n { color: #ffffff; text-shadow: 0 0 8px #8df9ff; }
+@keyframes siuuu { 0% { border-color: #8df9ff; } 33% { border-color: #ffd45a; } 66% { border-color: #ff4fd8; } 100% { border-color: #8df9ff; } }
 /* the same scale as text (badges, names, the HUD weapon) and as chip edges */
 .g-text.g-0 { color: #c4cad3; } .g-text.g-1 { color: #6ee892; } .g-text.g-2 { color: #6aa8ff; } .g-text.g-3 { color: #cf96ff; }
 .g-text.g-4 { color: #ffd45a; text-shadow: 0 0 8px rgba(255,200,58,0.6); }
+.g-text.g-5 { color: #ff8ae6; text-shadow: 0 0 8px rgba(255,79,216,0.7); }
+.g-text.g-6 { color: #d6fdff; text-shadow: 0 0 10px rgba(141,249,255,0.9); }
 .chip.g-1 { border-color: #46d36e; } .chip.g-2 { border-color: #3d8bff; } .chip.g-3 { border-color: #b05cff; }
 .chip.g-4 { border-color: #ffc83a; color: #ffe08a; }
+.chip.g-5 { border-color: #ff4fd8; color: #ffc4f2; } .chip.g-6 { border-color: #8df9ff; color: #e8feff; }
 .ovr { display: inline-block; font-size: 10px; font-weight: 900; padding: 0 6px; border-radius: 7px; vertical-align: 1px; background: rgba(255,255,255,0.1); }
 .ovr.g-text { background: rgba(0,0,0,0.35); }
 .card.k-swap { border-color: var(--cyan); }

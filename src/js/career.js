@@ -4,8 +4,9 @@
 
   RS.SAVE_KEY = 'ronaldo-survivors.save.v1';
   // career schema 2: 메시's youth seasons come before his 2004 debut; 3: the 발롱도르 won (build.ballons, see
-  // RS.migrateCareer)
-  RS.CAREER_V = 3;
+  // RS.migrateCareer); 4 (round 14): the ladder grew past SSS, so a grade index saved above it (a round-12 무지개
+  // never normalised) is SSS, not GOAT
+  RS.CAREER_V = 4;
 
   RS.newSave = function () {
     return {
@@ -16,6 +17,7 @@
         cleared: [], // cleared[idx] = true
         eventDone: -1, // story event of year idx (RS.EVENTS) resolved when eventDone >= idx
         pressDone: -1, // press conference of year idx (RS.PRESS) answered when pressDone >= idx
+        recallDone: -1, // 회상 of year idx (RS.YEARS[idx].recall, a RS.PRESS scene) seen when recallDone >= idx
         over: null, // a bad ending (RS.ENDINGS id) stopped this career; only a new career goes on
         coachDone: -1, // coach card for year idx picked when coachDone >= idx
         transferDone: -1, // transfer window for year idx handled when transferDone >= idx
@@ -56,7 +58,7 @@
     s.careers = s.careers && typeof s.careers === 'object' ? s.careers : {}; // parked careers of the other heroes
     RS.migrateCareer(s.career);
     for (const h of Object.keys(s.careers)) RS.migrateCareer(s.careers[h]);
-    RS.selectHero(s.career.build.hero);
+    RS.selectHero(s.career.build.hero, s.career.build);
     s.career.yearIdx = Math.max(0, Math.min(RS.YEARS.length - 1, s.career.yearIdx | 0));
     if (!s.career.finished) RS.releaseOffSeason(s.career.build, s.career.yearIdx); // squads saved before round 11
     for (const k of Object.keys(s.meta.upgrades)) if (!RS.META[k]) delete s.meta.upgrades[k];
@@ -73,15 +75,15 @@
   RS.switchHero = function (save, hero) {
     hero = RS.HEROES[hero] ? hero : 'ronaldo';
     const cur = save.career.build.hero;
-    if (cur === hero) { RS.selectHero(hero); return save.career; }
+    if (cur === hero) { RS.selectHero(hero, save.career.build); return save.career; }
     save.careers = save.careers || {};
     save.careers[cur] = save.career;
     let next = save.careers[hero];
-    if (!next) { next = RS.newSave().career; next.build = RS.newBuild(hero); }
+    if (!next) { next = RS.newSave().career; next.build = RS.newBuild(hero); RS.dressBuild(save, next.build); }
     else { next.build = RS.normalizeBuild(next.build); next.build.hero = hero; }
     delete save.careers[hero];
     save.career = next;
-    RS.selectHero(hero);
+    RS.selectHero(hero, save.career.build);
     save.career.yearIdx = Math.max(0, Math.min(RS.YEARS.length - 1, save.career.yearIdx | 0));
     if (!save.career.finished) RS.releaseOffSeason(save.career.build, save.career.yearIdx); // a parked pre-round-11 squad
     return save.career;
@@ -107,8 +109,26 @@
       b.hgh = true;
     }
     if (v < 3 && b) RS.backfillBallons(career);
+    if (v < 4 && b) { // round 14: the ladder's old top is SSS (4); nothing saved before can be GOAT or SIUUU
+      const cap = (bb) => {
+        for (const w of [bb.weapon].concat(bb.armory || [])) if (w) w.g = Math.min(RS.GRADE_TOP, w.g | 0);
+        for (const id of Object.keys(bb.passiveGrades || {})) bb.passiveGrades[id] = bb.passiveGrades[id].map((g) => Math.min(RS.GRADE_TOP, g | 0));
+        RS.syncWeapon(bb);
+      };
+      cap(b);
+      for (const k of Object.keys(career.snapshots || {})) cap(career.snapshots[k]);
+      if (career.recallDone == null) career.recallDone = -1;
+    }
     career.v = RS.CAREER_V;
     return career;
+  };
+  // A fresh career's story marks (round 14): once 성공한 첼씨 토레쓰 is unlocked (meta.unlocked.torresBlue), every new
+  // 토레쓰 career is his — the 첼씨 path from the start, SSS, in blue (RS.heroGrade, RS.TORRES_BLUE).
+  RS.dressBuild = function (save, b) {
+    if (b.hero === 'torres' && save.meta && save.meta.unlocked && save.meta.unlocked.torresBlue) {
+      b.flags.blue = true; b.flags.path = RS.CHELSEA.bluePath; b.flags.cgrade = RS.GRADE_TOP;
+    }
+    return b;
   };
   // Schema 3 (round 10): the 발롱도르 a career has won (build.ballons) come from its cleared 발롱도르 seasons — for the
   // build and each year's snapshot, the ones before that year — and a 회전 공 evolved before the first one goes back
@@ -151,14 +171,29 @@
     RS.gainWeapon(b, w, RS.weaponBetter(w, b.weapon));
     return 'learned';
   };
+  // The cards of an event for this build: its variant list when the event has one for the build's flag (round 14:
+  // the 2014 월드컵 depends on the knee), else the base cards; a skill card already owned shows its `alt`.
+  RS.eventCards_ = function (ev, b) {
+    const v = ev.variants, k = v && b.flags && b.flags[v.flag];
+    return (v && k && v.by[k]) || ev.cards;
+  };
   RS.eventChoices = function (save, idx) {
     const b = save.career.build;
-    return RS.EVENTS[RS.YEARS[idx].event].cards.map((c) => {
+    return RS.eventCards_(RS.EVENTS[RS.YEARS[idx].event], b).map((c) => {
       const card = c.skill && c.alt && RS.ownedWeapon(b, c.skill) ? c.alt : c;
       return Object.assign({ kind: 'event' }, card, card.skill ? { g: RS.GIFT_GRADE } : {});
     });
   };
-  RS.applyEvent = function (save, idx, card) {
+  // A card's lasting effects (round 14, RS.EVENTS fx): mods (kept like a coach card under cid), flags (name → value),
+  // gradeDown (every owned weapon loses that many grades).
+  RS.applyEventFx = function (b, fx, cid) {
+    if (!fx) return;
+    if (fx.mods && !b.coachCards.includes(cid)) b.coachCards.push(cid);
+    if (fx.flag) Object.assign(b.flags, fx.flag);
+    if (fx.gradeDown) RS.downgradeWeapons(b, fx.gradeDown);
+    if (fx.fans) b.fans = RS.clampFans((b.fans == null ? RS.FANS.start : b.fans) + fx.fans);
+  };
+  RS.applyEvent = function (save, idx, card, rng) {
     const c = save.career, b = c.build, ev = RS.EVENTS[RS.YEARS[idx].event];
     const info = { card: card.id, text: card.result || '' };
     if (card.hgh != null) b.hgh = card.hgh;
@@ -166,6 +201,13 @@
     if (card.skillsUp) RS.enhanceWeapon(b, card.skillsUp);
     if (card.mods && !b.coachCards.includes(card.id)) b.coachCards.push(card.id);
     if (card.trio) { RS.formTrio(b); info.trio = true; }
+    if (card.rolls) { // rolled once, like a press answer
+      let r = (rng || Math.random)(), roll = card.rolls.length - 1;
+      for (let i = 0; i < card.rolls.length; i++) { if (r < card.rolls[i].p) { roll = i; break; } r -= card.rolls[i].p; }
+      const o = card.rolls[roll];
+      info.roll = roll; info.win = !!o.win; info.text = o.text || info.text;
+      RS.applyEventFx(b, o.fx, card.id + '_' + roll);
+    } else RS.applyEventFx(b, card.fx, card.id);
     if (ev.mate && RS.addMate(b, ev.mate)) info.mate = ev.mate;
     c.eventDone = idx;
     c.snapshots[idx] = RS.cloneBuild(b);
@@ -174,12 +216,19 @@
 
   // ---------------------------------------------------------------- 기자회견 (RS.PRESS)
   // Once in a career season that has one (RS.YEARS[idx].press), after the story event and before the coach.
-  RS.needsPress = (save, idx) => !RS.isReplay(save, idx) && !!RS.YEARS[idx].press && (save.career.pressDone == null ? -1 : save.career.pressDone) < idx;
+  // skipIf (round 14): a scene a build flag skips (성공한 첼씨 토레쓰 never stands at the 2011 crossroads)
+  RS.needsPress = (save, idx) => !RS.isReplay(save, idx) && !!RS.YEARS[idx].press && (save.career.pressDone == null ? -1 : save.career.pressDone) < idx &&
+    !(RS.PRESS[RS.YEARS[idx].press].skipIf && save.career.build.flags[RS.PRESS[RS.YEARS[idx].press].skipIf]);
   RS.pressFor = (idx) => RS.PRESS[RS.YEARS[idx].press];
+  // 회상 (round 14): a RS.PRESS scene with one answer before a 첼씨 시련 (RS.YEARS[idx].recall), after the press
+  RS.needsRecall = (save, idx) => !RS.isReplay(save, idx) && !!RS.YEARS[idx].recall && (save.career.recallDone == null ? -1 : save.career.recallDone) < idx;
+  RS.recallFor = (idx) => RS.PRESS[RS.YEARS[idx].recall];
   // Answer `choiceId`: its odds are rolled once (rng), the outcome is applied to the career and returned as
   // { choice, text, note, win, mood: 'good' | 'bad' | 'sad' | 'calm', ending, skill: 'learned' | 'up' | 'full' }.
-  RS.applyPress = function (save, idx, choiceId, rng) {
-    const c = save.career, b = c.build, pid = RS.YEARS[idx].press;
+  // pid: the scene (default the season's press; a 회상 names its own).
+  RS.applyPress = function (save, idx, choiceId, rng, pid) {
+    const c = save.career, b = c.build;
+    pid = pid || RS.YEARS[idx].press;
     const ch = RS.PRESS[pid].choices.find((x) => x.id === choiceId) || RS.PRESS[pid].choices[0];
     let o = ch.result, roll = null;
     if (ch.rolls) {
@@ -199,9 +248,11 @@
       out.skill = RS.giftWeapon(b, fx.skill);
       if (out.skill === 'full' && !b.coachCards.includes(card + '_full')) b.coachCards.push(card + '_full');
     }
-    if (fx.flag) b.flags[fx.flag] = true;
+    if (fx.flag) { if (typeof fx.flag === 'string') b.flags[fx.flag] = true; else Object.assign(b.flags, fx.flag); } // a name, or name → value
     if (o.ending) { c.over = o.ending; out.ending = o.ending; }
-    c.pressDone = idx;
+    if (RS.PRESS[pid].recall) c.recallDone = idx; else c.pressDone = idx;
+    // the 2011 crossroads picked the career's path: the season list changes from here on (RS.selectHero)
+    if (fx.flag && fx.flag.path) { RS.selectHero(b.hero, b); out.path = fx.flag.path; }
     c.snapshots[idx] = RS.cloneBuild(b);
     return out;
   };
@@ -355,6 +406,19 @@
         c.cleared[idx] = true;
         c.build = world.exportBuild();
         keep(c.build);
+        const f = c.build.flags;
+        // 첼씨 시련 (round 14): each cleared one lifts 첼씨 토레쓰 a grade; the fourth makes 성공한 첼씨 토레쓰 for good
+        if (yd.ctrial && f.path === RS.CHELSEA.bluePath && !f.blue) {
+          const was = f.cgrade | 0;
+          f.cgrade = Math.min(RS.GRADE_TOP, Math.max(was, yd.ctrial));
+          if (f.cgrade > was) out.cgrade = { from: was, to: f.cgrade };
+          if (yd.ctrial >= RS.CHELSEA.trials) {
+            if (!save.meta.unlocked || typeof save.meta.unlocked !== 'object') save.meta.unlocked = {};
+            if (!save.meta.unlocked.torresBlue) { save.meta.unlocked.torresBlue = true; out.unlockBlue = true; }
+          }
+        }
+        // 이빨괴물 수아레즈 beaten as a season boss: from now on he may run on as a 준보스 (World.runScheduled)
+        if (yd.boss.type === 'suarez' && !f.suarez) { f.suarez = true; out.suarez = true; }
         if (yd.final) { c.finished = true; out.finished = true; }
         else {
           c.yearIdx = idx + 1;
@@ -408,7 +472,7 @@
   // 토레쓰 reward (round 11): one pick after beating him. g: the card colour (RS.GRADES).
   RS.TORRES_REWARDS = [
     { id: 'mate', icon: '⚽', name: '토레쓰 영입', g: 4, desc: '토레쓰(OVR 90 공격수)가 강화 +5로 합류 · 자리가 없으면 가장 약한 벤치 동료와 교체' },
-    { id: 'weapon', icon: '🏆', name: '빈의 결승골', g: 3, desc: '영웅 이상 무기 1개 (전설 확률 15%) · 지금 무기보다 세면 바로 장착' },
+    { id: 'weapon', icon: '🏆', name: '빈의 결승골', g: 3, desc: 'SS 이상 무기 1개 (SSS 확률 15%) · 지금 무기보다 세면 바로 장착' },
     { id: 'coins', icon: '💰', name: '5천만 파운드 이적료', g: 2, desc: '코인 +500' }
   ];
   // 토레쓰 only runs on from 2007 (날두, pro season 5) or 2012 (메시), where the level-up cards already deal 전설.
@@ -451,8 +515,9 @@
     const laps = save.career.laps + (save.career.finished ? 1 : 0);
     const hero = save.career.build.hero;
     save.career = RS.newSave().career;
-    save.career.build = RS.newBuild(hero);
+    save.career.build = RS.dressBuild(save, RS.newBuild(hero));
     save.career.laps = laps;
+    RS.selectHero(hero, save.career.build);
   };
 
   // ---------------------------------------------------------------- shop
@@ -505,4 +570,4 @@
     return true;
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).career = 'R13.3';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).career = 'R14';

@@ -148,7 +148,7 @@ test('recruits sign with varied pre-trained enhancement from +1 through +10', ()
 
 test('weapon drops and boxes make each supported higher grade rarer', () => {
   for (const odds of [...RS.GRADE_STAGES.map(s => s.odds), ...RS.WEAPON_BOXES.map(b => b.odds)]) {
-    const rng = RS.makeRng(25), counts = [0,0,0,0,0];
+    const rng = RS.makeRng(25), counts = new Array(RS.GRADES.length).fill(0); // round 14: GOAT and SIUUU above SSS
     for (let i = 0; i < 100000; i++) counts[RS.rollGrade(rng, odds)]++;
     // from the season's most common grade up (later seasons drop the lowest grades), each one is rarer
     const peak = counts.indexOf(Math.max(...counts));

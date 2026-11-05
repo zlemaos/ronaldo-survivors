@@ -157,14 +157,16 @@
       const started = c.yearIdx > 0 || c.coachDone >= 0;
       const hero = RS.HEROES[c.build.hero];
       $('btn-play').textContent = c.over ? '⚖️ 배드 엔딩 — 새 커리어로' : c.finished ? '🏆 커리어 완주! 다시 보기' : started ? '▶ 이어하기 · ' + yd.year + '년' : '⚽ ' + hero.name + ' 커리어 시작';
-      $('title-progress').textContent = (c.over ? (RS.ENDINGS[c.over] || { title: '배드 엔딩' }).title : c.finished ? hero.rival + '를 꺾은 전설 · ' + (c.laps + 1) + '회차' : hero.name + ' · ' + yd.year + '년 · ' + RS.yearAge(c.yearIdx) + '세 · ' + RS.ERAS[yd.era].club) +
-        (RS.hardMode(c.build) ? ' · 🧒 작은 몸 도전' : '');
+      const hg = RS.heroGrade(c.build), heroName = hg == null ? hero.name : (c.build.flags.blue ? '성공한 첼씨 토레쓰' : '첼씨 토레쓰') + ' ' + RS.GRADES[hg].name;
+      $('title-progress').textContent = (c.over ? (RS.ENDINGS[c.over] || { title: '배드 엔딩' }).title : c.finished ? hero.rival + '를 꺾은 전설 · ' + (c.laps + 1) + '회차' : heroName + ' · ' + yd.year + '년 · ' + RS.yearAge(c.yearIdx) + '세 · ' + RS.ERAS[yd.era].club) +
+        (RS.hardMode(c.build) ? ' · 🧒 작은 몸 도전' : '') + (c.build.flags.lfcTitle ? ' · 🔴 안필드의 9번' : '');
       this.updateOptions();
       for (const b of document.querySelectorAll('#hero-pick .hero')) {
         b.classList.toggle('on', b.dataset.hero === c.build.hero);
         b.classList.toggle('lock', RS.heroLocked(this.save.meta, b.dataset.hero));
       }
-      $('hero-torres-desc').textContent = RS.heroLocked(this.save.meta, 'torres') ? '🔒 드록빠 다음에 나오는 토레쓰를 잡으면 해금' : RS.HEROES.torres.desc;
+      $('hero-torres-desc').textContent = RS.heroLocked(this.save.meta, 'torres') ? '🔒 드록빠 다음에 나오는 토레쓰를 잡으면 해금'
+        : this.save.meta.unlocked.torresBlue ? '✨ 성공한 첼씨 토레쓰 획득 · 새 커리어는 SSS 첼씨 토레쓰 · ' + RS.HEROES.torres.desc : RS.HEROES.torres.desc;
       this.renderWallet($('title-wallet'));
       $('title-pk').textContent = this.pkLine();
       const ts = $('title-sprite'); ts.innerHTML = '';
@@ -273,7 +275,7 @@
           btn(row, '장착', false, () => { if (RS.equipFromArmory(b, a.id)) { RS.Audio.sfx('click'); this.toast('무기 교체: ' + RS.weaponName(b, b.weapon)); redo(); } });
         }
       }
-      head('🎁 무기 상자', '희귀까지만 · 영웅·전설은 경기 중 운으로만');
+      head('🎁 무기 상자', 'S까지만 · SS·SSS·GOAT·SIUUU는 경기 중 운으로만');
       for (const d of RS.WEAPON_BOXES) {
         const odds = d.odds.map((p, g) => [p, g]).filter((x) => x[0] > 0).map(([p, g]) => RS.GRADES[g].name + ' ' + (p < 0.01 ? (p * 100).toFixed(1) : Math.round(p * 100)) + '%');
         const row = item(d.icon, d.name, odds.join(' · ') + ' · 지금 무기보다 세면 바로 장착', d.g);
@@ -336,20 +338,26 @@
       else this.afterPress(idx);
     },
     afterPress(idx) {
-      if (RS.needsCoach(this.save, idx)) this.showCoach(idx);
+      if (RS.needsRecall(this.save, idx)) this.showPress(idx, 'recall'); // 회상 before a 첼씨 시련 (round 14)
+      else if (RS.needsCoach(this.save, idx)) this.showCoach(idx);
       else this.afterCoach(idx);
     },
 
     // 기자회견 (RS.PRESS): the scene's lines type out one by one (tap: finish the line, then the next), then the
     // answers. The chosen line is said, the odds are rolled under a burst of camera flashes, and the outcome shows.
-    showPress(idx) {
+    // kind 'recall' (round 14): the season's 회상 scene instead — no flashes, one answer, then the coach.
+    showPress(idx, kind) {
       this.show('press');
-      const yd = RS.YEARS[idx], pr = RS.pressFor(idx), b = this.save.career.build;
-      $('pr-season').textContent = yd.year + ' · ' + RS.yearAge(idx) + '세 · ' + RS.ERAS[yd.era].club;
-      $('pr-title').textContent = '🎤 ' + pr.title;
+      const recall = kind === 'recall';
+      const yd = RS.YEARS[idx], pr = recall ? RS.recallFor(idx) : RS.pressFor(idx), b = this.save.career.build;
+      this.prKind = recall ? yd.recall : null;
+      // prevLook: the scene happens before the move (the 2011 crossroads: still in 리버풀 red, at 안필드)
+      const lookIdx = pr.prevLook && idx > 0 ? idx - 1 : idx;
+      $('pr-season').textContent = yd.year + ' · ' + RS.yearAge(idx) + '세 · ' + RS.ERAS[RS.YEARS[lookIdx].era].club;
+      $('pr-title').textContent = (recall ? '📼 ' : '🎤 ') + pr.title;
       $('pr-who').textContent = pr.who;
       const hs = $('pr-hero'); hs.innerHTML = ''; hs.className = 'pr-hero';
-      hs.appendChild(RS.Sprites.toCanvas(RS.Sprites.hero(b.hero, idx, 1, null, RS.smallBody(b)), 0, 4));
+      hs.appendChild(RS.Sprites.toCanvas(RS.Sprites.hero(b.hero, lookIdx, 1, null, RS.smallBody(b)), 0, 4));
       const crowd = $('pr-crowd'); crowd.innerHTML = '';
       for (let i = 0; i < 6; i++) { const s = document.createElement('span'); if (i % 2) s.appendChild(document.createElement('i')); crowd.appendChild(s); }
       $('pr-cards').classList.add('hidden');
@@ -363,8 +371,7 @@
         this.pressLine(pr.lines[li], b.hero, () => this.armAuto(next, 1100, '다음 대사', 'full'));
       };
       $('pr-box').onclick = () => { if (this.prTyping) this.finishType(); else next(); };
-      this.flashes(4);
-      RS.Audio.sfx('flash');
+      if (!recall) { this.flashes(4); RS.Audio.sfx('flash'); }
       next();
     },
     pressLine(line, hero, done) {
@@ -374,7 +381,7 @@
       by.className = 'pr-by' + (line.inner ? ' inner' : mine ? ' hero' : '');
       tx.className = 'pr-text' + (line.inner ? ' inner' : '');
       $('pr-hero').classList.toggle('talk', mine && !line.inner);
-      if (!mine && !line.inner) { this.flashes(2); RS.Audio.sfx('flash'); }
+      if (!mine && !line.inner && !this.prKind) { this.flashes(2); RS.Audio.sfx('flash'); }
       this.typeText(tx, line.text, done);
     },
     typeText(el, text, done) {
@@ -402,7 +409,7 @@
         $('pr-cards').classList.add('hidden');
         $('pr-box').onclick = () => { if (this.prTyping) this.finishType(); };
         this.pressLine({ by: RS.HEROES[b.hero].short, text: ch.say }, b.hero, () => {
-          const out = RS.applyPress(this.save, idx, ch.id, this.rng);
+          const out = RS.applyPress(this.save, idx, ch.id, this.rng, this.prKind || undefined);
           this.persist();
           if (ch.rolls) { this.flashes(6); RS.Audio.sfx('flash'); setTimeout(() => this.pressResult(idx, out), 950); }
           else setTimeout(() => this.pressResult(idx, out), 420);
@@ -416,12 +423,13 @@
       const r = $('pr-result');
       r.className = 'press-result ' + out.mood;
       $('pr-res-text').textContent = out.text;
-      const sk = { learned: ' · 새 무기 (희귀 +1)!', up: ' · 그 무기 강화 +1', full: ' · 그 무기가 이미 +10이라 공격력 +5%로 대신' }[out.skill] || '';
+      const sk = { learned: ' · 새 무기 (' + RS.GRADES[RS.GIFT_GRADE].name + ' +1)!', up: ' · 그 무기 강화 +1', full: ' · 그 무기가 이미 +10이라 공격력 +5%로 대신' }[out.skill] || '';
       $('pr-res-note').textContent = out.ending ? '⚖️ 커리어가 여기서 멈춘다…' : (out.win ? '🎉 ' : out.mood === 'bad' ? '💥 ' : '') + out.note + sk;
       if (out.mood === 'bad') { const h = $('pr-hero'); h.classList.remove('hit'); void h.offsetWidth; h.classList.add('hit'); }
       RS.Audio.sfx(out.ending ? 'gavel' : out.mood === 'bad' ? 'lose' : out.mood === 'sad' ? 'heart' : 'recruit');
       const ok = $('btn-pr-ok');
       ok.textContent = out.ending ? '판결을 듣는다' : '계속';
+      if (out.path) this.toast(out.path === 'liverpool' ? '🔴 리버풀 잔류 — 2011~2014 시즌이 안필드로 바뀐다' : '🔵 첼씨 토레쓰 B등급 — 시련 4개가 기다린다');
       ok.onclick = () => { RS.Audio.sfx('click'); if (out.ending) this.showEnding(out.ending); else this.afterPress(idx); };
       this.armAuto(() => ok.onclick(), out.ending ? 4000 : 2600, out.ending ? '판결로' : '다음으로', 'full');
     },
@@ -468,14 +476,21 @@
       sp.appendChild(RS.Sprites.toCanvas(ev.mate ? RS.Sprites.mate(ev.mate, idx) : RS.Sprites.hero(b.hero, idx, 1, null, RS.smallBody(b)), 0, 4));
       const cards = RS.eventChoices(this.save, idx);
       const pick = (i) => {
-        const info = RS.applyEvent(this.save, idx, cards[i]);
+        const info = RS.applyEvent(this.save, idx, cards[i], this.rng);
         this.persist();
-        RS.Audio.sfx(cards[i].hgh === false ? 'boss' : 'evolve');
+        RS.Audio.sfx(cards[i].hgh === false ? 'boss' : info.roll != null && !info.win ? 'lose' : cards[i].rolls ? 'jackpot' : 'evolve');
         this.toast(info.text + (info.mate ? ' · ' + RS.TEAMMATES[info.mate].name + ' 합류!' : ''));
         this.afterEvent(idx);
       };
       this.renderCards($('ev-cards'), cards, pick);
+      cards.forEach((c, i) => { if (c.rolls) $('ev-cards').children[i].classList.add('risk'); });
       this.armAuto(() => pick(RS.autoEventPick(cards)), 2200, 'AI가 고른다', 'full');
+    },
+
+    // A story unlock a teammate brought (round 14: 제라두 → 제토라인), told once
+    unlockToast() {
+      const note = RS.unlockNote(this.save.career.build);
+      if (note) { RS.Audio.sfx('jackpot'); this.toast(note); this.persist(); }
     },
 
     afterCoach(idx) {
@@ -510,6 +525,7 @@
         RS.applyTransfer(this.save, idx, c.take ? id : null, c.out, lv);
         this.persist();
         if (c.take) this.toast(nm.name + ' 합류!');
+        this.unlockToast();
         this.showTransfer(idx, offers, k + 1);
       };
       this.renderCards($('tr-cards'), cards, pick);
@@ -531,6 +547,7 @@
         const info = RS.applyCoach(this.save, idx, cards[i], this.rng);
         this.persist();
         if (info.mate) this.toast(RS.TEAMMATES[info.mate].name + ' 합류! (강화 +' + info.lv + ')');
+        this.unlockToast();
         this.afterCoach(idx);
       };
       this.renderCards($('coach-cards'), cards.map((c) => ({
@@ -555,6 +572,10 @@
       if (yd.foe) tags.push('🔵 상대 ' + RS.FOES[yd.foe].name + ' · 파란 버스 수비가 세 번 밀고 온다');
       else if (yd.twist && yd.twist.wall) tags.push('🧱 철벽 수비가 두 번 밀고 온다 · 틈을 뚫거나 옆으로 돌아가라');
       if (yd.twist && yd.twist.extra) tags.push('⏱ 연장전 ' + yd.twist.extra + '초 뒤에 보스 등장');
+      // round 14: a 첼씨 시련 names the grade at stake; the last one ends in the 캄프 누 goal
+      const hg = RS.heroGrade(b0);
+      if (yd.ctrial && hg != null && !b0.flags.blue) tags.push('🔵 첼씨 시련 ' + yd.ctrial + '/' + RS.CHELSEA.trials + ' · 지금 첼씨 토레쓰 ' + RS.GRADES[hg].name + (yd.ctrial > hg ? ' → 넘으면 ' + RS.GRADES[Math.min(RS.GRADE_TOP, yd.ctrial)].name : '') + (yd.cine ? ' · 보스를 잡으면 900억 골 장면' : ''));
+      if (yd.boss.type === 'suarez') tags.push('🦷 이빨괴물 수아레즈 · 한 번 잡으면 이후 시즌에 준보스로 난입한다');
       $('intro-trial').textContent = tags.join('\n');
       $('intro-trial').classList.toggle('hidden', !tags.length);
       $('intro-story').textContent = yd.story || '';
@@ -720,7 +741,7 @@
       const sp = w.choices.find(SPECIAL);
       const t = !sp ? '' : sp.kind === 'gamble' ? 'gamble' : 'g' + sp.g;
       $('lv-title').textContent = sp && sp.kind === 'stim' ? '💉 약물 꽂기 등장! 받을까, 말까?' :
-        { g4: '🌟 전설 아이템 등장!!', g3: '🔮 영웅 아이템 등장!', g2: '💎 희귀 아이템 등장', gamble: '🎰 도박 카드 등장' }[t] || '레벨 업!';
+        { g4: '🌟 SSS 아이템 등장!!', g3: '🔮 SS 아이템 등장!', g2: '💎 S 아이템 등장', gamble: '🎰 도박 카드 등장' }[t] || '레벨 업!';
       $('lv-title').className = 'glow' + (t ? ' t-' + t : '');
       this.renderWeaponLine($('lv-weapon'), w.build);
       $('reroll-n').textContent = w.rerolls;
@@ -737,6 +758,8 @@
       this.world.choose(i);
       $('levelup').classList.add('hidden');
       this.lvShown = false;
+      const note = RS.unlockNote(this.world.build); // a recruit card brought 제라두 (round 14)
+      if (note) { RS.Audio.sfx('jackpot'); this.banner(note); }
     },
     // 반자동 picks a plain hand itself and leaves a graded / 약물 / gamble card to the player; 완전 오토 picks all.
     autoPicks(w) {
@@ -848,6 +871,10 @@
       }
       if (out.torres) add(out.torres === 'win' ? '격파 ⚡' : '놓침', RS.TORRES.name + (out.torres === 'win' ? ' · 추가 보상' : ' · 30초 안에 잡으면 추가 보상'));
       if (out.unlockTorres) add('🔓 토레쓰', '새 캐릭터 해금 · 메뉴에서 고를 수 있다');
+      // round 14: a 첼씨 시련 cleared lifts 첼씨 토레쓰's grade; the last one unlocks 성공한 첼씨 토레쓰
+      if (out.cgrade) add(RS.GRADES[out.cgrade.from].name + ' → ' + RS.GRADES[out.cgrade.to].name, '첼씨 토레쓰 등급 상승 · 시련 ' + yd.ctrial + '/' + RS.CHELSEA.trials + (out.cgrade.to >= RS.GRADE_TOP ? ' · 900억을 갚았다' : ''), true);
+      if (out.unlockBlue) add('✨ 성공한 첼씨 토레쓰', '획득! 다음 토레쓰 커리어는 SSS 첼씨 토레쓰로 시작한다 (파란 유니폼 · 공격력 125% · 체력 +25)', true);
+      if (out.suarez) add('🦷 길들였다', '이빨괴물 수아레즈 · 이제부터 준보스로 불쑥 난입한다');
       const next = $('btn-res-next'), retry = $('btn-res-retry');
       $('res-reward').classList.add('hidden');
       // Rewards to pick before moving on: 토레쓰's (beaten after 드록빠) first, then the season boss's.
@@ -1103,7 +1130,16 @@
             $('bossbar').classList.add('hidden');
             RS.Audio.sfx(e.win ? 'jackpot' : 'lose');
             break;
-          case 'recruit': RS.Audio.sfx('recruit'); this.banner(RS.TEAMMATES[e.id].name + (e.bench ? ' 벤치 합류!' : ' 합류!') + (e.swap ? ' (' + RS.TEAMMATES[e.swap].name + ' 이적)' : '')); break;
+          case 'cine': // round 14: the 캄프 누 goal plays out (World.startCine)
+            $('bossbar').classList.add('hidden');
+            this.banner(e.text);
+            break;
+          case 'recruit': {
+            RS.Audio.sfx('recruit'); this.banner(RS.TEAMMATES[e.id].name + (e.bench ? ' 벤치 합류!' : ' 합류!') + (e.swap ? ' (' + RS.TEAMMATES[e.swap].name + ' 이적)' : ''));
+            const note = RS.unlockNote(w.build); // 제라두 → 제토라인 (round 14)
+            if (note) { RS.Audio.sfx('jackpot'); setTimeout(() => this.banner(note), 1600); }
+            break;
+          }
           case 'rescueSpawn': this.banner((e.swap ? '이적 제안! ' : '동료 발견! ') + RS.TEAMMATES[e.id].name + ' 에게 가자'); break;
           case 'swap': RS.Audio.sfx('recruit'); break;
           case 'banner': this.banner(e.text); break;
@@ -1263,4 +1299,4 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => App.boot());
   else App.boot();
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).main = 'R13.3';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).main = 'R14';

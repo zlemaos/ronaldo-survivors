@@ -20,7 +20,7 @@ test('coins cannot buy 영웅 or 전설: the 훈련장 boxes stop at 희귀, and
 
 test('전설 is a long shot in the debut, even with doubled luck, and its odds only climb season by season', () => {
   const count = (yearIdx, luck) => {
-    const rng = RS.makeRng(9), g = [0, 0, 0, 0, 0];
+    const rng = RS.makeRng(9), g = new Array(RS.GRADES.length).fill(0); // round 14: GOAT and SIUUU above SSS
     for (let i = 0; i < 6000; i++) {
       for (const c of RS.levelChoices(RS.newBuild(), rng, yearIdx, luck, 0)) if (['weapon', 'passive', 'passiveUp', 'relic', 'stim'].includes(c.kind)) g[c.g]++;
     }

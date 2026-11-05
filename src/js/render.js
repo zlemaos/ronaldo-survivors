@@ -684,12 +684,34 @@
           }
           case 'lob': { // 로빙 패스: the ball arcs from the passer (x0, y0) onto the target; its shadow runs along the ground
             const gx = Math.round(f.x0 + (f.x - f.x0) * k - camX), gy = Math.round(f.y0 + (f.y - f.y0) * k - camY);
-            const h = Math.round(Math.sin(k * Math.PI) * 44);
+            const h = Math.round(Math.sin(k * Math.PI) * (f.low ? 5 : 44)); // low: a rolled finish (the 캄프 누 goal)
             L.fillStyle = 'rgba(0,0,0,0.25)';
             L.beginPath(); L.ellipse(gx, gy + 2, 3, 1.5, 0, 0, TAU); L.fill();
             L.fillStyle = (f.white ? 'rgba(255,255,255,' : 'rgba(255,215,80,') + (0.35 * k) + ')'; // landing spot
             L.beginPath(); L.ellipse(sx, sy, 2 + 7 * k, 1 + 3 * k, 0, 0, TAU); L.fill();
             this.drawFallBall(L, f, gx, gy - h, w.t);
+            break;
+          }
+          case 'goal': { // round 14 (the 캄프 누 goal, World.startCine): a goal seen from above — the line, two posts, the net behind
+            const hw = (f.w || 60) >> 1, deep = 16;
+            L.fillStyle = 'rgba(255,255,255,0.14)'; L.fillRect(sx - hw, sy - deep, hw * 2, deep);
+            L.strokeStyle = 'rgba(255,255,255,0.45)'; L.lineWidth = 1;
+            L.beginPath();
+            for (let x = -hw + 4; x < hw; x += 4) { L.moveTo(sx + x, sy - deep); L.lineTo(sx + x, sy); }
+            for (let y = 4; y < deep; y += 4) { L.moveTo(sx - hw, sy - y); L.lineTo(sx + hw, sy - y); }
+            L.stroke();
+            L.strokeStyle = '#ffffff'; L.lineWidth = 3; L.lineCap = 'round';
+            L.beginPath(); L.moveTo(sx - hw, sy); L.lineTo(sx - hw, sy - deep); L.lineTo(sx + hw, sy - deep); L.lineTo(sx + hw, sy); L.stroke();
+            L.lineWidth = 2; L.strokeStyle = 'rgba(255,255,255,0.9)';
+            L.beginPath(); L.moveTo(sx - hw - 40, sy + 1); L.lineTo(sx + hw + 40, sy + 1); L.stroke();
+            L.fillStyle = '#ffffff';
+            L.beginPath(); L.arc(sx - hw, sy, 2.5, 0, TAU); L.arc(sx + hw, sy, 2.5, 0, TAU); L.fill();
+            break;
+          }
+          case 'cball': { // the ball at the runner's feet (follow), rolling a little ahead of him
+            const p = w.player, it = S.item('ball'), bob = Math.round(Math.sin(w.t * 18)) ;
+            L.fillStyle = 'rgba(0,0,0,0.25)'; L.beginPath(); L.ellipse(sx + (p.face || 1) * 5, sy + 7, 3, 1.5, 0, 0, TAU); L.fill();
+            L.drawImage(it.n, sx + (p.face || 1) * 5 - (it.w >> 1), sy + 3 - (it.h >> 1) - Math.abs(bob));
             break;
           }
           case 'whistle': // 추가시간 휘슬: a white wave over the pitch
@@ -957,4 +979,4 @@
   }
   RS.Renderer = Renderer;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).render = 'R13.3';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).render = 'R14';

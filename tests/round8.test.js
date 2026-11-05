@@ -189,15 +189,17 @@ test('기자회견: 탈세 — 아버지에게 미룬다 (90% the father goes to
 
 test('every press conference belongs to its hero, its effects are real, and 완전 오토 never picks a career-ending answer', () => {
   const used = new Set();
-  for (const hero of ['ronaldo', 'messi']) withHero(hero, () => {
-    for (const y of RS.YEARS) if (y.press) {
-      assert.ok(RS.PRESS[y.press], y.press);
-      used.add(y.press);
-      const pr = RS.PRESS[y.press], short = RS.HEROES[hero].short;
-      assert.ok(pr.lines.some((l) => l.by === short), y.press + ': the hero speaks in his own scene');
+  // round 14: 토레쓰's two paths carry the 2011 crossroads and the 회상 scenes (recall) of the 첼씨 시련
+  const lists = [['ronaldo', RS.YEARS_RONALDO], ['messi', RS.YEARS_MESSI], ['torres', RS.YEARS_TORRES], ['torres', RS.YEARS_TORRES_LFC]];
+  for (const [hero, years] of lists) withHero(hero, () => {
+    for (const y of years) for (const key of [y.press, y.recall]) if (key) {
+      assert.ok(RS.PRESS[key], key);
+      used.add(key);
+      const pr = RS.PRESS[key], short = RS.HEROES[hero].short;
+      assert.ok(pr.lines.some((l) => l.by === short), key + ': the hero speaks in his own scene');
       const pick = pr.choices[RS.autoPressPick(pr.choices)];
-      assert.ok(!(pick.rolls || []).some((o) => o.ending), y.press + ': the auto pick is safe');
-      for (const c of pr.choices) if (c.rolls) assert.ok(Math.abs(c.rolls.reduce((s, o) => s + o.p, 0) - 1) < 1e-9, y.press + '/' + c.id + ' odds sum to 1');
+      assert.ok(!(pick.rolls || []).some((o) => o.ending), key + ': the auto pick is safe');
+      for (const c of pr.choices) if (c.rolls) assert.ok(Math.abs(c.rolls.reduce((s, o) => s + o.p, 0) - 1) < 1e-9, key + '/' + c.id + ' odds sum to 1');
     }
   });
   assert.deepEqual([...used].sort(), Object.keys(RS.PRESS).sort(), 'every scene is used by some season');

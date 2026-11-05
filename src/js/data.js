@@ -10,39 +10,45 @@
   RS.BENCH_FACTOR = 0.34;
   RS.MATE_MAX_LV = 10;
 
-  // ---------------------------------------------------------------- Round 13: one ladder 일반 · 고급 · 희귀 · 영웅 · 전설
-  // Every graded thing sits on RS.GRADES (the ladder and colours of Korean games: grey, green, blue, purple, gold):
-  // the weapon, each passive card, the special items and the teammates' card colour (RS.MATE_GRADE).
+  // ---------------------------------------------------------------- Round 14: one ladder B · A · S · SS · SSS · GOAT · SIUUU
+  // Every graded thing sits on RS.GRADES (round 13's 일반 · 고급 · 희귀 · 영웅 · 전설 renamed to letter ranks the user
+  // reads at a glance — the old top, 전설, is SSS — plus two ranks above it: GOAT, and SIUUU, which only comes at
+  // "벼락맞을 확률"): the weapon, each passive card, the special items and the teammates' card colour (RS.MATE_GRADE).
   // The hero fights with ONE weapon at a time (build.weapon = { id, g, p }; the weapons are the moves of RS.SKILLS).
-  // Its grade g picks the move's behaviour — level table row lv (Lv.1-6) or, at 전설, its evolved form (evo) — and
+  // Its grade g picks the move's behaviour — level table row lv (Lv.1-6) or, from SSS up, its evolved form (evo) — and
   // multiplies the damage by mul; 강화 p (+1 … PLUS_MAX) adds PLUS_STEP per step on top. One grade is worth more than
   // nine steps (1.3 > 1 + 9 × 0.03), so a +10 always stays below the next grade's +1. pmul: what one passive card of
   // that grade adds (× the passive's base, RS.passiveMods); power: 전투력 of a special item of that grade.
-  // Owned weapons wait in the 무기고 (build.armory).
+  // Owned weapons wait in the 무기고 (build.armory). Items (RS.RELICS) stop at SSS.
   RS.GRADES = [
-    { key: 'common', name: '일반', color: '#b4bcc8', lv: 1, mul: 1, pmul: 0.7 },
-    { key: 'uncommon', name: '고급', color: '#46d36e', lv: 2, mul: 1.3, pmul: 0.85 },
-    { key: 'rare', name: '희귀', color: '#3d8bff', lv: 4, mul: 1.69, pmul: 1, power: 12 },
-    { key: 'epic', name: '영웅', color: '#b05cff', lv: 6, mul: 2.2, pmul: 1.3, power: 25 },
-    { key: 'legend', name: '전설', color: '#ffc83a', lv: 6, evo: true, mul: 2.86, pmul: 1.7, power: 60 }
+    { key: 'common', name: 'B', color: '#b4bcc8', lv: 1, mul: 1, pmul: 0.7 },
+    { key: 'uncommon', name: 'A', color: '#46d36e', lv: 2, mul: 1.3, pmul: 0.85 },
+    { key: 'rare', name: 'S', color: '#3d8bff', lv: 4, mul: 1.69, pmul: 1, power: 12 },
+    { key: 'epic', name: 'SS', color: '#b05cff', lv: 6, mul: 2.2, pmul: 1.3, power: 25 },
+    { key: 'legend', name: 'SSS', color: '#ffc83a', lv: 6, evo: true, mul: 2.86, pmul: 1.7, power: 60 },
+    { key: 'goat', name: 'GOAT', color: '#ff4fd8', lv: 6, evo: true, mul: 3.7, pmul: 2.2, power: 120 },
+    { key: 'siuuu', name: 'SIUUU', color: '#8df9ff', lv: 6, evo: true, mul: 5, pmul: 3, power: 250 }
   ];
+  RS.GRADE_TOP = 4; // SSS: the top of the old ladder; items and 토레쓰's reward stop here
   RS.PLUS_MAX = 10;
   RS.PLUS_STEP = 0.03;
   // Grade odds of every graded level-up card — the weapon card and each passive card — by pro season (RS.tuneIdx).
-  // Round 13: the top grades come only from luck in a match. The debut deals mostly 일반 and 고급, a 영웅 once in a
-  // hundred and a 전설 about once in 5,000 cards (0.019 %, the user's figure); 전설 then climbs slowly, to 3.5 % in
+  // Round 13: the top grades come only from luck in a match. The debut deals mostly B and A, an SS once in a
+  // hundred and an SSS about once in 5,000 cards (0.019 %, the user's figure); SSS then climbs slowly, to 3.5 % in
   // 2018 (season 16; round 13 first dealt 15 % there: "너무 높아") and 5.5 % at the end, the share it gave up going
-  // mostly to 영웅. Luck (RS.luckOdds) raises 희귀 and up but never opens a closed grade.
+  // mostly to SS. Round 14: GOAT is one card in 100,000 until the wall season, then 0.05 % climbing to 0.6 % (taken from SSS's share);
+  // SIUUU is one card in a million from the debut on (about one career in a thousand ever sees one — the user's
+  // "벼락맞을 확률"), taken from the lowest open grade. Luck (RS.luckOdds) raises S and up but never opens a closed grade.
   RS.GRADE_STAGES = [
-    { from: 0, odds: [0.6, 0.3, 0.08981, 0.01, 0.00019] },
-    { from: 3, odds: [0.4, 0.38, 0.179, 0.04, 0.001] },
-    { from: 5, odds: [0.2, 0.42, 0.266, 0.11, 0.004] },
-    { from: 8, odds: [0.1, 0.36, 0.36, 0.17, 0.01] },
-    { from: 10, odds: [0, 0.3, 0.42, 0.265, 0.015] },
-    { from: 13, odds: [0, 0.15, 0.45, 0.375, 0.025] },
-    { from: 16, odds: [0, 0, 0.5, 0.465, 0.035] },
-    { from: 19, odds: [0, 0, 0.45, 0.505, 0.045] },
-    { from: 22, odds: [0, 0, 0.4, 0.545, 0.055] }
+    { from: 0, odds: [0.599989, 0.3, 0.08981, 0.01, 0.00019, 0.00001, 0.000001] },
+    { from: 3, odds: [0.399989, 0.38, 0.179, 0.04, 0.001, 0.00001, 0.000001] },
+    { from: 5, odds: [0.199999, 0.42, 0.266, 0.11, 0.0035, 0.0005, 0.000001] },
+    { from: 8, odds: [0.099999, 0.36, 0.36, 0.17, 0.009, 0.001, 0.000001] },
+    { from: 10, odds: [0, 0.299999, 0.42, 0.265, 0.013, 0.002, 0.000001] },
+    { from: 13, odds: [0, 0.149999, 0.45, 0.375, 0.022, 0.003, 0.000001] },
+    { from: 16, odds: [0, 0, 0.499999, 0.465, 0.031, 0.004, 0.000001] },
+    { from: 19, odds: [0, 0, 0.449999, 0.505, 0.04, 0.005, 0.000001] },
+    { from: 22, odds: [0, 0, 0.399999, 0.545, 0.049, 0.006, 0.000001] }
   ];
   RS.WEAPON_PLUS_W = [62, 24, 10, 4]; // and it comes at +1 … +4
   RS.FUSED_FROM = 3; // 합체 weapons (two moves in one) only come at 영웅 or better
@@ -55,7 +61,7 @@
   RS.SELL_BACK = 0.3; // a box weapon no better than the one owned turns into this share of the box price
   // 강화 with coins (훈련장): cost[grade] × the current step; odds[p − 1] = the chance to go from +p to +p+1 (a failure
   // only costs the coins). The 강화 card of a level-up always succeeds. 강화 never changes the grade.
-  RS.ENHANCE = { cost: [12, 24, 45, 85, 160], odds: [1, 1, 0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4] };
+  RS.ENHANCE = { cost: [12, 24, 45, 85, 160, 300, 500], odds: [1, 1, 0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4] };
   // Teammates arrive already trained (m.lv = their 강화 +1 … +10): 사비 +1 is common, 사비 +10 is rare.
   RS.MATE_PLUS_W = [30, 22, 15, 11, 8, 6, 4, 2.4, 1.1, 0.5];
   RS.MATE_GRADE = { prospect: 1, starter: 2, world: 3, legend: 4 }; // card colour by OVR tier (강화 never changes it)
@@ -86,7 +92,7 @@
   // round 11's 에픽 +5 (the Lv.4 row) against a season-7 crowd (kills before the boss, normalised to the median move). 1 when unlisted.
   RS.WEAPON_SOLO = {
     trail: 0.8, rabona: 0.9, kick: 0.95, siuu: 1.8, scissors: 1.8, bicycle: 1.9, stepover: 2,
-    dropball: 0.85, orbit: 0.9, tiki: 0.9, chip: 0.9, curler: 1.6, elastico: 2.6, bobo: 2, solo: 2
+    dropball: 0.85, orbit: 0.9, tiki: 0.9, chip: 0.9, curler: 1.6, elastico: 2.6, bobo: 2, solo: 2, zeto: 1.1
   };
   // × the cooldown of the moves built as a side skill (a dash every 4 s, a shout every 7 s): alone they must fire
   // often enough to hold the crowd off
@@ -318,6 +324,26 @@
         { dmg: 33, cd: 1.25, count: 2, radius: 30 }
       ],
       evo: { dmg: 54, cd: 1.1, count: 3, radius: 38 }
+    },
+    // 제토라인 (round 14): 제라두's long ball from deep, run onto and finished by 토레쓰 — homing cannon balls played
+    // from the passer (World.passOrigin, the 'missile' behaviour) that burst on the first man they hit. Not dealt
+    // until 제라두 has joined the squad once in this career (need: build.flags.zeto, RS.weaponIds); after that it
+    // comes like any other move, at every grade, whether or not he is still beside him (his pass then comes from
+    // off the screen).
+    zeto: {
+      name: '제토라인', icon: '🔗', passive: 'finisher', hero: 'torres', use: 'missile', passer: 'gerrardo', need: 'zeto', evoName: '제토라인 전설의 호흡', evoIcon: '⚡',
+      desc: '제라두의 롱패스가 가장 센 적을 쫓아가고, 토레쓰가 받아 터뜨린다. 제라두가 선발이면 피해 +25%.',
+      evoDesc: '황금 롱패스 4개가 적을 꿰뚫으며 연달아 터진다. 안필드의 호흡이 완성됐다.',
+      ups: ['', '폭발 범위 증가', '롱패스 +1', '피해 증가, 관통 +1', '폭발 피해 증가', '피해 크게 증가, 쿨타임 감소'],
+      lv: [
+        { dmg: 24, cd: 1.5, count: 1, pierce: 1, speed: 320, r: 5, boom: 26, boomDmg: 16 },
+        { dmg: 27, cd: 1.45, count: 1, pierce: 1, speed: 325, r: 5, boom: 32, boomDmg: 18 },
+        { dmg: 30, cd: 1.4, count: 2, pierce: 1, speed: 330, r: 5, boom: 32, boomDmg: 20 },
+        { dmg: 35, cd: 1.3, count: 2, pierce: 2, speed: 335, r: 5, boom: 36, boomDmg: 23 },
+        { dmg: 40, cd: 1.2, count: 2, pierce: 2, speed: 340, r: 5, boom: 38, boomDmg: 30 },
+        { dmg: 50, cd: 1.05, count: 3, pierce: 3, speed: 350, r: 6, boom: 42, boomDmg: 36 }
+      ],
+      evo: { dmg: 72, cd: 0.92, count: 4, pierce: 5, speed: 370, r: 7, boom: 52, boomDmg: 52, gold: true }
     },
     // ---- 메시 only: his own moves. `use` names the runtime behaviour a move shares with a 날두 move (own name,
     // numbers and evolution); proj = [normal, evolved] ball look. A hero never sees the other hero's moves.
@@ -1083,6 +1109,17 @@
       { id: 'dm_run', name: '단독 역습', icon: '⚡', desc: '이동속도 +7%', mods: { moveSpeed: 0.07 } },
       { id: 'dm_munich', name: '뮌헨의 기적', icon: '🏆', desc: '보스에게 주는 피해 +15%', mods: { bossDmg: 0.15 } }
     ] },
+    // 리버풀 잔류 path (round 14)
+    kenny: { name: '킹 케니 감독', tag: '안필드의 왕이 돌아왔다', look: { hair: '#d0d0d0', suit: '#8a1020' }, cards: [
+      { id: 'kk_pass', name: '패스 앤 무브', icon: '🔁', desc: '쿨타임 -7%', mods: { cd: -0.07 } },
+      { id: 'kk_kop', name: '콥의 함성', icon: '📣', desc: '최대 체력 +15, 초당 체력 +0.2', mods: { hp: 15, regen: 0.2 } },
+      { id: 'kk_nine', name: '안필드의 9번', icon: '9️⃣', desc: '공격력 +8%', mods: { dmg: 0.08 } }
+    ] },
+    rodgers: { name: '로저쓰 감독', tag: '봉투 세 개의 철학자', look: { hair: '#4a3a2a', suit: '#2a2a3a' }, cards: [
+      { id: 'br_env', name: '봉투 세 개', icon: '✉️', desc: '경험치 +10%, 코인 획득 +10%', mods: { xp: 0.1, gold: 0.1 } },
+      { id: 'br_sas', name: 'SAS 투톱', icon: '⚡', desc: '동료 공격력 +20%', mods: { teamDmg: 0.2 } },
+      { id: 'br_press', name: '전방 압박', icon: '🔥', desc: '이동속도 +5%, 치명타 +4%', mods: { moveSpeed: 0.05, crit: 0.04 } }
+    ] },
     simeone: { name: '씨메오네 감독', tag: '검은 정장의 촐로', look: { hair: '#111111', suit: '#111111' }, cards: [
       { id: 'si_one', name: '한 경기씩', icon: '☝️', desc: '공격력 +10%', mods: { dmg: 0.10 } },
       { id: 'si_press', name: '강도 높은 압박', icon: '🔥', desc: '쿨타임 -6%, 이동속도 +4%', mods: { cd: -0.06, moveSpeed: 0.04 } },
@@ -1193,12 +1230,19 @@
     pabloib: { name: '파블로 이바녜쓰', ovr: 80, role: 'defender', era: 'atletico', yrs: [2005, 2006], hair: '#1a1a1a', skin: '#e0ac84' },
     maxirod: { name: '막시 로드리게쓰', ovr: 81, role: 'winger', era: 'atletico', yrs: [2006, 2006], hair: '#2a1a10', skin: '#e3b48c' },
     aguerito: { name: '꾼 아게로', ovr: 84, role: 'striker', era: 'atletico', yrs: [2006, 2006], hair: '#1a1a1a', skin: '#c8956a' },
-    gerrardo: { name: '제라두', ovr: 90, role: 'mid', era: 'liverpool', yrs: [2007, 2010], hair: '#5a3a20', skin: '#f1c9a5' },
-    carraga: { name: '캐라거', ovr: 85, role: 'defender', era: 'liverpool', yrs: [2007, 2010], hair: '#3a2a1a', skin: '#f1c9a5' },
-    reinaa: { name: '레이냐', ovr: 87, role: 'keeper', era: 'liverpool', yrs: [2007, 2010], hair: '#1a1a1a', skin: '#e0ac84' },
+    // 제라두 (round 14): his joining the squad once unlocks the 제토라인 move for the career (RS.SKILLS.zeto). The
+    // 리버풀 men stay through 2014 for the 잔류 path (RS.YEARS_TORRES_LFC; the 첼씨 path never asks for them)
+    gerrardo: { name: '제라두', ovr: 90, role: 'mid', era: 'liverpool', yrs: [2007, 2014], hair: '#5a3a20', skin: '#f1c9a5' },
+    carraga: { name: '캐라거', ovr: 85, role: 'defender', era: 'liverpool', yrs: [2007, 2013], hair: '#3a2a1a', skin: '#f1c9a5' },
+    reinaa: { name: '레이냐', ovr: 87, role: 'keeper', era: 'liverpool', yrs: [2007, 2013], hair: '#1a1a1a', skin: '#e0ac84' },
     xabialon: { name: '사비 알론쏘', ovr: 87, role: 'mid', era: 'liverpool', yrs: [2007, 2009], hair: '#3a2a1a', skin: '#e3b48c' },
     maschera: { name: '마스께라노', ovr: 85, role: 'mid', era: 'liverpool', yrs: [2007, 2010], hair: '#1a1a1a', skin: '#e0ac84' },
-    kuyto: { name: '카위트', ovr: 82, role: 'winger', era: 'liverpool', yrs: [2007, 2010], hair: '#c9a46a', skin: '#f1c9a5' },
+    kuyto: { name: '카위트', ovr: 82, role: 'winger', era: 'liverpool', yrs: [2007, 2012], hair: '#c9a46a', skin: '#f1c9a5' },
+    hendo: { name: '헨더쓴', ovr: 81, role: 'mid', era: 'liverpool', yrs: [2011, 2014], hair: '#5a3a20', skin: '#f1c9a5' },
+    skrtel: { name: '슈크르뗄', ovr: 83, role: 'defender', era: 'liverpool', yrs: [2011, 2014], hair: '#2a2a2a', skin: '#e8c8a8', style: 'bald' },
+    mignolet: { name: '미뇰레', ovr: 82, role: 'keeper', era: 'liverpool', yrs: [2013, 2014], hair: '#3a2a1a', skin: '#f0c8a2' },
+    sturridgy: { name: '스터리지', ovr: 85, role: 'striker', era: 'liverpool', yrs: [2013, 2014], hair: '#111111', skin: '#8a5a3a' },
+    coutinho: { name: '쿠치뉴', ovr: 84, role: 'mid', era: 'liverpool', yrs: [2013, 2014], hair: '#2a1a10', skin: '#c99070' },
     drogbro: { name: '드록빠', ovr: 89, role: 'striker', era: 'chelseat', yrs: [2011, 2012], hair: '#111111', skin: '#5a3a26' },
     lampardo: { name: '람빠드', ovr: 88, role: 'mid', era: 'chelseat', yrs: [2011, 2014], hair: '#6a4a2a', skin: '#f1c9a5' },
     cechwall: { name: '쩨흐', ovr: 89, role: 'keeper', era: 'chelseat', yrs: [2011, 2014], hair: '#1a1a1a', skin: '#f0c8a2' },
@@ -1233,7 +1277,10 @@
     miniron: { name: '꼬마 날두', hp: 32, speed: 64, dmg: 8, r: 5, xp: 2, sprite: 'miniron', pace: 'fast' },
     // mini-bosses (준보스): big and slow, drawn at 1.5x with an HP bar, telegraphed charge / slam, chest drops
     brute: { name: '거구 주장', hp: 150, speed: 20, dmg: 13, r: 13, xp: 16, sprite: 'tank', mini: true, pace: 'slow', acts: ['charge', 'slam'] },
-    enforcer: { name: '집행관 미드필더', hp: 95, speed: 30, dmg: 11, r: 10, xp: 12, sprite: 'grunt', mini: true, pace: 'slow', acts: ['charge', 'charge', 'slam'] }
+    enforcer: { name: '집행관 미드필더', hp: 95, speed: 30, dmg: 11, r: 10, xp: 12, sprite: 'grunt', mini: true, pace: 'slow', acts: ['charge', 'charge', 'slam'] },
+    // 이빨괴물 수아레즈 (round 14): once beaten as the 2011 season boss of the 리버풀 잔류 path, he may run on again
+    // as a quick 준보스 in any later season of that career (World.runScheduled 'mini', RS.SUAREZ.miniOdds)
+    suarezmini: { name: '이빨괴물 수아레즈', hp: 130, speed: 52, dmg: 13, r: 9, xp: 18, sprite: 'bsuarez', mini: true, acts: ['charge', 'charge', 'slam'] }
   };
   RS.ELITE_SPEED = 0.75; // elites are 1.5x the size: they walk slower
   RS.BASE_MOVE = 78; // hero walking speed before bonuses (× the hero's moveMul)
@@ -1261,8 +1308,12 @@
     messi: { hp: 700, fight: 1.4, speed: 70, r: 9, dmg: 18, actions: [], cool: 1.25, sprite: 'messi', sig: '드리블·감아차기·발리' }, // the final: a long duel
     ronaldo: { hp: 720, fight: 1.4, speed: 62, r: 10, dmg: 18, actions: [], cool: 1.25, sprite: 'ronaldo', sig: '무회전·헤딩 강타·SIUU' }, // 메시 career final
     // round 11: the special boss who runs on after 드록빠 (RS.TORRES) — runs in behind, chips and strikes quickly
-    torres: { hp: 560, fight: 1, speed: 56, r: 10, dmg: 16, actions: ['dash', 'snipe', 'burst', 'dash', 'pslam'], cool: 1.4, sprite: 'btorres', sig: '단독 돌파·칩슛·속공' }
+    torres: { hp: 560, fight: 1, speed: 56, r: 10, dmg: 16, actions: ['dash', 'snipe', 'burst', 'dash', 'pslam'], cool: 1.4, sprite: 'btorres', sig: '단독 돌파·칩슛·속공' },
+    // 이빨괴물 수아레즈 (round 14): the 2011 boss of the 리버풀 잔류 path — bites (quick dashes and cuts), a sniper
+    // shot, and he calls the crowd in; beaten once, he comes back as a 준보스 (RS.ENEMIES.suarezmini)
+    suarez: { hp: 520, fight: 1.15, speed: 60, r: 11, dmg: 17, actions: ['dash', 'cut', 'snipe', 'dash', 'cut', 'summon'], cool: 1.4, sprite: 'bsuarez', sig: '물어뜯기 돌진·연속 태클·동료 소환' }
   };
+  RS.SUAREZ = { miniOdds: 0.35 }; // chance a 준보스 wave of a later season brings him, once beaten (build.flags.suarez)
   // 토레쓰 (round 11): when 드록빠 falls the season is already cleared, and 토레쓰 runs on at once for `window`
   // seconds. Beating him is optional: it gives one pick of RS.TORRES_REWARDS (career.js) and unlocks his career
   // (RS.HEROES.torres, meta.unlocked.torres); the window closing or the hero going down just ends the clear.
@@ -1380,17 +1431,38 @@
     Y(2007, 'liverpool', 'benitez', '리버풀 이적, 데뷔 시즌 24골', 'tackler', '프리미어 백태클러', '고향을 떠나 리버풀로. 데뷔 시즌 리그 24골을 넣었다. 프리미어리그의 백태클이 기다린다.'),
     Y(2008, 'liverpool', 'benitez', '유로 2008 결승골', 'keeper', '빈 결승 독일 수문장', '빈에서 열린 유로 2008 결승. 수비 뒷공간을 파고들어 독일 수문장 위로 공을 띄운 한 방으로 44년 만의 우승을 안겼다.'),
     Y(2009, 'liverpool', 'benitez', '올드 트래퍼드 4-1', 'giant', '맨체스터 철벽 비디찌', '맨체스터 원정 4-1 대승. 철벽 수비수 비디찌를 속도로 무너뜨린 밤, 그 철벽이 복수를 노린다.'),
-    Y(2010, 'liverpool', 'benitez', '남아공 월드컵 우승', 'maestro', '오렌지 군단 지휘자', '남아공 월드컵 우승. 부상을 안고 뛰었지만 결승에서 오렌지 군단을 넘었다.'),
-    Y(2011, 'chelseat', 'eyebrow', '5천만 파운드 이적', 'tackler', '친정팀 수비대장 캐라거', '영국 최고 이적료로 첼씨에 입단. 데뷔전 상대는 하필 친정팀 리버풀, 옛 동료 수비대장이 몸으로 막아선다.'),
-    Y(2012, 'chelseat', 'dimatteo', '캄프 누 단독 돌파, 유럽 정상', 'keeper', '뮌헨 결승 수문장 노이어르', '캄프 누 4강, 하프라인부터 혼자 달려 쐐기골. 뮌헨 결승은 승부차기 끝에 우승했고, 여름엔 유로 2012 결승골과 득점왕까지.'),
+    // 2010 (round 14): the 월드컵 choice before the season (RS.EVENTS.wc2010) — play on a bad knee or sit it out
+    Y(2010, 'liverpool', 'benitez', '남아공 월드컵의 해', 'maestro', '오렌지 군단 지휘자', '남아공 월드컵의 해. 무릎은 성치 않다. 결승에서 기다리는 건 오렌지 군단의 지휘자.', { event: 'wc2010' }),
+    // 2011 (round 14): the crossroads 기자회견 (RS.PRESS.crossroads) — 첼씨's 5천만 파운드 or 안필드. This array is
+    // the 첼씨 path: four 시련 seasons (ctrial 1-4; each cleared one lifts 첼씨 토레쓰 one grade, B → SSS; the last is
+    // the 캄프 누 goal, played out on the pitch: cine), each opened by a 회상 of a flop (recall: RS.PRESS). The 잔류
+    // path swaps these four for RS.YEARS_TORRES_LFC's 리버풀 seasons (RS.selectHero reads build.flags.path).
+    Y(2011, 'chelseat', 'eyebrow', '5천만 파운드, 903분의 골 가뭄', 'tackler', '친정팀 수비대장 캐라거', '영국 최고 이적료로 첼씨에 입단. 그런데 공이 발에 붙지 않는다. 첫 골까지 903분. 데뷔전 상대는 하필 친정팀 리버풀, 옛 동료 수비대장이 몸으로 막아선다.', { press: 'crossroads', recall: 'recall1', ctrial: 1, trial: 1 }),
+    Y(2011, 'chelseat', 'eyebrow', '맨유전, 텅 빈 골문', 'keeper', '맨체스터 수문장 데게아르', '아넬까의 패스, 1대1, 수문장까지 제쳤다. 그리고 텅 빈 골문 앞에서… 공은 옆그물로. 전 세계가 웃었다. 그 수문장이 다시 골문에 선다.', { recall: 'recall2', ctrial: 2, trial: 1 }),
+    Y(2012, 'chelseat', 'dimatteo', '백조단 앞 헛발질, 벤치의 겨울', 'tackler', '백조단 수비대장', '웨일스 백조단 원정, 또 빈 골문 앞 헛발질. 벤치가 길어진 겨울. 그 수비대장이 백태클을 노린다.', { recall: 'recall3', ctrial: 3, trial: 1 }),
+    Y(2012, 'chelseat', 'dimatteo', '캄프 누, 900억 일시불 골', 'keeper', '바르샤 수문장 발기스', '캄프 누 4강 2차전, 10명이 버티는 첼씨. 추가시간, 하프라인에 혼자 남은 토레쓰 앞으로 공이 굴러온다. 바르샤 수문장 발기스만 제치면 900억을 한 번에 갚는다.', { recall: 'recall4', ctrial: 4, trial: 2, cine: 'goal900', twist: { press: 1 } }),
     Y(2013, 'chelseat', 'benitez', '유로파리그 우승', 'striker', '암스테르담 결승 저격수', '암스테르담 유로파리그 결승에서 선제골. 상대 팀 저격수와 맞붙는다.'),
-    Y(2014, 'chelseat', 'special', '무링요의 첼씨', 'giant', '프리미어 거인 센터백', '스페셜 원이 돌아왔다. 출전 시간은 줄었지만 거인 센터백들과의 몸싸움은 계속된다.', { trial: 1 }),
+    Y(2014, 'chelseat', 'special', '무링요의 첼씨, 브라질 월드컵', 'giant', '프리미어 거인 센터백', '스페셜 원이 돌아왔다. 출전 시간은 줄었지만 거인 센터백들과의 몸싸움은 계속된다. 여름엔 브라질 월드컵.', { trial: 1, event: 'wc2014' }),
     Y(2015, 'atletico2', 'simeone', '고향 복귀, 4만 관중', 'maestro', '베르나베우 백색군단 지휘자', '4만 5천 관중의 환영 속에 고향 팀으로 돌아왔다. 복귀 직후 베르나베우 원정에서 두 골, 백색군단 지휘자와 다시 더비.'),
     Y(2016, 'atletico2', 'simeone', '밀라노 결승의 눈물', 'ronaldo', '호날두', '밀라노 챔스 결승, 마드리드 더비는 승부차기까지 갔다. 우승을 확정한 마지막 키커는 날두. 그 날두를 넘어야 한다.', { rivalBoss: true, trial: 2 }),
     Y(2017, 'atletico2', 'simeone', '공포의 충돌, 다시 일어서다', 'giant', '공중볼 경합의 거인', '공중볼 경합에서 머리를 부딪쳐 의식을 잃었지만 며칠 만에 그라운드로 돌아왔다. 그 거인을 다시 넘는다.'),
     Y(2018, 'atletico2', 'simeone', '유로파리그 우승, 고향과의 작별', 'tackler', '리옹 결승 수비대장', '리옹 유로파리그 결승 우승, 고향 팀에서 들어 올린 첫 큰 트로피. 눈물의 작별 뒤 일본으로.'),
     Y(2019, 'tosu', 'tosu', '은퇴 무대 — 최종 결전', 'messi', '메시', '사간 도스에서 맞는 마지막 시즌. 2012년 캄프 누에서 울렸던 메시와 마지막으로 맞선다.', { final: true })
   ];
+  // 리버풀 잔류 path (round 14, RS.PRESS.crossroads 'stay'): the four 첼씨 시련 seasons become four 리버풀 seasons —
+  // 이빨괴물 수아레즈 as the 2011 boss (beaten once, he comes back as a 준보스), the 칭호 '안필드의 9번' and the 2014
+  // 월드컵 choice. The seasons before and after are the same objects as the 첼씨 path's.
+  RS.YEARS_TORRES_LFC = RS.YEARS_TORRES.slice(0, 10).concat([
+    Y(2011, 'liverpool', 'kenny', '안필드 잔류, 이빨괴물 수아레즈', 'suarez', '이빨괴물 수아레즈', '첼씨의 5천만 파운드를 거절했다. 1월에 온 새 파트너 수아레즈는 상대를 물어뜯는 이빨괴물. 훈련장에서 먼저 그를 길들여야 한다.', { press: 'crossroads', lfc: 1 }),
+    Y(2012, 'liverpool', 'kenny', '웸블리 칼링컵, 안필드의 9번', 'keeper', '웸블리 결승 수문장', '웸블리 칼링컵 결승. 안필드의 9번으로 남은 첫 트로피가 걸렸다. 결승 수문장을 넘어라.', { lfc: 2 }),
+    Y(2013, 'liverpool', 'rodgers', '수아레즈와 투톱, 득점왕 경쟁', 'tackler', '에버튼 더비 백태클러', '수아레즈와 투톱. 리그 득점왕을 두고 둘이 경쟁한다. 머지사이드 더비의 백태클러가 발목을 노린다.', { lfc: 3 }),
+    Y(2014, 'liverpool', 'rodgers', '우승 문턱, 미끄러진 제라두', 'giant', '첼씨 버스 거인 센터백', '24년 만의 리그 우승이 눈앞. 첼씨전, 제라두가 미끄러졌다. 버스를 세운 첼씨의 거인 센터백을 넘어야 한다. 여름엔 브라질 월드컵.', { trial: 1, foe: 'chelsea', event: 'wc2014', lfc: 4 })
+  ], RS.YEARS_TORRES.slice(16));
+  // 첼씨 토레쓰 (round 14): on the 첼씨 path the hero is 첼씨 토레쓰 at a grade of his own (build.flags.cgrade, an index
+  // into RS.GRADES B … SSS): every cleared 시련 lifts it one step (RS.finishYear), and his damage and HP follow it
+  // (RS.heroGradeMul). All four cleared: 성공한 첼씨 토레쓰 (meta.unlocked.torresBlue) — his next careers start at SSS,
+  // in 첼씨 blue for good (build.flags.blue).
+  RS.CHELSEA = { mul: [0.82, 0.9, 1, 1.1, 1.25], hp: [-15, -5, 0, 10, 25], trials: 4, bluePath: 'chelsea' };
   // ---------------------------------------------------------------- 엘 클라시코 (the rival as a mid-season boss)
   // 날두 in 마드리드 (2009–2018) meets 메시's 바르샤 every season: 날두's seasons 2009–2017 and 메시's 2010–2018 get
   // the rival at the middle of the stage (World.spawnRival) for RS.RIVAL_WINDOW seconds. Kill him = 클라시코 win;
@@ -1423,9 +1495,18 @@
     messi: { name: '메시', short: '메시', moveMul: 1.22, startSkill: 'orbit', years: RS.YEARS_MESSI, debut: 2004, birth: 1987, desc: '유소년부터 · 드리블과 공 기술 · 패스는 동료가 · 성장호르몬·약물 선택', rival: '호날두', wall: 3 },
     // round 11: unlocked by beating 토레쓰 after 드록빠 (meta.unlocked.torres); quick feet, 날두's shooting moves
     // and his own 엘 니뇨 칩슛
-    torres: { name: '토레쓰', short: '토레쓰', moveMul: 1.1, startSkill: 'nino', years: RS.YEARS_TORRES, debut: 2001, birth: 1984, desc: '17세 데뷔 · 칩슛과 속공 · 슬라이딩 4초', rival: '메시', locked: true }
+    // round 14: his 2011 crossroads picks one of two season lists (paths; build.flags.path, RS.selectHero)
+    torres: { name: '토레쓰', short: '토레쓰', moveMul: 1.1, startSkill: 'nino', years: RS.YEARS_TORRES, paths: { chelsea: RS.YEARS_TORRES, liverpool: RS.YEARS_TORRES_LFC }, debut: 2001, birth: 1984, desc: '17세 데뷔 · 칩슛과 속공 · 슬라이딩 4초', rival: '메시', locked: true }
   };
   RS.heroLocked = (meta, hero) => !!(RS.HEROES[hero] && RS.HEROES[hero].locked) && !(meta && meta.unlocked && meta.unlocked[hero]);
+  // The season list of a career: the hero's, or the path his career took (토레쓰 after 2011).
+  RS.yearsFor = (hero, build) => {
+    const h = RS.HEROES[hero] || RS.HEROES.ronaldo, path = build && build.flags && build.flags.path;
+    return (h.paths && path && h.paths[path]) || h.years;
+  };
+  // 첼씨 토레쓰 (RS.CHELSEA): the hero's own grade on the 첼씨 path — null off it (the 발롱도르 ladder is the weapon's)
+  RS.heroGrade = (b) => (b && b.flags && (b.flags.blue || b.flags.path === RS.CHELSEA.bluePath) ? Math.max(0, Math.min(RS.GRADE_TOP, b.flags.cgrade | 0)) : null);
+  RS.heroGradeName = (b) => { const g = RS.heroGrade(b); return g == null ? '' : RS.GRADES[g].name; };
 
   // ---------------------------------------------------------------- Difficulty (이지 / 노멀 / 하드)
   // On top of the season curve: enemy HP, damage, spawn density and boss damage × these, and from the debut on
@@ -1447,7 +1528,7 @@
     // fixed, 완전 오토 with the whole 훈련장 cleared 하드 on seed 7 of 7 · 3 · 5 · 9 (×0.5: on 7 and 3). At ×0.25 its
     // season-10 hand is 영웅 8 % · 전설 2 %, near round 12's 에픽 7 % · no 황금, and it stalls on all six seeds tried
     // (7 · 3 · 5 · 9 · 11 · 13), between 2011 and 2022.
-    hard: { name: '하드', icon: '🔥', hp: 2.4, dmg: 2.1, spawn: 1.25, spawnRamp: 3, crowd: 2, boss: 2.2, grow: 0.045, heal: 0.45, special: 0.5, top: 0.25, poise: 0.6, bossCool: 0.8, ramp: 1, desc: '적이 단단하고 아프며 잘 밀리지 않는다. 회복과 특수 아이템, 영웅·전설 카드도 드물다. 오토로는 못 깬다' }
+    hard: { name: '하드', icon: '🔥', hp: 2.4, dmg: 2.1, spawn: 1.25, spawnRamp: 3, crowd: 2, boss: 2.2, grow: 0.045, heal: 0.45, special: 0.5, top: 0.25, poise: 0.6, bossCool: 0.8, ramp: 1, desc: '적이 단단하고 아프며 잘 밀리지 않는다. 회복과 특수 아이템, SS·SSS 카드도 드물다. 오토로는 못 깬다' }
   };
   RS.DIFF_ORDER = ['easy', 'normal', 'hard'];
   RS.DIFF = 'normal';
@@ -1497,8 +1578,60 @@
         { id: 'pepev_rondo', icon: '🔁', name: '론도 훈련', tag: '영구 효과', mods: { cd: -0.08, teamCd: -0.1 }, ai: 2, result: '🔁 론도로 패스 감각이 살아났다!',
           desc: '쿨타임 -8%, 동료 쿨타임 -10%. 스쿼드는 그대로.' }
       ]
+    },
+    // ---- 토레쓰 (round 14). Cards may carry fx { mods, flag: { name: value }, gradeDown: n (every owned weapon
+    // loses n grades) } and `rolls` ([{ p, text, win, fx }], rolled once) like a press answer; `variants` picks the
+    // card list by a build flag (the 2014 choice depends on what the knee went through in 2010).
+    wc2010: {
+      title: '남아공 월드컵, 무릎을 걸 것인가', who: '2010년 봄 · 무릎 수술 두 달 뒤 · 대표팀 소집 명단',
+      story: '수술한 무릎이 다 낫지 않았다. 의사는 "지금 뛰면 다시 다칠 수 있다"고 했고, 감독은 "네가 없으면 안 된다"고 했다. 월드컵에 인생을 건다, 아니면 재활에 집중하고 4년 뒤를 본다.',
+      cards: [
+        { id: 'wc10_go', icon: '🏆', name: '참가한다 — 무릎을 걸고', tag: '🎲 40% 악화', ai: 1,
+          desc: '60%: 월드컵 우승, 챔피언의 담력(보스에게 주는 피해 +12%) · 40%: 무릎 악화 — 가진 모든 스킬(무기) 등급 -2, 메달은 목에 건다. 2014년 참가는 그때 몸 상태에 달린다.',
+          rolls: [
+            { p: 0.6, win: true, text: '🏆 무릎을 안고 뛰었고, 결승을 넘었다! 월드컵 챔피언 · 보스에게 주는 피해 +12%', fx: { mods: { bossDmg: 0.12 }, flag: { knee: 'ok', wc2010: 'win' } } },
+            { p: 0.4, text: '💥 결승 뒤 무릎이 무너졌다. 메달은 걸었지만 모든 스킬 등급 -2', fx: { gradeDown: 2, flag: { knee: 'bad', wc2010: 'win' } } }
+          ] },
+        { id: 'wc10_rest', icon: '🩹', name: '불참하고 재활한다', tag: '확정', ai: 0, result: '🩹 월드컵은 TV로 봤다. 대신 무릎이 새것처럼 돌아왔다 · 최대 체력 +15 · 2014 월드컵 확정 참가',
+          desc: '이번 월드컵은 무관. 몸이 완전히 돌아온다: 최대 체력 +15. 2014년 브라질 월드컵은 확정 참가(리스크 없음).',
+          fx: { mods: { hp: 15 }, flag: { knee: 'fit', wc2010: 'skip' } } }
+      ]
+    },
+    wc2014: {
+      title: '브라질 월드컵 소집', who: '2014년 여름 · 대표팀 소집 명단 · 서른 살의 무릎',
+      story: '브라질 월드컵. 2010년의 선택이 지금 무릎 상태를 정했다.',
+      variants: { flag: 'knee', by: {
+        fit: [
+          { id: 'wc14_fit', icon: '🏆', name: '참가한다 — 몸 상태 최고', tag: '확정', ai: 0, result: '🏆 재활 덕에 완전한 몸으로 브라질에 갔다 · 공격력 +8%, 최대 체력 +10',
+            desc: '2010년 재활의 보상: 리스크 없이 참가. 공격력 +8%, 최대 체력 +10.', fx: { mods: { dmg: 0.08, hp: 10 }, flag: { wc2014: 'go' } } },
+          { id: 'wc14_no', icon: '🛋️', name: '불참한다', tag: '확정', ai: 1, result: '🛋️ 여름을 쉬었다. 변화 없음', fx: { flag: { wc2014: 'skip' } }, desc: '아무 일도 일어나지 않는다.' }
+        ],
+        ok: [
+          { id: 'wc14_ok', icon: '🏆', name: '참가한다 — 괜찮을 거야', tag: '🎲 25% 재부상', ai: 1,
+            desc: '75%: 멀쩡히 돌아온다, 공격력 +8% · 25%: 재부상 — 모든 스킬 등급 -1',
+            rolls: [
+              { p: 0.75, win: true, text: '🏆 무릎은 버텼다. 브라질의 여름 · 공격력 +8%', fx: { mods: { dmg: 0.08 }, flag: { wc2014: 'go' } } },
+              { p: 0.25, text: '💥 조별리그에서 무릎이 다시 말을 안 들었다. 모든 스킬 등급 -1', fx: { gradeDown: 1, flag: { wc2014: 'hurt' } } }
+            ] },
+          { id: 'wc14_no', icon: '🛋️', name: '불참한다', tag: '확정', ai: 0, result: '🛋️ 여름을 쉬었다. 변화 없음', fx: { flag: { wc2014: 'skip' } }, desc: '아무 일도 일어나지 않는다.' }
+        ],
+        bad: [
+          { id: 'wc14_bad', icon: '🎰', name: '참가한다 — 어차피 게임이잖아', tag: '🎲 60% 재부상', ai: 1,
+            desc: '2010년에 무너진 무릎으로 또 간다. 40%: 기적의 여름, 공격력 +15% · 60%: 재부상 — 모든 스킬 등급 -2, 최대 체력 -10',
+            rolls: [
+              { p: 0.4, win: true, text: '🏆 기적처럼 무릎이 버텼다! 전 세계가 놀랐다 · 공격력 +15%', fx: { mods: { dmg: 0.15 }, flag: { wc2014: 'go' } } },
+              { p: 0.6, text: '💥 첫 경기 20분 만에 무릎이 꺾였다. 모든 스킬 등급 -2, 최대 체력 -10', fx: { gradeDown: 2, mods: { hp: -10 }, flag: { wc2014: 'hurt' } } }
+            ] },
+          { id: 'wc14_no', icon: '🛋️', name: '불참한다', tag: '확정', ai: 0, result: '🛋️ 무릎을 아껴 여름을 쉬었다. 변화 없음', fx: { flag: { wc2014: 'skip' } }, desc: '아무 일도 일어나지 않는다.' }
+        ]
+      } },
+      cards: [
+        { id: 'wc14_none', icon: '🛋️', name: '소집을 사양한다', tag: '확정', ai: 0, result: '🛋️ 여름을 쉬었다. 변화 없음', fx: { flag: { wc2014: 'skip' } }, desc: '아무 일도 일어나지 않는다.' }
+      ]
     }
   };
+  // Every card an event can deal (its base cards and each variant list), for RS.coachCard and the validators.
+  RS.eventCards = (ev) => (ev.variants ? Object.values(ev.variants.by).reduce((a, l) => a.concat(l), []) : []).concat(ev.cards || []);
 
   // ---------------------------------------------------------------- 기자회견 (press conferences: a visual novel)
   // Shown once before that season (career years; RS.YEARS[i].press). lines: the scene (by: speaker, inner: the
@@ -1689,6 +1822,48 @@
       ]
     }
   };
+  // ---- 토레쓰 (round 14): the 2011 crossroads, and the 회상 before each 첼씨 시련 (recall: one answer, no odds; it
+  // marks career.recallDone instead of pressDone, so a season can carry both). skipIf: a build flag that skips the
+  // scene (성공한 첼씨 토레쓰 is on the 첼씨 path from the start).
+  RS.PRESS.crossroads = {
+    title: '2011년 1월, 기자회견', who: '안필드 기자회견장 · 첼씨의 5천만 파운드 제안', skipIf: 'blue', prevLook: true,
+    lines: [
+      { by: '기자', text: '첼씨가 영국 역대 최고 이적료 5천만 파운드를 제시했다는 보도입니다. 떠나는 겁니까?' },
+      { by: '토레쓰', text: '(2007년 첫 시즌 24골. 제라두의 롱패스, 콥의 함성, "You\'ll Never Walk Alone"… 다 여기서였다.)', inner: true },
+      { by: '토레쓰', text: '(하지만 트로피는 없었다. 런던에 가면 우승할 수 있다. 다만, 그 돈의 무게를 견딜 수 있을까.)', inner: true },
+      { by: '기자', text: '토레쓰 선수, 대답해 주시죠.' }
+    ],
+    choices: [
+      { id: 'chelsea', icon: '🔵', name: '"런던으로 갑니다"', say: '트로피를 들고 싶습니다. 첼씨로 갑니다.', desc: '첼씨 토레쓰 B등급으로 시작 · 시련 4개: 하나 넘을 때마다 등급 +1(B→A→S→SS→SSS) · 마지막은 캄프 누 900억 골 · 다 넘으면 성공한 첼씨 토레쓰 획득', ai: 0,
+        result: { mood: 'calm', text: '5천만 파운드. 파란 유니폼을 입은 첫날부터 숫자가 등에 붙어 다녔다.', fx: { flag: { path: 'chelsea', cgrade: 0 } }, note: '첼씨 토레쓰 B등급 · 시련 1/4 시작' } },
+      { id: 'stay', icon: '🔴', name: '"안필드에 남겠습니다"', say: '제 집은 여기입니다. 리버풀에 남겠습니다.', desc: '리버풀 잔류 확정 · 칭호 "안필드의 9번"(공격력 +5%, 최대 체력 +10) · 민심 +10 · 대신 이빨괴물 수아레즈가 보스로 온다(한 번 잡으면 준보스로 불쑥불쑥)', ai: 1,
+        result: { mood: 'good', win: true, text: '콥이 노래를 멈추지 않았다. 그리고 1월, 이빨괴물 수아레즈가 안필드에 도착했다.', fx: { flag: { path: 'liverpool', lfcTitle: true }, mods: { dmg: 0.05, hp: 10 }, fans: 10 }, note: '칭호 "안필드의 9번" · 공격력 +5%, 최대 체력 +10 · 민심 +10' } }
+    ]
+  };
+  const RECALL = (title, lines) => ({
+    title, who: '회상 · 꼴사나운 장면', recall: true, lines,
+    choices: [{ id: 'go', icon: '😤', name: '…그래도 뛴다', say: '다 봤다. 그래도 뛴다.', desc: '시련 시작', ai: 0, result: { mood: 'calm', text: '숨을 고르고 터널을 나선다.', fx: {}, note: '시련 시작' } }]
+  });
+  RS.PRESS.recall1 = RECALL('회상 — 903분', [
+    { by: '회상', text: '2011년 1월, 첼씨 데뷔전. 상대는 하필 리버풀. 90분 동안 공이 발에 붙지 않았다.' },
+    { by: '회상', text: '한 골도 없이 2월, 3월… 첫 골까지 903분. 기자들은 "5천만 파운드짜리 무득점"이라고 썼다.' },
+    { by: '토레쓰', text: '(안필드에서는 이러지 않았는데. 뭐가 달라진 거지.)', inner: true }
+  ]);
+  RS.PRESS.recall2 = RECALL('회상 — 텅 빈 골문', [
+    { by: '회상', text: '2011년 9월, 맨유전. 아넬까의 패스가 정확히 왔다. 1대1. 수문장 데게아르까지 제쳤다.' },
+    { by: '회상', text: '골문은 비어 있었다. 공은… 옆그물 바깥으로. 올드 트래퍼드 전체가 웃었다. 그날 밤 세계의 짤이 됐다.' },
+    { by: '토레쓰', text: '(왜 그걸 못 넣었지. 지금도 모르겠다.)', inner: true }
+  ]);
+  RS.PRESS.recall3 = RECALL('회상 — 벤치의 겨울', [
+    { by: '회상', text: '2012년 1월, 백조단 원정. 또 빈 골문 앞에서 헛발질. 벤치가 길어졌다. 등번호 9번이 무거웠다.' },
+    { by: '회상', text: '팬들은 "900억짜리 벤치"라고 불렀다. 감독이 바뀌었다. 대행 감독 디마떼오는 말했다. "한 골이면 다 바뀐다."' },
+    { by: '토레쓰', text: '(한 골. 딱 한 골이면.)', inner: true }
+  ]);
+  RS.PRESS.recall4 = RECALL('회상 — 캄프 누 전야', [
+    { by: '회상', text: '2012년 4월, 챔스 4강 2차전. 상대는 메시의 바르샤. 1차전 1-0, 하지만 캄프 누에서 테뤼가 퇴장당했다. 10명.' },
+    { by: '회상', text: '2-2. 추가시간. 바르샤가 전원 공격으로 올라온다. 하프라인에 혼자 남은 토레쓰 앞으로… 공이 굴러온다.' },
+    { by: '토레쓰', text: '(발기스 하나다. 900억을 한 번에 갚는다.)', inner: true }
+  ]);
   // A move taught by a press answer while the skill bar is full becomes this small lasting boost instead.
   RS.PRESS_FULL_MODS = { dmg: 0.05 };
   // Bad endings: the career stops there (RS.applyPress sets career.over); a new career starts from scratch.
@@ -1709,14 +1884,18 @@
   };
   RS.YEARS_RONALDO = RS.YEARS;
   RS.HERO = 'ronaldo';
-  RS.selectHero = function (hero) {
+  // build (round 14): the career's path (토레쓰 after 2011) picks its season list, and 성공한 첼씨 토레쓰 (flags.blue)
+  // wears 첼씨 blue all career (RS.TORRES_BLUE, read by the sprites)
+  RS.selectHero = function (hero, build) {
     const h = RS.HEROES[hero] ? hero : 'ronaldo';
     RS.HERO = h;
-    RS.YEARS = RS.HEROES[h].years;
+    RS.YEARS = RS.yearsFor(h, build);
+    RS.TORRES_BLUE = h === 'torres' && !!(build && build.flags && build.flags.blue);
     RS.DEBUT_YEAR = RS.HEROES[h].debut;
     RS.BIRTH_YEAR = RS.HEROES[h].birth;
     return h;
   };
+  RS.TORRES_BLUE = false;
   RS.DEBUT_YEAR = 2002;
   RS.BIRTH_YEAR = 1985;
 
@@ -1812,4 +1991,4 @@
     reroll: { name: '전술 보드', icon: '🔁', desc: '레벨업 리롤 +1', max: 3, ballon: [1, 1, 1], mods: { reroll: 1 } }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).data = 'R13.3';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).data = 'R14';

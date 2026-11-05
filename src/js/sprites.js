@@ -380,7 +380,9 @@
     const y = yd || RS.YEARS[yearIdx];
     const era = RS.ERAS[y.era];
     const hair = y.year <= 2010 ? 'torres' : 'short', gold = y.year >= 2012, arm = y.year >= 2003 && y.year <= 2006;
-    return { hair, kit: era.kit, goldBoots: gold, armband: arm, key: 'tor|' + hair + '|' + y.era + '|' + gold + '|' + arm };
+    // 성공한 첼씨 토레쓰 (round 14, RS.TORRES_BLUE): 첼씨 blue in every season, golden boots from the first
+    const blue = !!RS.TORRES_BLUE, kit = blue ? RS.ERAS.chelseat.kit : era.kit;
+    return { hair, kit, goldBoots: gold || blue, armband: arm, key: 'tor|' + hair + '|' + (blue ? 'blue' : y.era) + '|' + (gold || blue) + '|' + arm };
   };
   RS.heroLook = (hero, yearIdx, yd, small) => hero === 'messi' ? RS.messiLook(yearIdx, yd, small)
     : hero === 'torres' ? RS.torresLook(yearIdx, yd) : RS.ronaldoLook(yearIdx, yd);
@@ -477,6 +479,8 @@
         const P = (pal) => tiered(dull(pal), tier);
         switch (type) {
           case 'grunt': return makeSprite(person('short'), P({ K: foe[0], k2: '#ffffff', S: '#20202a', W: foe[0], H: '#3a2a1a' }), o({ pattern: 'trim', collar: 6 }));
+          // 이빨괴물 수아레즈 as a 준보스 (round 14): 리버풀 red whatever the season's crowd wears (the renderer scales him 1.5×)
+          case 'bsuarez': return makeSprite(person('slick'), { K: '#c8102e', k2: '#f6eb61', S: '#c8102e', W: '#c8102e', H: '#1a1a1a', s: '#e0ac84' }, o({ pattern: 'trim', collar: 6 }));
           case 'runner': return makeSprite(person('long'), P({ K: foe[1], k2: '#202020', S: '#f4f4f4', W: foe[1], H: '#6a4a2a', s: '#c99070' }), o({ pattern: 'trim', collar: 6 }));
           case 'tank': return makeSprite([0, 1].map((i) => TANK.concat(TANK_LEGS[i])), P({ K: foe[0], k2: '#111', S: '#20202a', W: foe[0], H: '#111', s: '#b07a56' }), o({ pattern: 'trim', collar: 5 }));
           case 'ref': return makeSprite(person('bald').map((f) => { f = f.slice(); f[8] = '..s.KKKKK.Y..'; f[9] = '..s.KKKKK.Y..'; return f; }), P({ K: '#151515', k2: '#151515', S: '#151515', W: '#151515', s: '#e7b48c' }), o({}));
@@ -502,6 +506,8 @@
           case 'bdrogba': return makeSprite(person('fade'), { K: '#1a56b8', k2: '#f2f2f2', S: '#1a56b8', W: '#f2f2f2', H: '#111111', f: '#111111', s: '#5a3a26' }, { pattern: 'trim', collar: 6, scale: sc });
           // 토레쓰 (round 11): 첼씨 blue like 드록빠, told apart by the blond banded hair and white boots
           case 'btorres': return makeSprite(person('torres'), { K: '#1a56b8', k2: '#f2f2f2', S: '#1a56b8', W: '#f2f2f2', H: TORRES_HAIR, s: TORRES_SKIN, B: '#f0f0f0' }, { pattern: 'trim', collar: 6, scale: sc });
+          // 이빨괴물 수아레즈 (round 14): 리버풀 red with the yellow trim, slicked dark hair
+          case 'bsuarez': return makeSprite(person('slick'), { K: '#c8102e', k2: '#f6eb61', S: '#c8102e', W: '#c8102e', H: '#1a1a1a', s: '#e0ac84' }, { pattern: 'trim', collar: 6, scale: sc });
           case 'messi': return RS.Sprites.messi(1);
           case 'ronaldo': { const ry = RS.YEARS_RONALDO; return RS.Sprites.hero('ronaldo', ry.length - 1, 1, ry[ry.length - 1]); }
         }
@@ -615,4 +621,4 @@
     }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).sprites = 'R13.3';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).sprites = 'R14';
