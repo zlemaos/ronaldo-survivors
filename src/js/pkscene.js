@@ -138,6 +138,7 @@
     pickZone(z) { this.zone = z; this.sfx.push('click'); this.go('power'); }
     stopPower(p) {
       this.power = p; this.go('acc');
+      this.timing = RS.pkTiming(this.o.fin || 50, p); // round 20: the harder the strike, the faster and narrower the dial
       this.sfx.push(RS.pkPowerGrade(p, this.o.fin) === 'perfect' ? 'sparkle' : 'tap');
     }
     stopNeedle(deg) {
@@ -233,7 +234,7 @@
       this.kRow = Math.floor(this.target) % 3; // the height he guesses when he is beaten (no extra roll: same luck)
       u = U_COL[col] + (rng() - 0.5) * 0.18; v = V_ROW[row] + (rng() - 0.5) * 0.12;
       if (this.shot === 'curl' && col !== 1) u *= 1.12; // a 감아차기 bends in nearer the corner
-      if (r.kind === 'perfect') { u = col === 1 ? (rng() < 0.5 ? -0.14 : 0.14) : U_CORNER[col]; v = V_CORNER[row]; if (r.goal && rng() < 0.5) r.diveCol = col; } // he goes the right way and still cannot reach it
+      if (r.kind === 'perfect') { u = col === 1 ? (rng() < 0.5 ? -0.14 : 0.14) : U_CORNER[col]; v = V_CORNER[row]; } // pkKick decided whether he guessed the side (round 20)
       else if (r.kind === 'panenka') { u = (rng() - 0.5) * 0.12; v = 0.42; }
       else if (r.kind === 'tbag') { u = (rng() - 0.5) * 0.1; v = 0.1; }
       this.missAt(r.res, col, u, v);
@@ -349,4 +350,4 @@
   }
   RS.PKScene = PKScene;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkscene = 'R18';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkscene = 'R19';

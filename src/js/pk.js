@@ -53,12 +53,19 @@
   // How fast the gauge and the 정확도 needle move and how wide the needle's target is (degrees of the dial; the
   // 'great' band sits in the middle of 'good'). The lower the 골결정력 the faster and the narrower: a young
   // player has to be exact (fin 55: a 127 ms window, 21 ms for 'great'; fin 95: 200 ms and 38 ms).
-  RS.pkTiming = (fin) => ({
-    gauge: 1.5 - fin * 0.006, // sweeps a second: fin 55 → 1.17, fin 95 → 0.93
-    needle: 0.95 - fin * 0.003, // turns a second: 0.785 → 0.665
-    good: Math.round(18 + fin * 0.32), // 36° → 48°
-    great: Math.round(1 + fin * 0.08) // 5° → 9° (round 16: the gold is half of a perfect strike, so it is narrow)
-  });
+  // Round 20 (the user: 강하게 찰수록 정확도 다이얼 맞추기 어렵게): with the power the strike was given, the needle
+  // turns faster and its arcs narrow — × RS.pkPowerHard(power): 1 on the blue band, up to 1.45 for a full-blooded
+  // strike, down to 0.7 for a soft one.
+  RS.pkPowerHard = (power) => (power == null ? 1 : clamp(1 + (power - RS.PK_POWER.blue) * 2.5, 0.7, 1.45));
+  RS.pkTiming = (fin, power) => {
+    const h = RS.pkPowerHard(power);
+    return {
+      gauge: 1.5 - fin * 0.006, // sweeps a second: fin 55 → 1.17, fin 95 → 0.93
+      needle: (0.95 - fin * 0.003) * h, // turns a second: 0.785 → 0.665 (on the blue band)
+      good: Math.max(8, Math.round((18 + fin * 0.32) / h)), // 36° → 48°
+      great: Math.max(2, Math.round((1 + fin * 0.08) / h)) // 5° → 9° (round 16: the gold is half of a perfect strike, so it is narrow)
+    };
+  };
   // Where the needle stopped: within great/2 of the target's centre 'great', within good/2 'good', else 'miss'.
   RS.pkNeedleGrade = (diffDeg, timing) => {
     const d = Math.abs(((diffDeg % 360) + 540) % 360 - 180);
@@ -146,6 +153,9 @@
   // soft down the middle: the keeper starts to go, stops and walks back to it), else a strike that drifts with its
   // 영점 error (RS.pkAimErr) — wide or over from a corner, up or sideways from the middle, and nearer the keeper.
   RS.PK_RAGE = 1.2; // × the keeper's saves in 분노 모드 (after one of our 파넨카 he read: he burns for the rest)
+  // A perfect strike (round 20, the user): 99 % in; against a keeper in 분노 모드 it goes in every time he dives the
+  // wrong way and 80 % of the times he guesses it (he guesses it rageGuess of the time). Never shown on screen.
+  RS.PK_PERFECT = { goal: 0.99, rageRead: 0.8, rageGuess: 0.45 };
   // o.shot (round 18): 'push' (default) | 'drive' | 'curl' (RS.PK_SHOTS) scales the saves and the misses of a struck
   // ball; odds.shot says which one it was.
   RS.pkOdds = function (o) {
@@ -164,9 +174,9 @@
     } else if (!corner && pg === 'weak') { // too soft down the middle: he comes back for it
       const save = clamp(0.82 * Math.min(1.1, k2), 0.5, 0.95);
       odds = { goal: 1 - save, save, off: 0, kind: 'tbag' };
-    } else if (RS.pkPerfect(o.power, o.acc, fin)) {
-      const save = clamp(Z.save * k2 * 0.4 * (1.15 - fin / 200) * sv + sa, 0.01, 0.9);
-      odds = { goal: 1 - save, save, off: 0, kind: 'perfect' };
+    } else if (RS.pkPerfect(o.power, o.acc, fin)) { // round 20: whatever the type, the zone or the keeper
+      const P = RS.PK_PERFECT, goal = o.rage ? P.rageGuess * P.rageRead + (1 - P.rageGuess) : P.goal;
+      odds = { goal, save: 1 - goal, off: 0, kind: 'perfect' };
     } else {
       const E = RS.pkAimErr(o.power, o.acc, fin), drift = Math.pow(Math.min(E, 2.5), 1.5);
       // a miss: the zone's own risk (less with 골결정력), the drift (from the top corners it flies most), an over-hit
@@ -183,14 +193,22 @@
     if (cap != null && odds.goal > cap) { const rest = 1 - cap; odds.goal = cap; odds.save = rest / 2; odds.off = rest / 2; odds.nemesis = true; }
     return odds;
   }
-  // What the aim grid shows: the zone's chance at a perfect strike (round 16: "최대한으로 잘 맞췄을 때")
-  RS.pkZoneBest = (o, z) => RS.pkOdds(Object.assign({}, o, { zone: z, power: RS.PK_POWER.blue, acc: 'great' })).goal;
+  // What the aim grid shows: the zone's chance at the best strike short of perfect — just outside the blue band, the
+  // needle in the gold (round 20: the perfect strike's own numbers are not shown)
+  RS.pkZoneBest = (o, z) => RS.pkOdds(Object.assign({}, o, { zone: z, power: RS.PK_POWER.blue + RS.pkBlueHalf(o.fin) + 0.004, acc: 'great' })).goal;
   // Roll one kick. Returns { res: 'goal' | 'save' | 'post' | 'bar' | 'over' | 'wide', goal, diveCol (the keeper's
   // dive: 0 left, 1 stays, 2 right), kind (pkOdds), kickAway (a save he boots away: an angry 파넨카 save, half the
   // 티배깅 ones), odds }. On a save he went the right way; on a goal mostly the wrong one.
   RS.pkKick = function (rng, o) {
     const odds = RS.pkOdds(o), r = rng(), row = RS.pkRow(o.zone), col = RS.pkCol(o.zone);
     let res;
+    if (odds.kind === 'perfect' && !odds.nemesis) { // round 20: the angry keeper must guess the side to have a chance
+      const P = RS.PK_PERFECT, wrong = [0, 1, 2].filter((c) => c !== col);
+      const read = o.rage ? r < P.rageGuess : rng() < 0.3;
+      res = o.rage ? (read && rng() >= P.rageRead ? 'save' : 'goal') : (rng() < P.goal ? 'goal' : 'save');
+      if (res === 'save') return { res, goal: false, diveCol: col, kind: 'perfect', kickAway: false, odds, shot: odds.shot };
+      return { res, goal: true, diveCol: read ? col : wrong[Math.floor(rng() * 2)], kind: 'perfect', kickAway: false, odds, shot: odds.shot };
+    }
     if (r < odds.goal) res = 'goal';
     else if (r < odds.goal + odds.save) res = 'save';
     else {
@@ -219,7 +237,7 @@
     const shot = RS.pkBotShot(zone, keeper);
     const spread = (0.2 - fin * 0.0013) * RS.pkShot(shot).gauge;
     const power = clamp(RS.PK_POWER.blue + (rng() * 2 - 1) * spread, 0.6, 1);
-    const r = rng(), great = 0.12 + fin * 0.0035;
+    const r = rng(), great = (0.12 + fin * 0.0035) / RS.pkPowerHard(power); // a harder strike, a harder dial
     return { zone, power, acc: r < great ? 'great' : r < great + 0.55 ? 'good' : 'miss', shot };
   };
   RS.pkBotShot = (zone, keeper) => (RS.pkRow(zone) === 2 ? 'curl' : RS.pkCol(zone) === 1 || ((keeper && keeper.rating) || 80) >= 88 ? 'drive' : 'push');
@@ -541,4 +559,4 @@
   }
   RS.PKSession = PKSession;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R18';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R19';

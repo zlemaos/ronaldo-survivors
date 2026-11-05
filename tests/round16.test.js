@@ -19,12 +19,12 @@ test('the gauge: red, grey, yellow, green and a blue band inside the green that 
   assert.ok(RS.pkBlueHalf(95) > RS.pkBlueHalf(55), '골결정력 widens it a little');
 });
 
-test('the shown odds are the best case; the strike drifts the further it is from the blue band and the gold', () => {
+test('a perfect strike beats the shown odds; the strike drifts the further it is from the blue band and the gold', () => {
   for (const z of [1, 3, 7, 9]) {
     const best = odds({ zone: z, power: P.blue, acc: 'great' });
     assert.equal(best.kind, 'perfect');
     assert.equal(best.off, 0, 'a perfect strike never misses the frame');
-    assert.ok(Math.abs(RS.pkZoneBest({ fin: 80, keeper: K.national, hero: 'ronaldo' }, z) - best.goal) < 1e-9);
+    assert.ok(RS.pkZoneBest({ fin: 80, keeper: K.national, hero: 'ronaldo' }, z) < best.goal, 'the grid shows the best strike short of perfect');
     const green = odds({ zone: z, power: P.good[0] + 0.005, acc: 'good' }), yellow = odds({ zone: z, power: 0.62, acc: 'miss' });
     assert.ok(best.goal > green.goal && green.goal > yellow.goal, 'zone ' + z + ': ' + [best.goal, green.goal, yellow.goal].map((x) => x.toFixed(2)));
     assert.ok(yellow.off > green.off, 'more drift, more misses');
@@ -102,6 +102,34 @@ test('the scene: a watching keeper can react only inside the window', () => {
   const late = run(1.05);
   assert.equal(late.dive, null, 'too late: no reaction');
   assert.equal(late.result.res === 'save', false);
+});
+
+// Round 20 (the user): a harder strike makes a harder dial; a perfect strike goes in 99 %, against an angry keeper
+// every time he dives the wrong way and 80 % of the times he guesses it.
+test('round 20: the harder the strike, the faster and narrower the dial', () => {
+  const soft = RS.pkTiming(80, 0.6), blue = RS.pkTiming(80, P.blue), hard = RS.pkTiming(80, 0.94), base = RS.pkTiming(80);
+  assert.deepEqual(blue, base, 'on the blue band nothing changes');
+  assert.ok(hard.needle > blue.needle && blue.needle > soft.needle);
+  assert.ok(hard.great < blue.great && hard.good < blue.good && soft.good > blue.good);
+  const sc = new RS.PKScene({ mode: 'shoot', who: 'hero', keeper: K.pro, fin: 80, level: 80, hero: 'ronaldo', rng: RS.makeRng(2) });
+  sc.pickZone(9); sc.stopPower(0.94);
+  assert.deepEqual(sc.timing, hard, 'the scene\'s dial follows the power');
+});
+
+test('round 20: a perfect strike goes in 99 %; an angry keeper saves only when he guesses the side', () => {
+  for (const shot of RS.PK_SHOT_IDS) for (const keeper of ['local', 'neuer', 'yashin']) for (const z of [1, 5, 9]) {
+    assert.ok(Math.abs(RS.pkOdds({ fin: 70, keeper: K[keeper], hero: 'ronaldo', zone: z, power: P.blue, acc: 'great', shot }).goal - 0.99) < 1e-9);
+  }
+  const rng = RS.makeRng(8), o = { fin: 80, keeper: K.yashin, hero: 'ronaldo', zone: 9, power: P.blue, acc: 'great', rage: true };
+  let read = 0, readIn = 0, wrong = 0, wrongIn = 0, calm = 0;
+  for (let i = 0; i < 20000; i++) {
+    const r = RS.pkKick(rng, o);
+    if (r.diveCol === 2) { read++; if (r.goal) readIn++; } else { wrong++; if (r.goal) wrongIn++; }
+    if (RS.pkKick(rng, Object.assign({}, o, { rage: false })).goal) calm++;
+  }
+  assert.equal(wrongIn, wrong, 'the wrong way: always in');
+  assert.ok(Math.abs(readIn / read - 0.8) < 0.02, 'the right way: 80 % in, ' + (readIn / read).toFixed(3));
+  assert.ok(Math.abs(calm / 20000 - 0.99) < 0.004, 'calm keeper: 99 %, ' + (calm / 20000).toFixed(4));
 });
 
 test('a perfect strike bends into its corner and gets the full effect and sound', () => {

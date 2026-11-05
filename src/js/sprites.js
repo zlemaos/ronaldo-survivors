@@ -622,4 +622,4 @@
     }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).sprites = 'R18';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).sprites = 'R19';

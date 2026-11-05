@@ -47,7 +47,7 @@ test('the blue band still bends into the corner for every type; the grid shows t
     const o = odds({ zone: z, power: P.blue, acc: 'great', shot });
     assert.equal(o.kind, 'perfect');
     assert.equal(o.off, 0);
-    assert.ok(Math.abs(RS.pkZoneBest({ fin: 80, keeper: K.pro, hero: 'ronaldo', shot }, z) - o.goal) < 1e-9);
+    assert.ok(RS.pkZoneBest({ fin: 80, keeper: K.pro, hero: 'ronaldo', shot }, z) < o.goal, 'the grid shows the best strike short of perfect');
   }
   for (const shot of RS.PK_SHOT_IDS) {
     const pan = odds({ zone: 2, power: 0.08, acc: 'miss', shot }), tb = odds({ zone: 2, power: 0.4, acc: 'good', shot });

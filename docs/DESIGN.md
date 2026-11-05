@@ -652,6 +652,15 @@ for passives, weapons and items alike.
   saves keep a move already held. Each move has its own SIUUU effects and a SIUUU moment on pick / first shot.
   Tests `tests/round19.test.js`.
 
+### Round 20: the perfect strike is near-certain; a harder strike, a harder dial
+- `RS.pkTiming(fin, power)` × `RS.pkPowerHard(power)` (1 on the blue band, up to 1.45 for a full strike, down to 0.7
+  for a soft one): the needle turns that much faster and its white and gold arcs narrow by it; the scene rebuilds
+  its dial when the gauge stops; the bot's gold chance shrinks with it.
+- `RS.PK_PERFECT`: a perfect strike goes in 99 % against any keeper and type; a keeper in 분노 모드 guesses the side
+  45 % of the time and then saves 20 %, otherwise it always goes in. Not shown on screen: the aim grid shows the
+  best strike short of perfect (`RS.pkZoneBest`, just outside the blue band, needle in the gold). The 쩨흐 curse
+  (nemesis cap) still holds.
+
 ### Round-2 tuning (before → after)
 
 | Value | Before | After |
