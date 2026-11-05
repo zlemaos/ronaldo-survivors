@@ -631,8 +631,8 @@ for passives, weapons and items alike.
   (beats a diving keeper; one who stays — 30 % × keeper² — saves it, boots it away and turns on 분노 모드 for the
   rest of the session: saves × `RS.PK_RAGE` 1.2, 파넨카 read ×1.5, flames on screen).
 - Our keeper: six cells (three columns × low/high; a third of kicks go high). An early pick saves 70 % in the right
-  cell, 20 % right side wrong height. No pick within 2.6 s = 보고 막기: during the first `RS.SO_REACT` = 1 s of the
-  flight a tap reacts, saving (0.8 − 0.75·seconds) in the right cell. PC keys: 1–3 low, 7–9 high, Space = watch.
+  cell, 20 % right side wrong height. No pick within 2.6 s = 보고 막기: during the first `RS.soReact()` seconds of
+  the flight (by 난이도: 이지 0.9, 노멀 0.6, 하드 0.3; the ball lands 0.1 s after) a tap reacts, saving (0.8 − 0.75·seconds) in the right cell. PC keys: 1–3 low, 7–9 high, Space = watch.
 - Balance (sim, 1,500 cups each, 날두/메시): auto kicks + guessing keeper 2–5 % champions; a good human who watches
   14–18 %; a very good one 21–26 % (round 15 was about 22–25 % for a good human).
 - Tests: `tests/round16.test.js`; round 10/15 balance bounds lowered for the harder spot.

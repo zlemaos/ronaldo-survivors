@@ -1,7 +1,7 @@
 /* 호날두 서바이버즈 — one penalty on screen (round 10, round 16): the touch steps and the animation clock, no DOM.
  * 'shoot' (we kick): aim a zone → stop the power gauge → stop the 정확도 needle → run-up → flight → result.
  * 'keep' (they kick at our keeper): pick one of six cells early, or wait, watch the ball and pick it within
- * RS.SO_REACT seconds → result.
+ * RS.soReact() seconds (by 난이도) → result.
  * Rules come from pk.js; Renderer.renderPK draws it and turns `vfx` into pixel effects; main.js plays `sfx`.
  * Positions are in goal space: u from -1 (left post) to 1 (right post), v from 0 (ground) to 1 (the bar). */
 (function (RS) {
@@ -12,7 +12,7 @@
   const U_CORNER = [-0.93, 0, 0.93], V_CORNER = [0.08, 0.5, 0.93];
   // phase lengths in seconds (fast: a teammate's or the other side's kick in a shootout; slow: the ball's flight on a
   // kick that can decide it; react: the other side's kick while our keeper watches it; chip: a 파넨카's lob)
-  const T = { runup: 0.55, flight: 0.46, result: 1.5, fastRunup: 0.32, fastFlight: 0.38, fastResult: 0.95, slow: 1.3, react: 1.1, chip: 0.95, guess: 2.6 };
+  const T = { runup: 0.55, flight: 0.46, result: 1.5, fastRunup: 0.32, fastFlight: 0.38, fastResult: 0.95, slow: 1.3, chip: 0.95, guess: 2.6 };
 
   class PKScene {
     // opt: { mode: 'shoot' | 'keep', who: 'hero' | 'mate' | 'opp' (the kicker), keeper (RS.PK_KEEPERS entry or our
@@ -30,6 +30,7 @@
       this.target = 150 + this.rng() * 170; // centre of the needle's target, degrees from the top, clockwise
       this.zone = null; this.power = null; this.acc = null; this.dive = null; this.perfect = false;
       this.watch = false; this.reactOpen = false; this.diveT = 0; this.aim = null; this.away = false;
+      this.reactWin = opt.react || RS.soReact(); // seconds to react while the ball flies
       this.fake = this.rng() < 0.5 ? -1 : 1; // the side a 티배깅 keeper starts toward
       this.result = null; this.ball = null; this.hitDone = false;
       this.vfx = []; this.sfx = [];
@@ -49,7 +50,7 @@
     waiting() { return !this.o.auto && !this.o.forced && (this.phase === 'aim' || this.phase === 'power' || this.phase === 'acc' || this.phase === 'guess' || this.reactOpen); }
     get slow() { return !!this.o.slow; }
     dur(k) {
-      if (k === 'flight' && this.mode === 'keep' && this.watch) return T.react;
+      if (k === 'flight' && this.mode === 'keep' && this.watch) return this.reactWin + 0.1; // the ball lands just after the window
       if (k === 'flight' && this.result && this.result.kind === 'panenka') return T.chip * (this.slow ? 1.3 : 1);
       return this.o.fast ? T['fast' + k[0].toUpperCase() + k.slice(1)] : k === 'flight' && this.slow ? T.slow : T[k];
     }
@@ -146,7 +147,7 @@
           if (this.t >= this.dur('runup')) { this.kick(); this.go('flight'); }
           break;
         case 'flight': {
-          if (this.reactOpen && this.t > RS.SO_REACT) this.reactOpen = false; // too late
+          if (this.reactOpen && this.t > this.reactWin) this.reactOpen = false; // too late
           const k = this.t / this.dur('flight');
           if (!this.hitDone && k >= 1) { this.hitDone = true; this.impact(); }
           if (k >= 1.25) this.go('result');
@@ -202,7 +203,7 @@
     }
     // the ball arrives: net, glove, frame or nothing (a watching keeper who never moved stays on his line)
     impact() {
-      if (!this.result) { this.reactOpen = false; this.result = RS.soOppSave(this.rng, this.o.ourK || 70, this.aim, { col: 1, row: 0, rt: RS.SO_REACT }); }
+      if (!this.result) { this.reactOpen = false; this.result = RS.soOppSave(this.rng, this.o.ourK || 70, this.aim, { col: 1, row: 0, rt: this.reactWin }); }
       const r = this.result, B = this.ball, keep = this.mode === 'keep';
       if (r.res === 'goal') {
         this.vfx.push({ kind: r.kind === 'perfect' ? 'perfect' : 'goal', u: B.u, v: B.v });
@@ -277,4 +278,4 @@
   }
   RS.PKScene = PKScene;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkscene = 'R16';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkscene = 'R17';

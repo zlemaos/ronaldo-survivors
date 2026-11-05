@@ -376,7 +376,7 @@
       L.fillStyle = 'rgba(' + rgb + ',' + ((react ? 0.06 : 0.1) + 0.08 * pulse) + ')'; L.fillRect(x0 + 0.5, y0 + 0.5, cw - 1, ch - 1);
       L.strokeStyle = 'rgba(' + rgb + ',0.7)'; L.lineWidth = 0.5; L.strokeRect(x0 + 0.75, y0 + 0.75, cw - 1.5, ch - 1.5);
     }
-    const k = sc.o.auto ? 1 : react ? Math.max(0, 1 - sc.t / RS.SO_REACT) : Math.max(0, 1 - sc.t / 2.6), w = g.halfW * 1.5;
+    const k = sc.o.auto ? 1 : react ? Math.max(0, 1 - sc.t / sc.reactWin) : Math.max(0, 1 - sc.t / 2.6), w = g.halfW * 1.5;
     L.fillStyle = 'rgba(0,0,0,0.6)'; L.fillRect(g.cx - w / 2 - 1, g.gaugeY - 1, w + 2, 4);
     L.fillStyle = react ? '#ffa03c' : '#7fe0ff'; L.fillRect(g.cx - w / 2, g.gaugeY, w * k, 2);
   };
@@ -504,4 +504,4 @@
     A.length = n;
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkrender = 'R16';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkrender = 'R17';

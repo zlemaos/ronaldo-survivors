@@ -52,7 +52,7 @@
         (S.zones < 9 ? ' (Lv.' + RS.PK_ZONE_LV[S.zones < 6 ? 0 : 1] + '에 ' + (S.zones < 6 ? 6 : 9) + '칸)' : '') + '</div>' +
         '<div class="sub pk-how">칸 고르기 → 파워 게이지 멈추기(초록, 가운데 가는 파란 줄이 퍼펙트) → 정확도 바늘 멈추기(하얀 칸, 노란 칸이면 완벽). ' +
         '파란 줄 + 노란 칸이면 공이 구석으로 빨려 들어간다. 가운데를 빨강으로 차면 파넨카.</div>' +
-        (S.kind === 'challenge' ? '' : '<div class="sub pk-how">🧤 막을 때: 6칸(위·아래) 중 미리 고르거나, 기다렸다가 공이 날아오면 1초 안에 누르기</div>');
+        (S.kind === 'challenge' ? '' : '<div class="sub pk-how">🧤 막을 때: 6칸(위·아래) 중 미리 고르거나, 기다렸다가 공이 날아오면 ' + RS.soReact() + '초 안에 누르기 (난이도별 이지 0.9 · 노멀 0.6 · 하드 0.3초)</div>');
       $('pk-intro-body').innerHTML = h;
       $('pk-intro').classList.remove('hidden');
       const go = () => {
@@ -129,7 +129,7 @@
       else if (sc.phase === 'power') t = '👆 지금 눌러 파워 결정! 초록이 좋고, 가운데 파란 줄이 퍼펙트' + (RS.pkCol(sc.zone) === 1 ? ' · 빨강이면 파넨카' : '');
       else if (sc.phase === 'acc') t = '👆 바늘이 하얀 칸에 올 때 누르세요 · 노란 칸 + 파란 줄이면 퍼펙트';
       else if (sc.phase === 'guess') t = '🧤 ' + who + '가 찬다! 막을 칸(6칸)을 미리 누르거나, 기다렸다가 공 보고 막기';
-      else if (sc.reactOpen) t = '👀 지금! 공이 가는 칸을 누르세요 (1초 안에)';
+      else if (sc.reactOpen) t = '👀 지금! 공이 가는 칸을 누르세요 (' + sc.reactWin + '초 안에)';
       else if (sc.phase === 'runup' || sc.phase === 'flight') t = (sc.slow ? '⏱ 이 한 방에 갈린다 · ' : '') + (sc.watch && sc.phase === 'runup' ? '👀 공을 보고 있다가 누르세요 · ' : '') + who + '가 찬다';
       el.textContent = t;
     },
@@ -326,4 +326,4 @@
     }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkui = 'R16';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkui = 'R17';

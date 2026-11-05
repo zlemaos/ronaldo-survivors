@@ -270,9 +270,11 @@
   // 승부차기 토너먼트's own rate, RS.CUP_ROUNDS).
   // Round 16: the kick has a height too (row 0 low, 1 high: a third go high) and our keeper picks one of six cells —
   // early (a guess before the strike) or by watching the ball (react: seconds after the strike, within
-  // RS.SO_REACT). The right cell saves often, the right side at the wrong height seldom; a reaction saves more the
+  // RS.soReact(): 0.9 s on 이지, 0.6 on 노멀, 0.3 on 하드 — the user, round 16). The right cell saves often, the right
+  // side at the wrong height seldom; a reaction saves more the
   // quicker it came. dive: { col, row, rt } | a column (old callers: the height is a coin) | null (he guesses).
-  RS.SO_REACT = 1;
+  RS.SO_REACT = { easy: 0.9, normal: 0.6, hard: 0.3 };
+  RS.soReact = () => RS.SO_REACT[RS.DIFF] || RS.SO_REACT.normal;
   RS.soOppAim = function (rng, miss) {
     const r = rng(), col = r < 0.42 ? 0 : r < 0.84 ? 2 : 1, row = rng() < 0.35 ? 1 : 0;
     const off = rng() < (miss == null ? 0.07 : miss) ? (col === 1 || row === 1 ? (rng() < 0.6 ? 'over' : 'post') : rng() < 0.5 ? 'post' : 'wide') : null;
@@ -282,7 +284,7 @@
   RS.soSaveChance = function (ourK, aim, dive) {
     if (!dive || aim.off || dive.col !== aim.col) return 0;
     const kf = clamp(0.75 + (ourK - 70) * 0.017, 0.6, 1.25), same = dive.row === aim.row;
-    if (dive.rt != null) return clamp((same ? 0.8 - 0.75 * clamp(dive.rt, 0, RS.SO_REACT) : 0.1) * kf, 0, 0.9);
+    if (dive.rt != null) return clamp((same ? 0.8 - 0.75 * clamp(dive.rt, 0, 1) : 0.1) * kf, 0, 0.9);
     return clamp((same ? 0.7 : 0.2) * kf, 0, 0.85);
   };
   RS.soOppSave = function (rng, ourK, aim, dive) {
@@ -506,4 +508,4 @@
   }
   RS.PKSession = PKSession;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R16';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R17';

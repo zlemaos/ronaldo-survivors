@@ -70,7 +70,21 @@ test('our keeper: the right column at the wrong height seldom saves; watching th
   assert.ok(slow < 0.15);
 });
 
-test('the scene: a watching keeper can react only in the first second of the flight', () => {
+test('the reaction window follows the difficulty: 0.9 s 이지, 0.6 s 노멀, 0.3 s 하드, and the ball lands right after it', () => {
+  const was = RS.DIFF;
+  try {
+    for (const [d, w] of [['easy', 0.9], ['normal', 0.6], ['hard', 0.3]]) {
+      RS.setDiff(d);
+      assert.equal(RS.soReact(), w);
+      const sc = new RS.PKScene({ mode: 'keep', who: 'opp', keeper: { name: 'k', rating: 84 }, fin: 80, level: 80, ourK: 84, oppMiss: 0, rng: RS.makeRng(5) });
+      sc.watch = true;
+      assert.equal(sc.reactWin, w);
+      assert.ok(Math.abs(sc.dur('flight') - (w + 0.1)) < 1e-9);
+    }
+  } finally { RS.setDiff(was); }
+});
+
+test('the scene: a watching keeper can react only inside the window', () => {
   const run = (tapAt) => {
     const sc = new RS.PKScene({ mode: 'keep', who: 'opp', keeper: { name: 'k', rating: 84 }, fin: 80, level: 80, ourK: 84, oppMiss: 0, rng: RS.makeRng(11) });
     sc.geo = { cx: 100, halfW: 60, goalY: 100, barY: 60 };
