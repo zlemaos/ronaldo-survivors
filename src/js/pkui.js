@@ -23,6 +23,7 @@
       this.show('pk');
       $('pk-result').classList.add('hidden');
       $('pk-shout').className = 'pk-shout hidden';
+      this.pkShotBar();
       this.pkHeader();
       this.pkNext(); // the first kick waits behind the intro
       this.pkIntro();
@@ -52,6 +53,8 @@
         (S.zones < 9 ? ' (Lv.' + RS.PK_ZONE_LV[S.zones < 6 ? 0 : 1] + '에 ' + (S.zones < 6 ? 6 : 9) + '칸)' : '') + '</div>' +
         '<div class="sub pk-how">칸 고르기 → 파워 게이지 멈추기(초록, 가운데 가는 파란 줄이 퍼펙트) → 정확도 바늘 멈추기(하얀 칸, 노란 칸이면 완벽). ' +
         '파란 줄 + 노란 칸이면 공이 구석으로 빨려 들어간다. 가운데를 빨강으로 차면 파넨카.</div>' +
+        '<div class="sub pk-how">슛 종류(칸을 고를 때 아래 버튼, PC는 Q·W·E): 🦶 밀어차기 = 기본 · 🚀 발등슛 = 발등으로 세게, 막기 어렵지만 게이지가 빨라 빗나가기 쉽다 · ' +
+        '🌀 감아차기 = 발 안쪽으로 휘게, 구석으로 휘어 잘 안 빗나가지만 느려서 방향을 읽히면 막힌다</div>' +
         (S.kind === 'challenge' ? '' : '<div class="sub pk-how">🧤 막을 때: 6칸(위·아래) 중 미리 고르거나, 기다렸다가 공이 날아오면 ' + RS.soReact() + '초 안에 누르기 (난이도별 이지 0.9 · 노멀 0.6 · 하드 0.3초)</div>');
       $('pk-intro-body').innerHTML = h;
       $('pk-intro').classList.remove('hidden');
@@ -83,7 +86,8 @@
       P.scene = new RS.PKScene({
         mode: k.mode, who: k.who, keeper: k.who === 'opp' ? S.ourKeeper : S.keeper, fin: S.fin, level: S.level, hero: S.hero, small: S.small,
         yearIdx: S.idx, nat: !!(S.def && S.def.nat), n: k.who === 'mate' ? P.mates++ : k.who === 'opp' ? P.opps++ : 0,
-        auto: k.who === 'mate' ? true : P.auto, fast: quick, slow: !!k.decisive, forced: k.forced, ourK: S.ourK, oppMiss: S.oppMiss, rage: S.rage, rng: this.rng
+        auto: k.who === 'mate' ? true : P.auto, fast: quick, slow: !!k.decisive, forced: k.forced, ourK: S.ourK, oppMiss: S.oppMiss, rage: S.rage, rng: this.rng,
+        shot: this.pkShotPref || 'push'
       });
       P.shouted = false; P.lastPhase = null; P.lastReact = false;
       this.pkScore();
@@ -120,13 +124,15 @@
     },
     pkHint() {
       const P = this.pk, sc = P && P.scene, el = $('pk-hint');
+      this.pkShotBar();
       if (!sc || P.finished) { el.textContent = ''; return; }
       const S = P.S, k = P.kick || { n: 1 };
       const who = sc.who === 'hero' ? RS.HEROES[S.hero].name : sc.who === 'mate' ? '동료 ' + k.n + '번 키커' : (S.def ? S.def.vs : '상대') + ' ' + k.n + '번 키커';
+      const shot = RS.pkShot(sc.shot), tag = shot.icon + ' ' + shot.name;
       let t = '';
-      if (INPUT.includes(sc.phase) && sc.o.auto && sc.who !== 'mate') t = sc.mode === 'keep' ? '🤖 ' + who + '가 찬다 · 우리 골키퍼가 방향을 고른다' : '🤖 ' + who + '가 자동으로 찬다';
-      else if (sc.phase === 'aim') t = '👆 노릴 칸을 누르세요 · 숫자는 성공 확률';
-      else if (sc.phase === 'power') t = '👆 지금 눌러 파워 결정! 초록이 좋고, 가운데 파란 줄이 퍼펙트' + (RS.pkCol(sc.zone) === 1 ? ' · 빨강이면 파넨카' : '');
+      if (INPUT.includes(sc.phase) && sc.o.auto && sc.who !== 'mate') t = sc.mode === 'keep' ? '🤖 ' + who + '가 찬다 · 우리 골키퍼가 방향을 고른다' : '🤖 ' + who + '가 자동으로 찬다 · ' + tag;
+      else if (sc.phase === 'aim') t = '👆 노릴 칸을 누르세요 · 숫자는 ' + shot.name + ' 성공 확률';
+      else if (sc.phase === 'power') t = tag + ' · 👆 지금 눌러 파워 결정! 초록이 좋고, 가운데 파란 줄이 퍼펙트' + (RS.pkCol(sc.zone) === 1 ? ' · 빨강이면 파넨카' : '');
       else if (sc.phase === 'acc') t = '👆 바늘이 하얀 칸에 올 때 누르세요 · 노란 칸 + 파란 줄이면 퍼펙트';
       else if (sc.phase === 'guess') t = '🧤 ' + who + '가 찬다! 막을 칸(6칸)을 미리 누르거나, 기다렸다가 공 보고 막기';
       else if (sc.reactOpen) t = '👀 지금! 공이 가는 칸을 누르세요 (' + sc.reactWin + '초 안에)';
@@ -139,7 +145,8 @@
         const r = sc.result.res, kind = sc.result.kind;
         if (sc.mode === 'shoot') {
           if (r === 'goal') {
-            text = kind === 'perfect' ? '★ PERFECT GOAL ★' : kind === 'panenka' ? '파넨카 성공!!' : sc.who === 'hero' ? (S.hero === 'ronaldo' ? 'GOAL!! SIUUU!' : 'GOAL!! ☝️') : 'GOAL!';
+            text = kind === 'perfect' ? '★ PERFECT GOAL ★' : kind === 'panenka' ? '파넨카 성공!!' : sc.who !== 'hero' ? 'GOAL!'
+              : sc.shot === 'drive' ? '🚀 대포알 골!!' : sc.shot === 'curl' ? '🌀 감아차기 골!!' : S.hero === 'ronaldo' ? 'GOAL!! SIUUU!' : 'GOAL!! ☝️';
             cls = 'goal';
           } else if (r === 'save') { text = kind === 'panenka' ? '파넨카 읽혔다! 키퍼가 공을 차버렸다' : kind === 'tbag' ? sc.o.keeper.name + '가 비웃으며 걷어낸다' : sc.o.keeper.name + ' 선방!'; cls = 'miss'; }
           else { text = { post: '골대!', bar: '크로스바!', over: '홈런…', wide: '빗나갔다…' }[r]; cls = 'miss'; }
@@ -182,14 +189,16 @@
         if (z > sc.zones) { $('pk-hint').textContent = '🔒 이 칸은 Lv.' + RS.PK_ZONE_LV[z <= 6 ? 0 : 1] + '에 열린다'; RS.Audio.sfx('warn'); }
       }
     },
-    // PC: 1–9 aim, Space/Enter stop the gauge and the needle, arrow keys pick the dive
+    // PC: 1–9 aim, Q · W · E the shot type, Space/Enter stop the gauge and the needle, arrow keys pick the dive
     pkKey(e) {
       const P = this.pk;
       if (!P || P.finished) return;
       if (P.hold) { if (e.key === 'Enter' || e.code === 'Space') { e.preventDefault(); $('btn-pk-go').click(); } return; }
       const sc = P.scene;
       if (!sc || sc.o.auto) return;
-      if (sc.phase === 'aim' && /^[1-9]$/.test(e.key) && +e.key <= sc.zones) { sc.pickZone(+e.key); e.preventDefault(); }
+      const shot = sc.phase === 'aim' && RS.PK_SHOT_IDS.find((id) => 'Key' + RS.PK_SHOTS[id].key === e.code); // by key position: a Korean layout types ㅂ ㅈ ㄷ
+      if (shot) { e.preventDefault(); this.pkPickShot(shot); }
+      else if (sc.phase === 'aim' && /^[1-9]$/.test(e.key) && +e.key <= sc.zones) { sc.pickZone(+e.key); e.preventDefault(); }
       else if ((sc.phase === 'power' || sc.phase === 'acc') && (e.code === 'Space' || e.key === 'Enter')) { e.preventDefault(); if (sc.phase === 'power') sc.stopPower(sc.gauge()); else sc.stopNeedle(sc.needle()); }
       else if (sc.phase === 'guess' || sc.reactOpen) { // keeper: 1–3 low, 7–9 high (as on a numpad), Space waits to watch
         if (sc.phase === 'guess' && (e.code === 'Space' || e.key === 'Enter')) { e.preventDefault(); sc.watchNow(); return; }
@@ -197,6 +206,31 @@
         if (n && n !== 5 && (n <= 3 || n >= 7)) { e.preventDefault(); sc.keepInput({ col: (n - 1) % 3, row: n >= 7 ? 1 : 0 }); }
         else if (n === 4 || n === 6) { e.preventDefault(); sc.keepInput({ col: n === 4 ? 0 : 2, row: 0 }); }
       }
+    },
+    // Round 18: the shot-type buttons under the pitch, shown while the player aims his own kick. The pick stays for
+    // his next kicks (this.pkShotPref, until the game is closed); 밀어차기 until he picks.
+    pkShotBar() {
+      let bar = $('pk-shots');
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'pk-shots'; bar.className = 'pk-shots hidden';
+        bar.innerHTML = '<div class="pk-shot-row">' + RS.PK_SHOT_IDS.map((id) => { const S = RS.PK_SHOTS[id]; return '<button class="btn small pk-shot" data-shot="' + id + '"><b>' + S.icon + '</b> ' + esc(S.name) + '<kbd>' + S.key + '</kbd></button>'; }).join('') + '</div><div class="pk-shot-tip"></div>';
+        for (const b of bar.querySelectorAll('button')) b.onclick = (e) => { e.preventDefault(); this.pkPickShot(b.dataset.shot); };
+        $('pk-hint').parentNode.insertBefore(bar, $('pk-hint'));
+      }
+      const P = this.pk, sc = P && P.scene;
+      const on = !!(sc && !P.hold && !P.finished && sc.mode === 'shoot' && sc.who === 'hero' && !sc.o.auto && !sc.o.forced && sc.phase === 'aim');
+      bar.classList.toggle('hidden', !on);
+      if (!on) return;
+      for (const b of bar.querySelectorAll('button')) b.classList.toggle('on', b.dataset.shot === sc.shot);
+      const S = RS.pkShot(sc.shot);
+      bar.querySelector('.pk-shot-tip').textContent = S.icon + ' ' + S.name + ': ' + S.tip;
+    },
+    pkPickShot(id) {
+      const P = this.pk, sc = P && P.scene;
+      if (!sc || P.hold || P.finished || sc.who !== 'hero' || !sc.pickShot(id)) return;
+      this.pkShotPref = id;
+      this.pkHint();
     },
     pkToggleAuto() {
       const P = this.pk;
@@ -306,8 +340,8 @@
         const sk = RS.SKILLS[rw.id], hn = RS.HEROES[rw.hero].name;
         notes += '<div class="pk-title-got cup-reward">🎁 SIUUU 스킬 해금: ' + sk.icon + ' ' + esc(sk.name) + ' (' + esc(hn) + ')</div>' +
           '<div class="sub">' + esc(sk.evoDesc) + '</div>' +
-          '<div class="sub">' + (rw.equipped ? '지금 ' + esc(hn) + ' 커리어에 SIUUU로 장착됐다'
-            : esc(hn) + ' 커리어를 고르면 SIUUU로 장착된다' + (RS.heroLocked(this.save.meta, rw.hero) ? ' (' + esc(hn) + '는 먼저 해금해야 한다)' : '')) + '</div>';
+          '<div class="sub">이제 ' + esc(hn) + ' 커리어 레벨업에서 아주 드물게 SIUUU로 등장한다' +
+            (RS.heroLocked(this.save.meta, rw.hero) ? ' (' + esc(hn) + '는 먼저 해금해야 한다)' : '') + '</div>';
         this.toast('🎁 ' + sk.name + ' 해금!');
       } else if (rw && rw.coins) notes += '<div class="sub">SIUUU 스킬은 이미 모두 얻었다 · 💰' + rw.coins + '</div>';
       for (const t of out.titles) notes += '<div class="pk-title-got">' + t.icon + ' 칭호 획득: ' + esc(t.name) + '!</div>';
@@ -326,4 +360,4 @@
     }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkui = 'R17';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkui = 'R18';

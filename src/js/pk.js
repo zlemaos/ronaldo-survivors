@@ -65,6 +65,25 @@
     return d <= timing.great / 2 ? 'great' : d <= timing.good / 2 ? 'good' : 'miss';
   };
 
+  // ---------------------------------------------------------------- shot types (round 18)
+  // The user: "키커 슛도 발등슛 감아차기 이런 거 지정해줘". The player picks how he strikes his own kick (the 🤖 picks
+  // too, RS.pkBotKick). push 밀어차기 is the round-16 kick, unchanged, and the default. drive 발등슛 (the laces): the
+  // ball flies faster (flight) and a keeper saves less (save), but the power is harder to control (the gauge sweeps
+  // faster: gauge) and a strike off the blue band flies further off (base, drift, over: misses). curl 감아차기 (the
+  // inside of the foot): it bends into the corner (fewer misses) on a slower gauge, but the ball is slower too — a
+  // keeper who guessed right gets there more often (save), all the more an angry one who flies early (rage).
+  // A soft touch down the middle stays a 파넨카 or a 티배깅 whatever was picked: a chip is a chip.
+  RS.PK_SHOTS = {
+    push: { name: '밀어차기', icon: '🦶', key: 'Q', tip: '기본 슛 · 무난하다', gauge: 1, save: 1, saveAdd: 0, base: 1, drift: 1, over: 1, rage: 1, flight: 1 },
+    drive: { name: '발등슛', icon: '🚀', key: 'W', tip: '빠르고 세서 막기 어렵다 · 대신 게이지가 빨라 빗나가기 쉽다', gauge: 1.3, save: 0.75, saveAdd: 0, base: 1.15, drift: 1.45, over: 1.3, rage: 0.95, flight: 0.78 },
+    curl: { name: '감아차기', icon: '🌀', key: 'E', tip: '구석으로 휘어 들어가 잘 안 빗나간다 · 대신 느려서 방향을 읽히면 막힌다', gauge: 0.8, save: 1.3, saveAdd: 0, base: 0.85, drift: 0.78, over: 0.9, rage: 1.12, flight: 1.2 }
+  };
+  RS.PK_SHOT_IDS = ['push', 'drive', 'curl'];
+  RS.pkShot = (id) => RS.PK_SHOTS[id] || RS.PK_SHOTS.push;
+  // 왼발잡이 (round 18, the user: "메시는 왼발잡이니까 … 반대편에 서있어야지 왼발로 차게")
+  RS.PK_LEFT = { messi: true };
+  RS.pkFoot = (hero) => (RS.PK_LEFT[hero] ? 'L' : 'R');
+
   // ---------------------------------------------------------------- keepers
   // rating: 80 = the zone table; higher saves more. legend: the hall of fame. nemesis: the most one hero can score
   // against him. mate: the hero who had him on his own side (never drawn as that hero's PK 챌린지 keeper).
@@ -127,9 +146,17 @@
   // soft down the middle: the keeper starts to go, stops and walks back to it), else a strike that drifts with its
   // 영점 error (RS.pkAimErr) — wide or over from a corner, up or sideways from the middle, and nearer the keeper.
   RS.PK_RAGE = 1.2; // × the keeper's saves in 분노 모드 (after one of our 파넨카 he read: he burns for the rest)
+  // o.shot (round 18): 'push' (default) | 'drive' | 'curl' (RS.PK_SHOTS) scales the saves and the misses of a struck
+  // ball; odds.shot says which one it was.
   RS.pkOdds = function (o) {
+    const odds = pkOdds(o);
+    odds.shot = RS.PK_SHOTS[o.shot] ? o.shot : 'push';
+    return odds;
+  };
+  function pkOdds(o) {
     const Z = RS.PK_ZONE[o.zone], row = RS.pkRow(o.zone), col = RS.pkCol(o.zone), corner = col !== 1;
     const fin = o.fin, pg = RS.pkPowerGrade(o.power, fin), k2 = (o.keeper.rating / 80) ** 2 * (o.rage ? RS.PK_RAGE : 1);
+    const S = RS.pkShot(o.shot), sv = S.save * (o.rage ? S.rage : 1), sa = S.saveAdd * (o.rage ? S.rage : 1);
     let odds;
     if (!corner && pg === 'red') { // 파넨카: he stays (reads it) or he dives (beaten, unless the chip is off)
       const stay = clamp(0.3 * k2 * (o.rage ? 1.5 : 1), 0.1, 0.8), off = 0.06;
@@ -138,24 +165,24 @@
       const save = clamp(0.82 * Math.min(1.1, k2), 0.5, 0.95);
       odds = { goal: 1 - save, save, off: 0, kind: 'tbag' };
     } else if (RS.pkPerfect(o.power, o.acc, fin)) {
-      const save = clamp(Z.save * k2 * 0.4 * (1.15 - fin / 200), 0.01, 0.9);
+      const save = clamp(Z.save * k2 * 0.4 * (1.15 - fin / 200) * sv + sa, 0.01, 0.9);
       odds = { goal: 1 - save, save, off: 0, kind: 'perfect' };
     } else {
       const E = RS.pkAimErr(o.power, o.acc, fin), drift = Math.pow(Math.min(E, 2.5), 1.5);
       // a miss: the zone's own risk (less with 골결정력), the drift (from the top corners it flies most), an over-hit
-      const mBase = Z.off * (1.3 - fin / 100);
-      const mErr = Math.min(0.85, drift * (corner ? (row === 2 ? 0.22 : 0.14) : 0.1));
-      const mPow = pg === 'over' ? (row === 2 ? 0.65 : row === 1 ? 0.4 : 0.22) : 0;
+      const mBase = Math.min(0.5, Z.off * (1.3 - fin / 100) * S.base);
+      const mErr = Math.min(0.85, drift * (corner ? (row === 2 ? 0.22 : 0.14) : 0.1) * S.drift);
+      const mPow = pg === 'over' ? Math.min(0.9, (row === 2 ? 0.65 : row === 1 ? 0.4 : 0.22) * S.over) : 0;
       const off = 1 - (1 - mBase) * (1 - mErr) * (1 - mPow);
       // a save: the zone, the keeper (squared: a legend reaches what others cannot), power, the drift toward him
-      const save = clamp(Z.save * k2 * { red: 2.2, weak: 1.75, ok: 1.15, good: 1, perfect: 0.9, over: 0.75 }[pg] * (1 + 0.3 * Math.min(E, 2)) * (1.25 - fin / 200), 0.02, 0.95);
+      const save = clamp(Z.save * k2 * { red: 2.2, weak: 1.75, ok: 1.15, good: 1, perfect: 0.9, over: 0.75 }[pg] * (1 + 0.3 * Math.min(E, 2)) * (1.25 - fin / 200) * sv + sa, 0.02, 0.95);
       odds = { goal: (1 - off) * (1 - save), save: (1 - off) * save, off, kind: null };
     }
     // a keeper one hero could never beat (메시 against 쩨흐): at most that chance, the rest half on the frame
     const cap = o.keeper.nemesis && o.keeper.nemesis[o.hero];
     if (cap != null && odds.goal > cap) { const rest = 1 - cap; odds.goal = cap; odds.save = rest / 2; odds.off = rest / 2; odds.nemesis = true; }
     return odds;
-  };
+  }
   // What the aim grid shows: the zone's chance at a perfect strike (round 16: "최대한으로 잘 맞췄을 때")
   RS.pkZoneBest = (o, z) => RS.pkOdds(Object.assign({}, o, { zone: z, power: RS.PK_POWER.blue, acc: 'great' })).goal;
   // Roll one kick. Returns { res: 'goal' | 'save' | 'post' | 'bar' | 'over' | 'wide', goal, diveCol (the keeper's
@@ -167,29 +194,35 @@
     if (r < odds.goal) res = 'goal';
     else if (r < odds.goal + odds.save) res = 'save';
     else {
-      const q = rng(), high = row === 2 || RS.pkPowerGrade(o.power, o.fin) === 'over' || odds.kind === 'panenka';
+      // a 발등슛 off the mark rises (from the middle row too); a 감아차기 off the mark curls past the post
+      const drive = odds.shot === 'drive' && !odds.kind, curl = odds.shot === 'curl' && !odds.kind;
+      const q = rng(), high = row === 2 || (drive && row === 1) || RS.pkPowerGrade(o.power, o.fin) === 'over' || odds.kind === 'panenka';
       if (odds.nemesis && q < 0.6) res = 'bar';
-      else if (high && q < 0.6) res = q < 0.2 ? 'bar' : 'over';
-      else if (col === 1) res = q < 0.55 ? 'over' : q < 0.75 ? 'post' : 'wide'; // the middle spreads up or sideways
-      else res = q < 0.8 ? 'post' : 'wide';
+      else if (high && q < (drive ? 0.75 : 0.6)) res = q < 0.2 ? 'bar' : 'over';
+      else if (col === 1) res = q < (drive ? 0.7 : 0.55) ? 'over' : q < 0.8 ? 'post' : 'wide'; // the middle spreads up or sideways
+      else res = q < (curl ? 0.5 : 0.8) ? 'post' : 'wide';
     }
     const others = [0, 2].concat(col === 1 ? [] : [1]).filter((c) => c !== col);
     let diveCol = res === 'save' ? col : res === 'goal' && rng() < 0.75 ? others[Math.floor(rng() * others.length)] : Math.floor(rng() * 3);
     if (odds.kind === 'panenka' || odds.kind === 'tbag') diveCol = res === 'save' ? 1 : rng() < 0.5 ? 0 : 2;
     const kickAway = res === 'save' && (odds.kind === 'panenka' || (odds.kind === 'tbag' && rng() < 0.5));
-    return { res, goal: res === 'goal', diveCol, kind: odds.kind, kickAway, odds };
+    return { res, goal: res === 'goal', diveCol, kind: odds.kind, kickAway, odds, shot: odds.shot };
   };
   // 완전 오토 (and the 🤖 button): a sensible kick — the corners once they are open — executed as steadily as the
-  // 골결정력 allows (it finds the blue band and the gold now and then, never a 파넨카).
-  RS.pkBotKick = function (rng, fin, level) {
+  // 골결정력 allows (it finds the blue band and the gold now and then, never a 파넨카). The shot type (round 18) is
+  // the one that pays best for its zone: 감아차기 under the bar, 발등슛 down the middle and low against a keeper
+  // rated 88 or more, else 밀어차기; a faster gauge (발등슛) spreads its power wider.
+  RS.pkBotKick = function (rng, fin, level, keeper) {
     const n = RS.pkZoneCount(level);
     const pool = n === 9 ? [7, 9, 1, 3, 4, 6] : n === 6 ? [1, 3, 4, 6, 1, 3] : [1, 3, 1, 3, 2];
     const zone = pool[Math.floor(rng() * pool.length)];
-    const spread = 0.2 - fin * 0.0013;
+    const shot = RS.pkBotShot(zone, keeper);
+    const spread = (0.2 - fin * 0.0013) * RS.pkShot(shot).gauge;
     const power = clamp(RS.PK_POWER.blue + (rng() * 2 - 1) * spread, 0.6, 1);
     const r = rng(), great = 0.12 + fin * 0.0035;
-    return { zone, power, acc: r < great ? 'great' : r < great + 0.55 ? 'good' : 'miss' };
+    return { zone, power, acc: r < great ? 'great' : r < great + 0.55 ? 'good' : 'miss', shot };
   };
+  RS.pkBotShot = (zone, keeper) => (RS.pkRow(zone) === 2 ? 'curl' : RS.pkCol(zone) === 1 || ((keeper && keeper.rating) || 80) >= 88 ? 'drive' : 'push');
 
   // ---------------------------------------------------------------- PK 챌린지 (after every fifth match)
   RS.PK_EVERY = 5;
@@ -393,7 +426,7 @@
     save.meta.cup.played++;
   };
   // A round played: the record, and on the 결승 the reward. Returns { round, won, next (the round to play, or
-  // null), champion, reward: { id, hero, equipped } | { coins } }.
+  // null), champion, reward: { id, hero } | { coins } }. (round 19: the move only unlocks; level-ups deal it now and then)
   RS.cupResult = function (save, round, won, rng) {
     const m = save.meta, last = RS.CUP_ROUNDS.length - 1, out = { round, won, next: null, champion: false, reward: null };
     m.cup = RS.normalizeCup(m.cup);
@@ -407,7 +440,7 @@
     const r = left[Math.floor((rng || Math.random)() * left.length)];
     if (!m.unlocked || typeof m.unlocked !== 'object') m.unlocked = {};
     m.unlocked[r.id] = true;
-    out.reward = { id: r.id, hero: r.hero, equipped: RS.grantCupRewards(save).includes(r.id) };
+    out.reward = { id: r.id, hero: r.hero };
     return out;
   };
 
@@ -508,4 +541,4 @@
   }
   RS.PKSession = PKSession;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R17';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R18';

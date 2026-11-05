@@ -473,11 +473,12 @@
       ],
       evo: { dmg: 110, cd: 4.0, radius: 50, stun: 1.2, count: 3, guard: 0.7 }
     },
-    // ---- round 15: the 승부차기 토너먼트 rewards (RS.CUP_REWARDS). gift: never dealt at a level-up; a cup win unlocks
-    // one at random and every career of its hero holds it at SIUUU (RS.grantCupRewards). Each plays an existing
-    // behaviour (use) under its own name, numbers and shout.
+    // ---- round 15: the 승부차기 토너먼트 rewards (RS.CUP_REWARDS). gift: never in the normal level-up deal; a cup win
+    // unlocks one at random and from then on it can turn up, rarely, on its hero's level-ups at SIUUU (round 19:
+    // RS.cupOffer). Each plays an existing behaviour (use) under its own name, numbers and shout, with its own
+    // SIUUU effects (World.penaldoShot, the referee of 심판매수, World.hollywoodLand).
     penaldo: {
-      name: '패널두', icon: '🥅', passive: 'freekick', hero: 'ronaldo', use: 'knuckle', straight: true, gift: true, evoName: '패널두 11m 대포', evoIcon: '🥅',
+      name: '패널두', icon: '🥅', passive: 'freekick', hero: 'ronaldo', use: 'knuckle', straight: true, gift: true, evoName: '패널두 11m 대포', evoIcon: '🥅', proj: ['pcannon', 'pcannon'],
       desc: '넘어지면 PK, PK면 골. 페널티 마크에서 찬 대포알이 일직선으로 적을 꿰뚫는다.',
       evoDesc: '11m 대포알이 일직선으로 모든 적을 꿰뚫는다. 승부차기 토너먼트 우승 보상.',
       ups: ['', '피해 증가', '관통 +1', '슛 +1', '관통 +1, 피해 증가', '피해 크게 증가'],
@@ -575,6 +576,11 @@
   RS.PFX_GOLD = ['#4a2a06', '#a86a12', '#e8a820', '#ffd84a', '#fff0a0', '#ffffff']; // 발롱도르 palette for pixelfx effects
   RS.PFX_FIRE = ['#4a1712', '#c9281f', '#f2561d', '#ff8a2a', '#ffe26b', '#fff3a6', '#ffffff'];
   RS.PFX_WHITE = ['#2a3a4a', '#6a8aa8', '#a8c8e0', '#d8ecf8', '#f4faff', '#ffffff', '#ffffff']; // a shock of white light
+  // round 19: the SIUUU grade's own colours (RS.GRADES siuuu, the card's cyan → gold → pink cycle) and 심판매수's red
+  RS.SIUUU_CYCLE = ['#8df9ff', '#ffd45a', '#ff4fd8'];
+  RS.PFX_SIUUU = ['#06303a', '#1a7f95', '#3fd4e8', '#8df9ff', '#d6fdff', '#ffffff'];
+  RS.PFX_PINK = ['#2a0622', '#8a1a6e', '#e03cb8', '#ff4fd8', '#ffc4f2', '#ffffff'];
+  RS.PFX_RED = ['#2a0606', '#7a0a0a', '#c81414', '#ff3030', '#ff9a8a', '#fff0ea', '#ffffff'];
   RS.HIT_STOP = { boss: 0.12, rival: 0.12, crit: 0.035 }; // seconds the match freezes on a big hit (App.tick)
   RS.FINAL_FUSE = 0.03; // the final rival's damage × (1 + this × fusion depth) per fused move in the build
   RS.FUSE_SCALE = 0.42; // × the damage numbers below (RS.skillStats): a fusion is worth about one evolved move and a free slot
@@ -2039,4 +2045,4 @@
     reroll: { name: '전술 보드', icon: '🔁', desc: '레벨업 리롤 +1', max: 3, ballon: [1, 1, 1], mods: { reroll: 1 } }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).data = 'R17';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).data = 'R18';

@@ -68,20 +68,13 @@
     s.meta.pk = RS.normalizePk(s.meta.pk);
     if (!s.meta.unlocked || typeof s.meta.unlocked !== 'object') s.meta.unlocked = {};
     s.meta.cup = RS.normalizeCup(s.meta.cup);
-    RS.grantCupRewards(s);
     RS.setDiff(s.meta.diff);
     return s;
   };
-  // 승부차기 토너먼트 rewards (round 15): the active career holds each unlocked move of its hero at SIUUU, in hand
-  // when it first comes (the move held goes to the 무기고). Owned already, nothing changes. Returns the ids given.
-  RS.grantCupRewards = function (save) {
-    const b = save.career.build, un = save.meta.unlocked || {}, got = [];
-    for (const r of RS.CUP_REWARDS) {
-      if (!un[r.id] || r.hero !== b.hero || RS.ownedWeapon(b, r.id)) continue;
-      if (RS.gainWeapon(b, { id: r.id, g: RS.CUP_GRADE, p: 1 }, true)) got.push(r.id);
-    }
-    return got;
-  };
+  // 승부차기 토너먼트 rewards: round 15 put each unlocked move of the hero in hand at SIUUU. Round 19: a cup win only
+  // unlocks it — it can turn up on that hero's level-ups (RS.cupOffer) — so nothing is given here; a career that got
+  // it the old way keeps it. Kept for callers (RS.cupResult): returns the ids put in hand, always none.
+  RS.grantCupRewards = () => [];
 
   // Switch the active career to another hero. The current career is parked under save.careers[hero] and the
   // other hero's parked career (or a fresh one) becomes save.career. Meta (coins, 발롱도르, shop) is shared.
@@ -99,7 +92,6 @@
     RS.selectHero(hero, save.career.build);
     save.career.yearIdx = Math.max(0, Math.min(RS.YEARS.length - 1, save.career.yearIdx | 0));
     if (!save.career.finished) RS.releaseOffSeason(save.career.build, save.career.yearIdx); // a parked pre-round-11 squad
-    RS.grantCupRewards(save);
     return save.career;
   };
 
@@ -534,7 +526,6 @@
     save.career.build = RS.dressBuild(save, RS.newBuild(hero));
     save.career.laps = laps;
     RS.selectHero(hero, save.career.build);
-    RS.grantCupRewards(save);
   };
 
   // ---------------------------------------------------------------- shop
@@ -587,4 +578,4 @@
     return true;
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).career = 'R17';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).career = 'R18';

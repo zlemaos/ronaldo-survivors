@@ -636,6 +636,21 @@ for passives, weapons and items alike.
 - Balance (sim, 1,500 cups each, 날두/메시): auto kicks + guessing keeper 2–5 % champions; a good human who watches
   14–18 %; a very good one 21–26 % (round 15 was about 22–25 % for a good human).
 - Tests: `tests/round16.test.js`; round 10/15 balance bounds lowered for the harder spot.
+- Round 17: the 보고 막기 window follows 난이도 (`RS.soReact()`: 이지 0.9 s, 노멀 0.6, 하드 0.3); the ball lands 0.1 s after it.
+
+### Round 18–19: shot types, a jointed keeper, cup rewards that only unlock
+- Shot types `RS.PK_SHOTS` (pk.js): 🦶 밀어차기 (default, round 16 odds), 🚀 발등슛 (saves ×0.75, faster gauge, more
+  misses, flies over), 🌀 감아차기 (fewer misses, slower gauge, saves ×1.3, goes wide). Picked under the pitch or
+  Q/W/E; `RS.pkBotShot` for the bot. Ball paths in `PKScene.ballAt`; the kicker is a jointed figure per type in
+  `src/js/pkkick.js` (overrides `Renderer.pkKicker`); `RS.pkFoot('messi') = 'L'`: 메시 stands right of the ball,
+  mirrored. Tests `tests/round18.test.js`.
+- The keeper (`Renderer.pkKeeper`, pkrender.js) is a jointed figure driven by `PKScene.keeperPose()/divePose()`
+  (mode idle/dive/feint/catch, side, row 0 low slide · 1 side dive one arm out · 2 high corner arms up-diagonal,
+  k, land, target, kick). The old `RS.Sprites.pkKeeper` sprite is no longer drawn.
+- Cup rewards only unlock: once `meta.unlocked[id]`, each level-up of that hero has `RS.CUP_OFFER` = 3 % to deal
+  the move in the weapon card's slot at SIUUU; nothing is auto-equipped (`RS.grantCupRewards` returns []); old
+  saves keep a move already held. Each move has its own SIUUU effects and a SIUUU moment on pick / first shot.
+  Tests `tests/round19.test.js`.
 
 ### Round-2 tuning (before → after)
 

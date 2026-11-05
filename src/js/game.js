@@ -151,6 +151,16 @@
     for (let i = 0; i < 6; i++) { const w = RS.rollWeapon(b, rng, odds); if (RS.weaponNew(b, w)) return w; }
     return null;
   };
+  // 승부차기 토너먼트 rewards (round 19): a move the cup unlocked (meta.unlocked, RS.CUP_REWARDS) is not handed over —
+  // it can turn up. On a level-up of its hero one card in RS.CUP_OFFER is that move at SIUUU (RS.CUP_GRADE); never
+  // once a copy that good is owned. The rng is drawn only when such a move exists, so other hands stay as they were.
+  RS.CUP_OFFER = 0.03;
+  RS.cupOffer = function (b, rng, unlocked, hero) {
+    const ids = RS.CUP_REWARDS.filter((r) => r.hero === hero && unlocked && unlocked[r.id] && RS.weaponNew(b, { id: r.id, g: RS.CUP_GRADE, p: 1 })).map((r) => r.id);
+    if (!ids.length || rng() >= RS.CUP_OFFER) return null;
+    const id = ids[Math.floor(rng() * ids.length)];
+    return { kind: 'weapon', id, wpn: { id, g: RS.CUP_GRADE, p: 1 }, cup: true };
+  };
   // A 무기 상자: the weapon goes straight into the hand when it beats the one held, else to the 무기고; a copy no
   // better than the one owned turns into coins (RS.SELL_BACK of the price). Returns { w, kept, refund }.
   RS.openBox = function (b, w, box) {
@@ -593,7 +603,7 @@
     switch (c.kind) {
       case 'weapon': { const w = c.wpn, cur = build.weapon, a = RS.weaponPower(cur), n = RS.weaponPower(w);
         return Object.assign(c, { name: RS.weaponName(build, w), icon: RS.weaponIcon(w), desc: RS.weaponDesc(build, w), tag: RS.gradeTag(w), g: w.g,
-          hint: (n > a ? '▲ ' : n < a ? '▼ ' : '= ') + '무기 공격력 ' + a + ' → ' + n + (w.id === cur.id ? ' · 같은 무기 업그레이드' : ' · 무기 교체 (지금 무기는 무기고로)') }); }
+          hint: (c.cup ? '🏆 승부차기 우승으로 해금 · 아주 드물게 나온다 · ' : '') + (n > a ? '▲ ' : n < a ? '▼ ' : '= ') + '무기 공격력 ' + a + ' → ' + n + (w.id === cur.id ? ' · 같은 무기 업그레이드' : ' · 무기 교체 (지금 무기는 무기고로)') }); }
       case 'enhance': { const w = build.weapon, nw = Object.assign({}, w, { p: w.p + 1 });
         return Object.assign(c, { name: RS.weaponName(build, w) + ' 강화', icon: '🔨', desc: RS.gradeTag(w) + ' → +' + nw.p + ' · 무기 공격력 ' + RS.weaponPower(w) + ' → ' + RS.weaponPower(nw),
           tag: '강화 +' + nw.p, g: w.g, hint: '강화는 +' + RS.PLUS_MAX + '까지 · 등급이 한 단계 오르는 것이 +10보다 세다' }); }
@@ -628,7 +638,8 @@
   // one for a 강화 step of the one held; new passives share one weight between them, so they never crowd it out.
   // Weapon and passive cards take their grade from the season's odds (RS.gradeOddsAt, raised by luck).
   RS.seasonIdx = (yearIdx) => RS.tuneIdx(Math.min(yearIdx || 0, RS.YEARS.length - 1));
-  RS.makeChoices = function (build, rng, yearIdx, n, luck) {
+  // unlocked: meta.unlocked, for a cup move that may take one card (RS.cupOffer).
+  RS.makeChoices = function (build, rng, yearIdx, n, luck, unlocked) {
     n = n || 3;
     const pool = [], out = [];
     const hero = build.hero || 'ronaldo';
@@ -656,6 +667,8 @@
       while (out.length < n - 1 && drills.length) out.push({ kind: 'drill', id: drills.splice(Math.floor(rng() * drills.length), 1)[0] });
       out.push({ kind: 'heal', id: 'heal' });
     }
+    const cup = RS.cupOffer(build, rng, unlocked, hero); // it takes the weapon card's place, or any card's
+    if (cup) { const i = out.findIndex((c) => c.kind === 'weapon'); out[i >= 0 ? i : Math.floor(rng() * out.length)] = cup; }
     return out.map((c) => describe(c, build));
   };
 
@@ -695,8 +708,8 @@
   };
   // Level-up hand (round 11): three cards; a graded item, 약물 or gamble card, when one is rolled, comes as a 4th.
   RS.LEVEL_CARDS = 3;
-  RS.levelChoices = function (build, rng, yearIdx, luck, coins) {
-    const out = RS.makeChoices(build, rng, yearIdx, RS.LEVEL_CARDS, luck);
+  RS.levelChoices = function (build, rng, yearIdx, luck, coins, unlocked) {
+    const out = RS.makeChoices(build, rng, yearIdx, RS.LEVEL_CARDS, luck, unlocked);
     const sp = RS.rollSpecial(build, rng, luck, coins, RS.seasonIdx(yearIdx));
     if (sp) out.push(sp);
     return out;
@@ -769,6 +782,8 @@
       this.rng = RS.makeRng(this.seed);
       this.build = RS.normalizeBuild(RS.cloneBuild(opt.build || RS.newBuild()));
       this.metaUp = (opt.meta && opt.meta.upgrades) || {};
+      this.unlocked = (opt.meta && opt.meta.unlocked) || {}; // cup moves that may turn up on a level-up (RS.cupOffer)
+      this.siuuuShown = false; // the SIUUU weapon's big moment has played this match (World.siuuuMoment)
       this.view = opt.view || { w: 260, h: 460 };
       this.events = [];
       this.t = 0;
@@ -1409,7 +1424,8 @@
         if (Math.floor(d.t * 60) % 3 === 0) this.addFx('ghost', p.x, p.y, { dur: 0.25, face: p.face });
         if (d.slide) this.addFx('strail', p.x, p.y + 4, { dur: 0.3, dx: d.dx, dy: d.dy, k: d.t / d.dur }); // gradient streak
         if (d.t >= d.dur) {
-          if (d.burst) this.shock(d.sx, d.sy, d.burst * this.stats.area, d.dmg, { color: '#c9a0ff', knock: 120 });
+          if (d.cup) this.hollywoodLand(d);
+          else if (d.burst) this.shock(d.sx, d.sy, d.burst * this.stats.area, d.dmg, { color: '#c9a0ff', knock: 120 });
           p.dash = null;
         }
       } else {
@@ -1819,6 +1835,7 @@
             this.spawnProj(ball('knuckle', 'cannon'), ox, oy, a, s.speed * st.projSpeed, { dmg, pierce: s.pierce, r: s.r, life: 1.6, wobble: evo || def.straight ? 0 : 1, knock: evo ? 60 : 30 });
           }
           if (pz) kicked(base);
+          if (id === 'penaldo') { kicked(base); this.penaldoShot(ox, oy, base); }
           this.emit('sfx', { name: 'shoot' });
           return true;
         }
@@ -1896,14 +1913,23 @@
         case 'hand': { // 신의 손: a giant hand slams the thickest crowd (the boss first), `count` times in a row
           const R = s.radius * st.area;
           if (!this.crowdTarget(210, R)) return false;
+          // 심판매수 (round 19): no palm — a bribed referee drops in under a shower of banknotes, raises a giant red
+          // card and the spot blows up in red (Renderer 'referee', 'redcards')
+          const ref = id === 'bribe';
+          if (ref) this.cupDebut(id);
           for (let i = 0; i < s.count; i++) {
             this.later(i * HAND_GAP, () => {
               const e = this.crowdTarget(210, R);
               const x = e ? e.x : p.x + p.face * 30, y = e ? e.y : p.y;
-              this.addFx('hand', x, y, { dur: HAND_T + 0.4, hit: HAND_T, r: R, evo });
+              this.addFx(ref ? 'referee' : 'hand', x, y, { dur: HAND_T + (ref ? 1.0 : 0.4), hit: HAND_T, r: R, evo });
               this.later(HAND_T, () => {
                 this.shock(x, y, R, s.dmg, { knock: 120, stun: s.stun * st.dur, silentFx: true });
-                this.pfx('boomSmall', x, y + 4, { palette: RS.PFX_WHITE, o: { r: Math.round(R * 1.2), n: 18 } });
+                this.pfx('boomSmall', x, y + 4, { palette: ref ? RS.PFX_RED : RS.PFX_WHITE, o: { r: Math.round(R * 1.2), n: 18 } });
+                if (ref) {
+                  this.addFx('redcards', x, y, { dur: 0.9, r: R, seed: this.rng() * 6.28 });
+                  this.pfx('firework', x, y + 6, { palette: RS.PFX_RED });
+                  this.emit('sfx', { name: 'whistle' });
+                }
                 // the referee never saw it: cards and shots under the palm are swatted away too
                 for (const ep of this.eprojs) if (ep.alive && (ep.x - x) ** 2 + (ep.y - y) ** 2 < R * R * 1.7) ep.alive = false;
                 this.emit('shake', { k: 0.22 });
@@ -2062,7 +2088,9 @@
       const n = Math.hypot(dx, dy) || 1; dx /= n; dy /= n;
       const dur = 0.16;
       // every grade leaves the afterimage burst where the dash began (the evolved 전설 form a bigger one)
-      p.dash = { dx, dy, t: 0, dur, speed: s.dist / dur, dmg: s.dmg, hits: new Set(), burst: s.burst || STEP_BURST, sx: p.x, sy: p.y };
+      const cup = id === 'hollywood'; // 명품 헐리웃: the dive and its landing (World.hollywoodLand)
+      if (cup) this.cupDebut(id);
+      p.dash = { dx, dy, t: 0, dur, speed: s.dist / dur, dmg: s.dmg, hits: new Set(), burst: s.burst || STEP_BURST, sx: p.x, sy: p.y, cup };
       p.iframe = Math.max(p.iframe, dur + 0.04);
       ws.timer = s.cd * this.stats.cd;
       // 명품 헐리웃 (round 15): the dive says its name now and then, not on every dash
@@ -2092,6 +2120,7 @@
       pr.critBonus = o.critBonus || 0; pr.team = !!o.team; pr.alive = true; pr.target = o.target || null;
       pr.boomer = o.boomer || 0; pr.back = false; pr.trav = 0; pr.home = o.home || 0;
       pr.boom = o.boom || 0; pr.boomDmg = o.boomDmg || 0; pr.gold = !!o.gold; // 유도 대포알: explodes at its first hit
+      pr.fxn = 0; // hit sparks drawn so far (패널두)
       pr.hits.clear();
       this.projs.push(pr);
       return pr;
@@ -2146,6 +2175,7 @@
           const n = Math.hypot(pr.vx, pr.vy) || 1;
           this.damageEnemy(e, pr.dmg, { knock: pr.knock, kx: pr.vx / n, ky: pr.vy / n, critBonus: pr.critBonus, team: pr.team });
           if (pr.kind === 'cannon') this.addFx('spark', e.x, e.y, { dur: 0.2 });
+          if (pr.kind === 'pcannon' && pr.fxn++ < 4) this.pfx('hitSpark', e.x, e.y, { angle: Math.atan2(pr.vy, pr.vx), palette: RS.PFX_SIUUU }); // the 11m cannon tearing through
           if (pr.boom) { // one explosion per ball, at the first man it hits
             const R = pr.boom * this.stats.area;
             this.shock(e.x, e.y, R, pr.boomDmg, { knock: 70, color: pr.gold ? '#ffd84a' : '#ff8a3a' });
@@ -2487,7 +2517,7 @@
         if (e.rival && e === this.rival && this.t >= e.leaveAt) { this.rivalLeave(e); continue; }
         if (e.special && this.t >= e.leaveAt) { this.torresLeave(e); continue; }
         if (e.stun > 0) e.stun -= dt;
-        else if (e.boss) this.bossAI(e, dt, dx, dy, d);
+        else if (e.boss && !e.cine) this.bossAI(e, dt, dx, dy, d); // the 캄프 누 keeper is World.updateCine's (a boss felled earlier in the step starts it)
         else if (e.mini) this.miniAI(e, dt, dx, dy, d);
         else if (e.lineVx || e.lineVy) {
           e.x += e.lineVx * e.speed * dt; e.y += e.lineVy * e.speed * dt;
@@ -2990,8 +3020,8 @@
     }
     // A new four-card hand (the 4th may be a graded item or a gamble).
     deal() {
-      this.choices = RS.levelChoices(this.build, this.rng, this.yearIdx, this.stats.luck, this.coinsPicked);
-      const sp = this.choices.find((c) => c.kind === 'relic' || c.kind === 'gamble' || c.kind === 'stim');
+      this.choices = RS.levelChoices(this.build, this.rng, this.yearIdx, this.stats.luck, this.coinsPicked, this.unlocked);
+      const sp = this.choices.find((c) => c.kind === 'relic' || c.kind === 'gamble' || c.kind === 'stim' || c.cup);
       if (sp) this.emit('special', { g: sp.g }); // a gamble card has no grade
     }
 
@@ -3071,7 +3101,50 @@
       const w = this.build.weapon;
       this.weaponChanged();
       this.emit('weapon', { id: w.id, g: w.g, p: w.p });
-      if (w.g >= 4) { this.emit('siuu'); this.pfx('goldBurst', this.player.x, this.player.y, { follow: this.player, dy: 8 }); }
+      if (w.g >= RS.GRADES.length - 1) this.siuuuMoment(w.id);
+      else if (w.g >= 4) { this.emit('siuu'); this.pfx('goldBurst', this.player.x, this.player.y, { follow: this.player, dy: 8 }); }
+    }
+    // A SIUUU weapon arrives (round 19): above 전설's gold burst — a burst in the grade's three colours, three
+    // fireworks, the SIUUU call over the hero (Renderer 'siuuup') and a banner (main.js 'siuuuWeapon'). Played when
+    // it is taken, and for a SIUUU cup move held from the start, at its first shot of the match (World.cupDebut).
+    siuuuMoment(id) {
+      const p = this.player;
+      this.siuuuShown = true;
+      this.addFx('siuuup', p.x, p.y, { dur: 1.9, follow: true, id });
+      this.pfx('goldBurst', p.x, p.y, { follow: p, dy: 8, palette: RS.PFX_SIUUU, o: { n: 60 } });
+      this.pfx('firework', p.x, p.y - 2, { palette: RS.PFX_SIUUU });
+      this.pfx('firework', p.x - 30, p.y + 6, { palette: RS.PFX_GOLD });
+      this.pfx('firework', p.x + 30, p.y + 6, { palette: RS.PFX_PINK });
+      this.emit('siuuuWeapon', { id });
+      this.emit('shake', { k: 0.55 });
+    }
+    cupDebut(id) {
+      if (!this.siuuuShown && this.build.weapon.id === id && this.build.weapon.g >= RS.GRADES.length - 1) this.siuuuMoment(id);
+    }
+    // 패널두 (round 19): every shot is a penalty — the spot under his boot, a white-hot lane down the line the 11m
+    // cannon flies, a SIUUU-coloured muzzle blast and a deep boom; now and then he calls it.
+    penaldoShot(x, y, a) {
+      this.cupDebut('penaldo');
+      this.addFx('pkshot', x, y, { dur: 0.5, a, len: 110 });
+      this.pfx('boomSmall', x + Math.cos(a) * 9, y + Math.sin(a) * 9 + 3, { palette: RS.PFX_SIUUU, o: { r: 16, n: 14 } });
+      if (!(this.cupSay > this.t)) { this.cupSay = this.t + 3.5; this.addFx('martial', x, y, { dur: 0.8, ch: '11m 대포!', n: 0, center: true, follow: true }); }
+      this.emit('shake', { k: 0.14 });
+      this.emit('sfx', { name: 'impact' });
+    }
+    // 명품 헐리웃 (round 19): the dive ends in a theatrical fall — the spot he lands on explodes (the burst moves from
+    // where the dash began to where he falls), a spotlight, camera flashes, the judges' 10s and the 오스카.
+    hollywoodLand(d) {
+      const p = this.player, R = d.burst * this.stats.area;
+      this.shock(p.x, p.y, R, d.dmg, { knock: 140, silentFx: true });
+      this.addFx('dive', p.x, p.y, { dur: 1.3, face: p.face, r: R, seed: this.rng() * 6.28 });
+      this.addFx('impact', p.x, p.y, { r: R, dur: 0.55, gold: true });
+      this.addFx('boom', p.x, p.y, { r: R * 1.8, dur: 0.5 });
+      this.pfx('goldBurst', p.x, p.y, { dy: 6, palette: RS.PFX_FIRE, o: { n: 40 } });
+      this.pfx('boomSmall', p.x, p.y + 4, { palette: RS.PFX_GOLD, o: { r: Math.round(R * 1.1), n: 22 } });
+      this.pfx('sparkPop', p.x, p.y - 10, { palette: RS.PFX_PINK, o: { n: 16, up: 60 } });
+      this.emit('shake', { k: 0.3 });
+      this.emit('sfx', { name: 'impact' });
+      this.emit('sfx', { name: 'flash' });
     }
 
     // A chest: one plain card from a hand, sometimes three (never a weapon swap or a teammate, nothing to decide).
@@ -3404,4 +3477,4 @@
     };
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).game = 'R17';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).game = 'R18';

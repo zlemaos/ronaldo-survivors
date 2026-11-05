@@ -748,9 +748,10 @@
       // an item, 약물 or gamble card in the hand is announced in the title, in its grade colour
       const sp = w.choices.find(SPECIAL);
       const t = !sp ? '' : sp.kind === 'gamble' ? 'gamble' : 'g' + sp.g;
-      $('lv-title').textContent = sp && sp.kind === 'stim' ? '💉 약물 꽂기 등장! 받을까, 말까?' :
+      const cup = w.choices.find((c) => c.cup); // round 19: a cup move turned up (RS.cupOffer), in SIUUU colours
+      $('lv-title').textContent = cup ? '🏆 SIUUU 무기 등장!!!' : sp && sp.kind === 'stim' ? '💉 약물 꽂기 등장! 받을까, 말까?' :
         { g4: '🌟 SSS 아이템 등장!!', g3: '🔮 SS 아이템 등장!', g2: '💎 S 아이템 등장', gamble: '🎰 도박 카드 등장' }[t] || '레벨 업!';
-      $('lv-title').className = 'glow' + (t ? ' t-' + t : '');
+      $('lv-title').className = cup ? 'glow g-text g-' + cup.g : 'glow' + (t ? ' t-' + t : '');
       this.renderWeaponLine($('lv-weapon'), w.build);
       $('reroll-n').textContent = w.rerolls;
       $('btn-reroll').classList.toggle('hidden', w.rerolls <= 0);
@@ -772,7 +773,7 @@
     // 반자동 picks a plain hand itself and leaves a graded / 약물 / gamble card to the player; 완전 오토 picks all.
     autoPicks(w) {
       const m = this.autoMode();
-      return m === 'full' || (m === 'semi' && !w.choices.some(SPECIAL));
+      return m === 'full' || (m === 'semi' && !w.choices.some((c) => SPECIAL(c) || c.cup));
     },
     refreshLevelUp() { this.lvShown = false; this.showLevelUp(); },
 
@@ -1075,6 +1076,13 @@
         switch (e.type) {
           case 'sfx': RS.Audio.sfx(e.name); break;
           case 'siuu': this.celebrate(w.hero); break;
+          case 'siuuuWeapon': { // round 19: a SIUUU weapon in hand (World.siuuuMoment)
+            const wp = w.build.weapon;
+            this.banner('🏆 SIUUU 무기! ' + RS.weaponIcon(wp) + ' ' + RS.weaponName(w.build, wp));
+            RS.Audio.sfx('jackpot'); RS.Audio.sfx('evolve');
+            setTimeout(() => this.celebrate(w.hero), 350);
+            break;
+          }
           case 'levelup': RS.Audio.sfx('levelup'); this.renderer.shake = Math.max(this.renderer.shake, 0.1); $('hud-power').parentElement.classList.remove('bump'); void $('hud-power').offsetWidth; $('hud-power').parentElement.classList.add('bump'); break;
           case 'shake': this.renderer.shake = Math.max(this.renderer.shake, e.k || 0.1); break;
           case 'hitstop': this.hitStop = Math.max(this.hitStop || 0, e.t || 0); break;
@@ -1308,4 +1316,4 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => App.boot());
   else App.boot();
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).main = 'R17';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).main = 'R18';

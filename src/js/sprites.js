@@ -524,6 +524,7 @@
           case 'curler': rows = SMALL.ball; p = { W: '#eaf6ff', B: '#75aadb' }; break; // albiceleste
           case 'knuckle': rows = SMALL.ball; p = { W: '#e8f6ff', B: '#2a6ad8' }; break;
           case 'cannon': rows = SMALL.ball7; p = { W: '#ffb347', B: '#d0281a' }; break;
+          case 'pcannon': rows = SMALL.ball7; p = { W: '#ffffff', B: '#13a6c4' }; break; // 패널두's 11m cannon (round 19)
           case 'scissor': rows = SMALL.ball; p = { W: '#ffffff', B: '#e0306a' }; break;
           case 'scissor2': rows = SMALL.ball; p = { W: '#e8d0ff', B: '#7a2ad8' }; break;
           case 'rabona': rows = SMALL.ball; p = { W: '#fff0d0', B: '#e06a10' }; break;
@@ -621,4 +622,4 @@
     }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).sprites = 'R17';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).sprites = 'R18';

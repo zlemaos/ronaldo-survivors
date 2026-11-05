@@ -204,6 +204,16 @@
             this.noise(0.9, 0.18, 7000, 0.2); break;
           case 'angry': // the keeper roars and boots it: a growl and a whump
             this.tone(110, 0.35, 'sawtooth', 0.45, 0.6); this.tone(82, 0.4, 'square', 0.3, 0.7, 0.08); this.noise(0.3, 0.35, 400, 0.02, true); break;
+          // round 18: the kicker's run-up and the shot types (발등슛 · 감아차기 · a chipped 파넨카)
+          case 'step': this.tone(90 * dt, 0.05, 'sine', 0.35, 0.6); this.noise(0.04, 0.12, 900, 0, true); break; // a stud on the grass
+          case 'plant': this.tone(70 * dt, 0.08, 'sine', 0.55, 0.5); this.noise(0.07, 0.2, 700, 0, true); break; // the standing foot digs in
+          case 'rocket': // the laces crack, then the ball tears away
+            this.noise(0.03, 0.5, 5000); this.tone(60, 0.25, 'sine', 0.9, 0.4);
+            this.tone(180, 0.32, 'sawtooth', 0.16, 4, 0.02); this.noise(0.36, 0.22, 2600, 0.03); break;
+          case 'spin': // the inside of the foot brushes it; the spinning ball whirs as it bends
+            this.noise(0.05, 0.22, 3000);
+            for (let i = 0; i < 5; i++) this.tone(620 + i * 90, 0.06, 'triangle', 0.14, 1.15, 0.04 + i * 0.06); break;
+          case 'chip': this.tone(520 * dt, 0.06, 'triangle', 0.26, 1.6); this.tone(780, 0.12, 'sine', 0.14, 1.2, 0.05); break; // a soft scoop
           case 'boo': this.noise(1.1, 0.32, 380, 0, true); this.tone(140, 0.9, 'sawtooth', 0.12, 0.9); this.tone(130, 0.9, 'sawtooth', 0.1, 0.95, 0.15); break; // the crowd jeers
         }
       } catch (e) { /* ignore audio errors */ }
@@ -218,4 +228,4 @@
   };
   RS.Audio = A;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).audio = 'R17';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).audio = 'R18';

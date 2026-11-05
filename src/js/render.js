@@ -7,6 +7,13 @@
   const TAU = Math.PI * 2;
   const HD = 2; // low-res canvas pixels per world pixel
   const H2 = (v) => Math.round(v * HD) / HD; // snap to one canvas pixel (half a world pixel)
+  // The SIUUU grade's colour at time t, 'r,g,b': RS.SIUUU_CYCLE (cyan → gold → pink) over the card's 1.2-s cycle.
+  let CYC = null;
+  const siuuuRgb = (t) => {
+    CYC = CYC || RS.SIUUU_CYCLE.map((h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)));
+    const x = (((t / 1.2) % 1) + 1) % 1 * CYC.length, i = Math.floor(x), f = x - i, a = CYC[i], b = CYC[(i + 1) % CYC.length];
+    return a.map((v, j) => Math.round(v + (b[j] - v) * f)).join(',');
+  };
 
   class Renderer {
     constructor(canvas) {
@@ -216,6 +223,7 @@
         const tro = pr.kind === 'ballon'; // a 발롱도르 the hero has really won (RS.ballonCount): the trophy ball
         const sx = H2(this.lx(pr) - camX), sy = H2(this.ly(pr) - camY);
         if (sx < -20 || sy < -20 || sx > V.w + 20 || sy > V.h + 20) continue;
+        if (pr.kind === 'pcannon') { this.drawPCannon(L, pr, sx, sy, w.t); continue; }
         // motion trail: two fading dots behind every ball (hot colours for the power shots)
         L.strokeStyle = this.heroColor; L.lineWidth = 5; L.lineCap = 'round';
         L.beginPath(); L.moveTo(sx - pr.vx * 0.055, sy - pr.vy * 0.055); L.lineTo(sx, sy); L.stroke();
@@ -465,9 +473,22 @@
       L.fillStyle = g; L.beginPath(); L.ellipse(sx, fy, 22, 11, 0, 0, TAU); L.fill();
       L.strokeStyle = 'rgba(255,216,74,' + (0.55 + 0.35 * pulse) + ')'; L.lineWidth = 1.5;
       L.beginPath(); L.ellipse(sx, fy, 10 + pulse, 4.5 + pulse * 0.5, 0, 0, TAU); L.stroke();
+      if (w.build.weapon.g >= RS.GRADES.length - 1) { // round 19: a SIUUU weapon in hand — its colours circle his feet
+        L.strokeStyle = 'rgba(' + siuuuRgb(w.t) + ',0.95)'; L.lineWidth = 2;
+        L.beginPath(); L.ellipse(sx, fy, 15 + pulse * 2, 6.5 + pulse, 0, 0, TAU); L.stroke();
+        for (let i = 0; i < 6; i++) { // motes rising round him
+          const a = w.t * 2.5 + i * TAU / 6, up = (w.t * 0.9 + i * 0.17) % 1;
+          L.fillStyle = 'rgba(' + siuuuRgb(w.t + i * 0.2) + ',' + (1 - up) + ')';
+          L.fillRect(H2(sx + Math.cos(a) * 14), H2(fy + Math.sin(a) * 6 - 22 * up), 1, 1);
+        }
+      }
       if (!blink) {
         const img = p.hurtT > 0 ? (p.face < 0 ? fr.wf : fr.w) : (p.face < 0 ? fr.f : fr.n);
-        L.drawImage(img, sx - (spr.w >> 1), sy - (spr.h >> 1), spr.w, spr.h);
+        if (p.dash && p.dash.cup) { // 명품 헐리웃: he flies through the air, laid out flat
+          L.save(); L.translate(sx, sy); L.rotate(p.face * Math.PI / 2 * Math.min(1, p.dash.t / p.dash.dur * 1.6));
+          L.drawImage(img, -(spr.w >> 1), -(spr.h >> 1), spr.w, spr.h);
+          L.restore();
+        } else L.drawImage(img, sx - (spr.w >> 1), sy - (spr.h >> 1), spr.w, spr.h);
       }
       // marker above the head: a gold chevron that bobs, so the hero is findable even inside a crowd
       const my = sy - (spr.h >> 1) - 6 + Math.round(Math.sin(w.t * 6) * 1.5);
@@ -788,6 +809,41 @@
             }
             L.globalAlpha = 1; break;
           case 'hand': this.drawHand(L, f, sx, sy, w.t); break;
+          case 'referee': this.drawReferee(L, f, sx, sy, w); break;
+          case 'dive': this.drawDive(L, f, sx, sy, w); break;
+          case 'pkshot': this.drawPkShot(L, f, sx, sy, k, w.t); break;
+          case 'redcards': // 심판매수: red (and a few yellow) cards thrown out over the crowd, spinning
+            for (let i = 0; i < 16; i++) {
+              const a = f.seed + i * TAU / 16, d = f.r * (0.3 + 1.2 * k) * (0.7 + 0.3 * (i % 3));
+              L.save();
+              L.translate(H2(sx + Math.cos(a) * d), H2(sy + Math.sin(a) * d * 0.6 - 34 * Math.sin(k * Math.PI)));
+              L.rotate(a + k * 9);
+              L.globalAlpha = 1 - k * k;
+              L.fillStyle = i % 4 ? '#e01b1b' : '#ffd400'; L.fillRect(-2, -3, 4, 6);
+              L.fillStyle = 'rgba(255,255,255,0.7)'; L.fillRect(-2, -3, 1, 2);
+              L.restore();
+            }
+            L.globalAlpha = 1;
+            break;
+          case 'siuuup': { // round 19: a SIUUU weapon arrives — rings, rays and a pillar of light in the grade's colours
+            L.globalCompositeOperation = 'lighter';
+            const pg = L.createLinearGradient(sx, sy - 140, sx, sy + 6);
+            pg.addColorStop(0, 'rgba(' + siuuuRgb(w.t) + ',0)'); pg.addColorStop(1, 'rgba(' + siuuuRgb(w.t) + ',' + (0.55 * (1 - k)) + ')');
+            L.fillStyle = pg; L.fillRect(sx - 9 - 6 * k, sy - 140, 18 + 12 * k, 146);
+            for (let i = 0; i < 14; i++) {
+              const a = i * TAU / 14 + k * 1.8, len = 26 + 46 * k + 10 * Math.sin(i * 1.7 + w.t * 9);
+              L.strokeStyle = 'rgba(' + siuuuRgb(w.t + i * 0.09) + ',' + (0.85 * (1 - k)) + ')'; L.lineWidth = i % 2 ? 1 : 2;
+              L.beginPath(); L.moveTo(sx + Math.cos(a) * 7, sy + Math.sin(a) * 7); L.lineTo(sx + Math.cos(a) * len, sy + Math.sin(a) * len); L.stroke();
+            }
+            L.globalCompositeOperation = 'source-over';
+            for (let j = 0; j < 3; j++) {
+              const q = k * 1.7 - j * 0.22;
+              if (q <= 0 || q >= 1) continue;
+              L.strokeStyle = 'rgba(' + siuuuRgb(j * 0.4) + ',' + (1 - q) + ')'; L.lineWidth = 4 - 3 * q;
+              L.beginPath(); L.ellipse(sx, sy + 4, 10 + 80 * q, 6 + 44 * q, 0, 0, TAU); L.stroke();
+            }
+            break;
+          }
           case 'impact': { // 드롭볼 landing: a white-hot flash, a shock ring and a second, slower ring
             const c = f.gold ? '255,214,90' : '255,255,255';
             if (k < 0.35) {
@@ -882,6 +938,154 @@
       }
     }
 
+    // 심판매수 (round 19): banknotes flutter down onto the spot, the bribed referee drops in out of the sky (his shadow
+    // grows), lands at f.hit and raises a giant red card in a red glow while red rings run out over the crowd.
+    drawReferee(L, f, sx, sy, w) {
+      const spr = RS.Sprites.boss('bref', w.yearIdx), hit = f.hit, k1 = Math.min(1, f.t / hit), after = f.t >= hit;
+      const q = after ? (f.t - hit) / (f.dur - hit) : 0, fade = after ? Math.min(1, (1 - q) * 3) : 1;
+      L.fillStyle = 'rgba(255,40,40,' + (after ? 0.3 * (1 - q) : 0.1 + 0.2 * k1) + ')';
+      L.beginPath(); L.ellipse(sx, sy, f.r, f.r * 0.6, 0, 0, TAU); L.fill();
+      L.strokeStyle = 'rgba(255,90,90,' + (after ? 1 - q : 0.4 + 0.5 * k1) + ')'; L.lineWidth = 1;
+      L.beginPath(); L.ellipse(sx, sy, f.r * (after ? 1 : 1.6 - 0.6 * k1), f.r * 0.6 * (after ? 1 : 1.6 - 0.6 * k1), 0, 0, TAU); L.stroke();
+      for (let i = 0; i < 12; i++) { // the bribe: banknotes see-sawing down
+        const a = i * 2.39, fall = (f.t * 0.8 + i * 0.083) % 1, sw = Math.sin(f.t * 7 + i * 1.3);
+        const x = sx + Math.cos(a) * f.r * 0.9 + sw * 4, y = sy - 56 + fall * 56 + Math.sin(a) * f.r * 0.35;
+        L.globalAlpha = fade * Math.min(1, (1 - fall) * 4);
+        L.fillStyle = '#2f9a3e'; L.fillRect(H2(x - 2.5 * Math.abs(sw) - 0.5), H2(y - 1), 5 * Math.abs(sw) + 1, 3);
+        L.fillStyle = '#c8f5b8'; L.fillRect(H2(x), H2(y), 1, 1);
+      }
+      L.globalAlpha = 1;
+      const h = after ? 0 : 96 * (1 - k1 * k1);
+      L.fillStyle = 'rgba(0,0,0,' + (0.15 + 0.3 * k1) * fade + ')';
+      L.beginPath(); L.ellipse(sx, sy + spr.h * 0.42, 5 + 7 * k1, 2 + 2.5 * k1, 0, 0, TAU); L.fill();
+      if (after) { // the red card goes up over his head, huge, in a red glow
+        const up = Math.min(1, q * 5), cw = 6 + 8 * up, ch = 9 + 12 * up, cx = sx + spr.w * 0.28, cy = sy - spr.h / 2 - 6 - 8 * up - ch / 2;
+        L.globalCompositeOperation = 'lighter';
+        const g = L.createRadialGradient(cx, cy, 2, cx, cy, 30);
+        g.addColorStop(0, 'rgba(255,80,60,' + (0.8 * fade) + ')'); g.addColorStop(1, 'rgba(255,0,0,0)');
+        L.fillStyle = g; L.beginPath(); L.arc(cx, cy, 30, 0, TAU); L.fill();
+        L.globalCompositeOperation = 'source-over';
+        L.globalAlpha = fade;
+        L.fillStyle = '#ffffff'; L.fillRect(H2(cx - cw / 2) - 1, H2(cy - ch / 2) - 1, cw + 2, ch + 2);
+        L.fillStyle = '#e01b1b'; L.fillRect(H2(cx - cw / 2), H2(cy - ch / 2), cw, ch);
+        L.fillStyle = '#ff8a7a'; L.fillRect(H2(cx - cw / 2) + 1, H2(cy - ch / 2) + 1, 1, ch * 0.5);
+        const arm = cy + ch / 2, shoulder = sy - spr.h * 0.18;
+        L.fillStyle = '#151515'; L.fillRect(H2(cx) - 1, H2(arm), 2, Math.max(0, H2(shoulder - arm))); // the arm up
+        for (let j = 0; j < 2; j++) {
+          const r = (q * 1.6 - j * 0.3);
+          if (r <= 0 || r >= 1) continue;
+          L.strokeStyle = 'rgba(255,50,50,' + (1 - r) + ')'; L.lineWidth = 3 - 2 * r;
+          L.beginPath(); L.ellipse(sx, sy, f.r * (0.5 + 1.1 * r), f.r * 0.6 * (0.5 + 1.1 * r), 0, 0, TAU); L.stroke();
+        }
+      }
+      L.globalAlpha = fade;
+      L.drawImage(spr.frames[0].n, H2(sx - spr.w / 2), H2(sy - spr.h / 2 - h), spr.w, spr.h);
+      L.globalAlpha = 1;
+    }
+
+    // 명품 헐리웃 (round 19): the replay of the dive where he fell — laid out on the turf and rolling under a
+    // spotlight, stars over his head, camera flashes all round, the 오스카 rising (the judges' 10s: drawTexts).
+    drawDive(L, f, sx, sy, w) {
+      const k = Math.min(1, f.t / f.dur), q = 1 - k, spr = RS.Sprites.hero(w.hero, w.yearIdx, 1, null, w.small);
+      L.globalCompositeOperation = 'lighter';
+      const g = L.createLinearGradient(sx, sy - 130, sx, sy + 8);
+      g.addColorStop(0, 'rgba(255,240,190,0)'); g.addColorStop(1, 'rgba(255,240,190,' + (0.4 * q) + ')');
+      L.fillStyle = g;
+      L.beginPath(); L.moveTo(sx - 5, sy - 130); L.lineTo(sx + 5, sy - 130); L.lineTo(sx + 28, sy + 8); L.lineTo(sx - 28, sy + 8); L.closePath(); L.fill();
+      L.fillStyle = 'rgba(255,240,190,' + (0.3 * q) + ')';
+      L.beginPath(); L.ellipse(sx, sy + 6, 28, 9, 0, 0, TAU); L.fill();
+      L.globalCompositeOperation = 'source-over';
+      const roll = Math.min(1, k * 2.5), fx = sx + f.face * (8 + 14 * roll); // rolled out from under him
+      L.save(); L.translate(fx, sy + 3);
+      L.rotate(f.face * (Math.PI / 2 + 0.35 * Math.sin(roll * Math.PI * 3) * (1 - roll)));
+      L.globalAlpha = 0.9 * Math.min(1, q * 2.5);
+      L.drawImage(f.face < 0 ? spr.frames[0].f : spr.frames[0].n, -spr.w / 2, -spr.h / 2, spr.w, spr.h);
+      L.restore();
+      L.globalAlpha = Math.min(1, q * 2.5);
+      for (let i = 0; i < 3; i++) { // dizzy stars over the head
+        const a = w.t * 7 + i * TAU / 3;
+        L.fillStyle = i ? '#ffe14a' : '#ffffff';
+        L.fillRect(H2(fx + f.face * 9 + Math.cos(a) * 6) - 1, H2(sy - 4 + Math.sin(a) * 2.5) - 1, 2, 2);
+      }
+      for (let i = 0; i < 7; i++) { // camera flashes from the stands
+        const ph = (k * 6 + i * 0.37) % 1;
+        if (ph > 0.3) continue;
+        const a = f.seed + i * 1.9, rad = 30 + (i % 3) * 10, m = 1 - ph / 0.3;
+        const x = sx + Math.cos(a) * rad, y = sy + Math.sin(a) * rad * 0.6 - 6;
+        L.fillStyle = 'rgba(255,255,255,' + m + ')';
+        L.fillRect(H2(x - 4 * m), H2(y) - 0.5, 8 * m + 1, 1); L.fillRect(H2(x) - 0.5, H2(y - 4 * m), 1, 8 * m + 1);
+        L.fillRect(H2(x) - 1, H2(y) - 1, 2, 2);
+      }
+      if (k > 0.12) { // the 오스카: a golden statuette rising out of the spotlight
+        const u = Math.min(1, (k - 0.12) * 3), ox = sx, oy = Math.round(sy - 24 - 16 * u);
+        L.fillStyle = '#6a4208'; L.fillRect(ox - 4, oy + 9, 8, 3);
+        L.fillStyle = '#ffd84a'; L.fillRect(ox - 1, oy + 1, 3, 8); L.fillRect(ox - 2, oy + 3, 5, 2); L.fillRect(ox - 1, oy - 2, 3, 3);
+        L.fillStyle = '#fff6c0'; L.fillRect(ox, oy - 1, 1, 6);
+      }
+      L.globalAlpha = 1;
+    }
+
+    // 패널두 (round 19): the penalty spot under his boot with its arc, a lane of light down the 11m cannon's line into
+    // a goal mouth, and a muzzle flash.
+    drawPkShot(L, f, sx, sy, k, t) {
+      const ux = Math.cos(f.a), uy = Math.sin(f.a), q = 1 - k, c = siuuuRgb(t), reach = f.len * Math.min(1, k * 5);
+      L.fillStyle = 'rgba(255,255,255,' + q + ')';
+      L.beginPath(); L.ellipse(sx, sy + 7, 3, 1.5, 0, 0, TAU); L.fill();
+      L.strokeStyle = 'rgba(255,255,255,' + (0.8 * q) + ')'; L.lineWidth = 1;
+      L.beginPath(); L.ellipse(sx, sy + 7, 24, 10, 0, f.a - 1, f.a + 1); L.stroke();
+      L.lineCap = 'round';
+      L.strokeStyle = 'rgba(' + c + ',' + (0.4 * q) + ')'; L.lineWidth = 12 * q + 2;
+      L.beginPath(); L.moveTo(sx, sy); L.lineTo(sx + ux * reach, sy + uy * reach); L.stroke();
+      L.strokeStyle = 'rgba(255,255,255,' + (0.9 * q) + ')'; L.lineWidth = 2;
+      L.beginPath(); L.moveTo(sx, sy); L.lineTo(sx + ux * reach, sy + uy * reach); L.stroke();
+      L.lineCap = 'butt';
+      if (k > 0.15) { // the goal mouth the lane runs into: posts, bar and net, across the line
+        L.save(); L.translate(sx + ux * f.len, sy + uy * f.len); L.rotate(f.a);
+        L.globalAlpha = Math.min(1, (k - 0.15) * 5) * q;
+        L.fillStyle = 'rgba(255,255,255,0.18)'; L.fillRect(0, -16, 10, 32);
+        L.strokeStyle = 'rgba(255,255,255,0.5)'; L.lineWidth = 1; L.beginPath();
+        for (let y = -16; y <= 16; y += 4) { L.moveTo(0, y); L.lineTo(10, y); }
+        for (let x = 3; x < 10; x += 3) { L.moveTo(x, -16); L.lineTo(x, 16); }
+        L.stroke();
+        L.strokeStyle = '#ffffff'; L.lineWidth = 2; L.beginPath(); L.moveTo(0, -16); L.lineTo(10, -16); L.lineTo(10, 16); L.lineTo(0, 16); L.stroke();
+        L.restore(); L.globalAlpha = 1;
+      }
+      if (k < 0.3) {
+        const m = 1 - k / 0.3, mx = sx + ux * 8, my = sy + uy * 8;
+        L.fillStyle = 'rgba(255,255,255,' + m + ')';
+        L.fillRect(mx - 11 * m, my - 1, 22 * m, 2); L.fillRect(mx - 1, my - 11 * m, 2, 22 * m);
+        L.fillStyle = 'rgba(' + c + ',' + m + ')'; L.fillRect(mx - 3, my - 3, 6, 6);
+      }
+    }
+
+    // 패널두's 11m cannon ball (round 19): a comet in the SIUUU colours — a long tail with a fiery core, a white-hot
+    // ball in a glow, sparks shed behind.
+    drawPCannon(L, pr, sx, sy, t) {
+      const sp = Math.hypot(pr.vx, pr.vy) || 1, ux = pr.vx / sp, uy = pr.vy / sp, len = 48, c = siuuuRgb(t + pr.t);
+      L.lineCap = 'round';
+      const g = L.createLinearGradient(sx, sy, sx - ux * len, sy - uy * len);
+      g.addColorStop(0, 'rgba(' + c + ',0.95)'); g.addColorStop(1, 'rgba(' + c + ',0)');
+      L.strokeStyle = g; L.lineWidth = 10;
+      L.beginPath(); L.moveTo(sx, sy); L.lineTo(sx - ux * len, sy - uy * len); L.stroke();
+      const g2 = L.createLinearGradient(sx, sy, sx - ux * len * 0.6, sy - uy * len * 0.6);
+      g2.addColorStop(0, 'rgba(255,244,180,1)'); g2.addColorStop(1, 'rgba(255,120,40,0)');
+      L.strokeStyle = g2; L.lineWidth = 5;
+      L.beginPath(); L.moveTo(sx, sy); L.lineTo(sx - ux * len * 0.6, sy - uy * len * 0.6); L.stroke();
+      L.lineCap = 'butt';
+      L.globalCompositeOperation = 'lighter';
+      const rg = L.createRadialGradient(sx, sy, 1, sx, sy, 13);
+      rg.addColorStop(0, 'rgba(255,255,255,0.9)'); rg.addColorStop(1, 'rgba(' + c + ',0)');
+      L.fillStyle = rg; L.beginPath(); L.arc(sx, sy, 13, 0, TAU); L.fill();
+      L.globalCompositeOperation = 'source-over';
+      for (let i = 0; i < 5; i++) {
+        const u = (t * 7 + i * 0.2) % 1, side = (i - 2) * 2.2 * u;
+        L.fillStyle = i % 2 ? '#ffffff' : 'rgb(' + siuuuRgb(t + i * 0.3) + ')';
+        L.fillRect(H2(sx - ux * len * u - uy * side), H2(sy - uy * len * u + ux * side), 1, 1);
+      }
+      const it = RS.Sprites.item('pcannon');
+      L.drawImage(it.n, sx - (it.w >> 1), sy - (it.h >> 1));
+    }
+
     // A ball falling from the sky (별똥별 슛, 칩슛, 로빙, 유성): white, golden, or a 발롱도르 trophy (f.ballon) — one the
     // hero has really won (World.fire: the first RS.ballonCount balls of a volley).
     drawFallBall(L, f, x, y, time) {
@@ -953,6 +1157,41 @@
         C.fillText(str, x, y);
         C.globalAlpha = 1;
       }
+      // round 19: the SIUUU weapon's call over the hero, the bribed referee's 퇴장, the judges' 10s for a dive
+      for (const f of w.fx) {
+        if (f.t >= f.dur || (f.kind !== 'siuuup' && f.kind !== 'referee' && f.kind !== 'dive')) continue;
+        const k = f.t / f.dur;
+        C.lineWidth = s * 1.2; C.strokeStyle = '#111';
+        if (f.kind === 'siuuup') {
+          const x = (w.player.x - camX) * s, y = (w.player.y - camY - 34 - k * 10) * s, pop = 1 + 1.2 * Math.max(0, 1 - k * 7);
+          C.globalAlpha = Math.min(1, (1 - k) * 3);
+          C.font = '900 ' + Math.round(base * 2.6 * pop) + 'px system-ui, sans-serif';
+          C.strokeText('SIUUU!', x, y); C.fillStyle = 'rgb(' + siuuuRgb(w.t * 2) + ')'; C.fillText('SIUUU!', x, y);
+          C.font = '900 ' + Math.round(base * 1.15) + 'px system-ui, sans-serif';
+          const nm = RS.weaponIcon(w.build.weapon) + ' ' + RS.weaponName(w.build, w.build.weapon);
+          C.strokeText(nm, x, y + base * 2.2); C.fillStyle = '#ffffff'; C.fillText(nm, x, y + base * 2.2);
+        } else if (f.kind === 'referee') {
+          if (f.t < f.hit) continue;
+          const q = (f.t - f.hit) / (f.dur - f.hit), pop = 1 + 0.9 * Math.max(0, 1 - q * 6);
+          C.globalAlpha = Math.min(1, (1 - q) * 3);
+          C.font = '900 ' + Math.round(base * 1.9 * pop) + 'px system-ui, sans-serif';
+          const x = (f.x - camX) * s, y = (f.y - camY - 46 - q * 8) * s;
+          C.strokeText('퇴장!', x, y); C.fillStyle = '#ff3a30'; C.fillText('퇴장!', x, y);
+        } else { // three judges' cards pop up one after another: 10 · 10 · 10
+          C.font = '900 ' + Math.round(base * 1.1) + 'px system-ui, sans-serif';
+          for (let i = 0; i < 3; i++) {
+            const st = 0.12 + i * 0.1;
+            if (k < st) continue;
+            const pop = 1 + 0.6 * Math.max(0, 1 - (k - st) * 12), cw = base * 1.9 * pop, ch = base * 1.4 * pop;
+            const x = (f.x - camX + (i - 1) * 15) * s, y = (f.y - camY - 52) * s;
+            C.globalAlpha = Math.min(1, (1 - k) * 3);
+            C.fillStyle = '#111'; C.fillRect(x - cw / 2 - s * 0.5, y - ch / 2 - s * 0.5, cw + s, ch + s);
+            C.fillStyle = '#fffbe8'; C.fillRect(x - cw / 2, y - ch / 2, cw, ch);
+            C.fillStyle = '#d0201a'; C.fillText('10', x, y + s * 0.2);
+          }
+        }
+        C.globalAlpha = 1;
+      }
       // SIUU shout text (날두's; 메시's glare has its own line)
       for (const r of w.rings) {
         if (r.t > 0.6 || !r.shout) continue;
@@ -979,4 +1218,4 @@
   }
   RS.Renderer = Renderer;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).render = 'R17';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).render = 'R18';

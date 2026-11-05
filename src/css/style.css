@@ -4,7 +4,7 @@ body.hurt-flash::after {
   box-shadow: inset 0 0 70px 24px rgba(255, 40, 40, 0.55);
 }
 :root {
-  --build: "R17"; /* the build of this file (App.mixedFiles; bump with RS.VERSION) */
+  --build: "R18"; /* the build of this file (App.mixedFiles; bump with RS.VERSION) */
   --bg: #0b1d12;
   --panel: rgba(12, 22, 16, 0.94);
   --line: rgba(255, 255, 255, 0.14);
@@ -403,6 +403,15 @@ ul.howto { text-align: left; padding-left: 4px; list-style: none; margin: 0; dis
 .pk-bar { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 8px; font-size: 12px; color: #dfe8e0; }
 .pk-bar span { background: rgba(0,0,0,0.55); border-radius: 8px; padding: 4px 8px; font-weight: 700; }
 #btn-pk-auto.on { border-color: var(--gold); color: var(--gold); }
+/* round 18: the shot type (밀어차기 · 발등슛 · 감아차기) while aiming */
+.pk-shots { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; }
+.pk-shot-row { display: flex; gap: 6px; width: 100%; justify-content: center; }
+.pk-shot { flex: 1 1 0; max-width: 150px; padding: 4px 6px; font-weight: 800; white-space: nowrap; background: rgba(10,20,14,0.78); border-color: rgba(255,255,255,0.3); }
+.pk-shot b { font-size: 16px; }
+.pk-shot kbd { margin-left: 5px; font: 700 10px/1 system-ui, sans-serif; color: #c8d0d8; border: 1px solid rgba(255,255,255,0.35); border-radius: 4px; padding: 1px 3px; vertical-align: 2px; }
+.pk-shot.on { border-color: var(--gold); color: var(--gold); background: rgba(60,48,8,0.85); box-shadow: 0 0 10px rgba(255,210,58,0.55); }
+.pk-shot-tip { font-size: 12px; font-weight: 700; color: #e8f0e8; background: rgba(0,0,0,0.55); border-radius: 8px; padding: 2px 8px; text-align: center; word-break: keep-all; }
+@media (hover: none) { .pk-shot kbd { display: none; } }
 .pk-panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: calc(100% - 24px); max-width: 420px; max-height: 82%;
   overflow-y: auto; text-align: center; display: flex; flex-direction: column; gap: 8px; z-index: 2; }
 .pk-panel h2 { margin: 2px 0; }

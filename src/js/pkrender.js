@@ -228,24 +228,176 @@
   };
 
   // ---------------------------------------------------------------- the people and the ball
+  // ---- the keeper (round 18): a jointed figure posed from PKScene.keeperPose(). Joints live in goal-height units
+  // (the bar = 1) around his base on the goal line, x toward the dive side (mirrored for the left), y up.
+  const KJ = ['pel', 'chest', 'eA', 'hA', 'eB', 'hB', 'kA', 'fA', 'kB', 'fB']; // A = the lead side's arm and leg
+  const pt = (x, y) => ({ x, y });
+  const ease = (t) => t * t * (3 - 2 * t), easeOut = (t) => 1 - (1 - t) * (1 - t);
+  function kMix(A, B, t) { const o = {}; for (const j of KJ) o[j] = pt(lerp(A[j].x, B[j].x, t), lerp(A[j].y, B[j].y, t)); return o; }
+  function kMap(P, f) { const o = {}; for (const j of KJ) o[j] = f(P[j]); return o; }
+  // ready stance: c how deep he sits (0 tall … 1.6 loaded); a watching keeper (still) does not sway
+  function kReady(c, t, still) {
+    const b = still ? 0 : Math.sin(t * 5.2) * 0.008, sw = still ? 0 : Math.sin(t * 2.3 + 1) * 0.015, fl = still ? 0 : Math.sin(t * 7) * 0.012;
+    const py = 0.31 - 0.05 * c + b;
+    return { pel: pt(sw * 0.5, py), chest: pt(sw, py + 0.26 - 0.02 * c), eA: pt(0.17 + sw, py + 0.15), hA: pt(0.22 + sw, py + 0.05 + fl),
+      eB: pt(-0.17 + sw, py + 0.15), hB: pt(-0.22 + sw, py + 0.05 - fl), kA: pt(0.13, 0.17 - 0.03 * c), fA: pt(0.11, 0), kB: pt(-0.13, 0.17 - 0.03 * c), fB: pt(-0.11, 0) };
+  }
+  // the load: weight on the lead leg, a step out, hands low
+  const K_LOAD = { pel: pt(0.08, 0.21), chest: pt(0.14, 0.45), eA: pt(0.28, 0.36), hA: pt(0.33, 0.27), eB: pt(-0.05, 0.36), hB: pt(0, 0.26),
+    kA: pt(0.27, 0.14), fA: pt(0.27, 0), kB: pt(-0.06, 0.12), fB: pt(-0.13, 0) };
+  // full stretch toward T: low = flat along the turf, both arms along it; mid = sideways in the air, one arm flung
+  // out, the other tucked; high = launched up the diagonal with both arms spread up
+  function kStretch(row, T) {
+    const a = [0.05, 0.3, 0.75][row], d = pt(Math.cos(a), Math.sin(a)), n = pt(d.y, -d.x); // n: the lower (lead) side
+    const at = (p, u, w) => pt(p.x + d.x * u + n.x * w, p.y + d.y * u + n.y * w);
+    const chest = at(T, -0.3, row ? 0.02 : -0.03), pel = at(chest, -0.27, 0);
+    const P = { chest, pel, hA: T, eA: at(T, -0.14, 0.015) };
+    if (row === 0) { P.hB = at(chest, 0.22, -0.09); P.eB = at(chest, 0.09, -0.1); }
+    else if (row === 1) { P.hB = at(chest, 0.05, -0.17); P.eB = at(chest, -0.07, -0.13); }
+    else { const e = pt(Math.cos(a + 0.6), Math.sin(a + 0.6)); P.eB = pt(chest.x + e.x * 0.14 - n.x * 0.07, chest.y + e.y * 0.14 - n.y * 0.07); P.hB = pt(chest.x + e.x * 0.28 - n.x * 0.07, chest.y + e.y * 0.28 - n.y * 0.07); }
+    P.kA = at(pel, -0.17, 0.02); P.fA = at(pel, -0.34, 0.05);
+    P.kB = row ? at(pel, -0.12, -0.12) : at(pel, -0.17, -0.06); P.fB = row ? at(pel, -0.27, -0.05) : at(pel, -0.34, -0.09);
+    return kMap(P, (q) => pt(q.x, Math.max(0.02, q.y)));
+  }
+  // the middle: low = he drops to his knees, hands down to it; mid / high = straight up, arms up to it
+  function kCentre(row, T) {
+    if (!row) return { pel: pt(0, 0.13), chest: pt(0, 0.37), eA: pt(0.14, 0.22), hA: pt(T.x + 0.05, T.y), eB: pt(-0.14, 0.22), hB: pt(T.x - 0.05, T.y),
+      kA: pt(0.16, 0.03), fA: pt(0.25, 0.02), kB: pt(-0.16, 0.03), fB: pt(-0.25, 0.02) };
+    const l = clamp(T.y - 0.9, 0, 0.3) + (row === 2 ? 0.1 : 0.03), hy = Math.max(T.y, 0.5);
+    return { pel: pt(0, 0.38 + l), chest: pt(0, 0.64 + l), eA: pt(T.x / 2 + 0.13, (0.62 + l + hy) / 2), hA: pt(T.x + 0.06, hy), eB: pt(T.x / 2 - 0.13, (0.62 + l + hy) / 2), hB: pt(T.x - 0.06, hy),
+      kA: pt(0.08, 0.2 + l), fA: pt(0.06, 0.02 + l), kB: pt(-0.08, 0.2 + l), fB: pt(-0.06, 0.02 + l) };
+  }
+  // set → load → explosive push off the back leg → full stretch (the glove on T at k = 1) → land (0–1) on the grass
+  function kDive(p, T, t) {
+    const S = p.side ? kStretch(p.row, T) : kCentre(p.row, T), k = clamp(p.k, 0, 1);
+    const L0 = p.side ? K_LOAD : kReady(1.6, t, true);
+    const Ln = kMix(L0, S, 0.36);
+    if (p.side) { Ln.fB = L0.fB; Ln.kB = pt(lerp(Ln.pel.x, L0.fB.x, 0.5) - 0.03, Ln.pel.y * 0.5); } // the push-off leg, still planted
+    let P;
+    if (k < 0.16) P = kMix(kReady(0.4, t, true), L0, ease(k / 0.16));
+    else if (k < 0.34) P = kMix(L0, Ln, ease((k - 0.16) / 0.18));
+    else {
+      const q = (k - 0.34) / 0.66, arc = p.side && p.row ? Math.sin(q * Math.PI) * 0.06 : 0;
+      P = kMap(kMix(Ln, S, easeOut(q)), (j) => pt(j.x, j.y + arc));
+    }
+    if (p.land > 0) {
+      const e = p.land * p.land;
+      if (p.side) P = kMap(P, (j) => pt(j.x + (p.row ? 0.05 : 0.09) * e, p.row ? lerp(j.y, 0.03 + j.y * 0.14, e) : j.y));
+      else if (p.row) P = kMix(P, kReady(0.6, t, true), e);
+    }
+    return P;
+  }
+  // both gloves onto ball b (w: how far)
+  function kHands(P, b, w) {
+    const c = P.chest;
+    P.hA = pt(lerp(P.hA.x, b.x + 0.045, w), lerp(P.hA.y, b.y, w)); P.hB = pt(lerp(P.hB.x, b.x - 0.045, w), lerp(P.hB.y, b.y, w));
+    P.eA = pt(lerp(P.eA.x, (c.x + P.hA.x) / 2 + 0.11, w), lerp(P.eA.y, (c.y + P.hA.y) / 2 - 0.03, w));
+    P.eB = pt(lerp(P.eB.x, (c.x + P.hB.x) / 2 - 0.11, w), lerp(P.eB.y, (c.y + P.hB.y) / 2 - 0.03, w));
+  }
+  // he boots the held ball (hb) away: hands thrown up, the lead leg swings through it
+  function kKick(P, k, hb) {
+    const c = ease(Math.min(1, k / 0.3)), O = kMix(P, P, 0);
+    const foot = k < 0.12 ? pt(lerp(0.11, 0.1, k / 0.12), lerp(0, 0.14, k / 0.12)) : k < 0.25 ? pt(lerp(0.1, hb.x, (k - 0.12) / 0.13), lerp(0.14, hb.y - 0.03, (k - 0.12) / 0.13))
+      : pt(lerp(hb.x, hb.x + 0.06, ease((k - 0.25) / 0.75)), lerp(hb.y - 0.03, hb.y + 0.42, ease((k - 0.25) / 0.75)));
+    const K = { pel: pt(0, 0.36), chest: pt(-0.04, 0.62), eA: pt(0.2, 0.7), hA: pt(0.24, 0.84), eB: pt(-0.22, 0.66), hB: pt(-0.26, 0.8),
+      kA: pt((0.05 + foot.x) / 2 + 0.06, Math.max(foot.y, 0.17) + 0.07), fA: foot, kB: pt(-0.08, 0.18), fB: pt(-0.1, 0) };
+    const R = kMix(O, K, c); R.fA = foot; R.kA = K.kA;
+    return R;
+  }
+  // one pose in the frame; b the ball (mirrored into the frame), hb where he holds it before a kick-away
+  function kPose(p, T, b, hb) {
+    const t = p.t || 0;
+    let P;
+    if (p.mode === 'dive') P = kDive(p, T, t);
+    else if (p.mode === 'feint') {
+      P = kMix(kReady(0.3, t, false), K_LOAD, clamp(p.k, 0, 1) * 0.8);
+      if (!p.hold && p.k > 0.03 && p.k < 0.97) { // little steps back to the middle
+        const w = Math.sin(t * 14), up = Math.abs(w);
+        if (w > 0) { P.fA = pt(P.fA.x, up * 0.05); P.kA = pt(P.kA.x, P.kA.y + up * 0.03); } else { P.fB = pt(P.fB.x, up * 0.05); P.kB = pt(P.kB.x, P.kB.y + up * 0.03); }
+      }
+      if (p.hold && b) { P.pel = pt(P.pel.x, P.pel.y - 0.03); P.chest = pt(P.chest.x, P.chest.y - 0.05); kHands(P, b, 1); }
+    } else if (p.mode === 'catch') {
+      P = kReady(0.3, t, false);
+      if (b) kHands(P, b, clamp((b.z - 0.5) / 0.4, 0, 1));
+    } else P = kReady(0.15, t, p.still);
+    if (p.kick > 0 && hb) P = kKick(P, p.kick, hb);
+    return P;
+  }
+  function kHex(c) { c = c.replace('#', ''); if (c.length === 3) c = c.split('').map((x) => x + x).join(''); const v = parseInt(c, 16); return [v >> 16 & 255, v >> 8 & 255, v & 255]; }
+  function kTint(a, b, t) { const A = kHex(a), B = kHex(b); return 'rgb(' + A.map((x, i) => Math.round(lerp(x, B[i], t))).join(',') + ')'; }
+  // draws pose P (X maps a frame point to world px, sz = px per unit); sil: one flat colour (an after-image)
+  function kDraw(L, P, X, pal, sz, style, sil) {
+    const OUT = '#0c0c14', d0 = pt(P.chest.x - P.pel.x, P.chest.y - P.pel.y), dl = Math.hypot(d0.x, d0.y) || 1, d = pt(d0.x / dl, d0.y / dl), n = pt(d.y, -d.x);
+    const at = (p, u, w) => pt(p.x + d.x * u + n.x * w, p.y + d.y * u + n.y * w);
+    const sA = at(P.chest, -0.02, 0.07), sB = at(P.chest, -0.02, -0.07), iA = at(P.pel, 0, 0.05), iB = at(P.pel, 0, -0.05), head = at(P.chest, 0.1, 0);
+    L.lineCap = 'round'; L.lineJoin = 'round';
+    const col = (c, o) => (o ? OUT : sil || c);
+    const line = (pts, w, c, o) => { L.strokeStyle = col(c, o); L.lineWidth = w * sz + (o ? 1.2 : 0); L.beginPath(); pts.forEach((q, i) => { const s = X(q); if (i) L.lineTo(s.x, s.y); else L.moveTo(s.x, s.y); }); L.stroke(); };
+    const dot = (q, r, c, o) => { const s = X(q); L.fillStyle = col(c, o); L.beginPath(); L.arc(s.x, s.y, r * sz + (o ? 0.6 : 0), 0, TAU); L.fill(); };
+    const poly = (pts, c, o) => { L.beginPath(); pts.forEach((q, i) => { const s = X(q); if (i) L.lineTo(s.x, s.y); else L.moveTo(s.x, s.y); }); L.closePath(); L.fillStyle = L.strokeStyle = col(c, o); L.lineWidth = 0.05 * sz + (o ? 1.2 : 0); L.fill(); L.stroke(); };
+    const both = (f) => { if (!sil) f(true); f(false); };
+    const leg = (hip, knee, foot, dk) => both((o) => {
+      line([hip, knee], 0.078, dk ? pal.Sd : pal.S, o); line([knee, foot], 0.06, dk ? pal.Wd : pal.W, o);
+      const v = pt(foot.x - knee.x, foot.y - knee.y), m = Math.hypot(v.x, v.y) || 1;
+      line([foot, pt(foot.x + v.x / m * 0.03, foot.y + v.y / m * 0.03)], 0.065, pal.B, o);
+    });
+    const arm = (sh, el, h, dk) => both((o) => {
+      line([sh, el, h], 0.056, dk ? pal.Kd : pal.K, o);
+      if (!o && !sil) line([pt(lerp(el.x, h.x, 0.72), lerp(el.y, h.y, 0.72)), pt(lerp(el.x, h.x, 0.8), lerp(el.y, h.y, 0.8))], 0.06, pal.k2, false);
+      dot(h, 0.046, pal.G, o); // the glove
+      if (!o && !sil) dot(pt(lerp(h.x, el.x, 0.18), lerp(h.y, el.y, 0.18)), 0.022, pal.k2, false);
+    });
+    leg(iB, P.kB, P.fB, true); leg(iA, P.kA, P.fA, false);
+    arm(sB, P.eB, P.hB, true);
+    both((o) => {
+      poly([sA, sB, iB, iA], pal.K, o);
+      poly([at(P.pel, 0.02, 0.065), at(P.pel, 0.02, -0.065), at(P.pel, -0.07, -0.075), at(P.pel, -0.07, 0.075)], pal.S, o);
+      line([P.chest, head], 0.04, pal.s, o); dot(head, 0.062, pal.s, o);
+    });
+    if (!sil) {
+      line([at(P.chest, 0.005, 0.04), at(P.chest, 0.005, -0.04)], 0.022, pal.k2, false); // collar
+      line([at(P.chest, -0.06, 0.068), at(P.pel, 0.03, 0.05)], 0.014, pal.k2, false); line([at(P.chest, -0.06, -0.068), at(P.pel, 0.03, -0.05)], 0.014, pal.k2, false);
+      const hc = X(head), ht = X(at(head, 1, 0)), ang = Math.atan2(ht.y - hc.y, ht.x - hc.x), r = 0.066 * sz;
+      if (style !== 'bald') {
+        const wide = style === 'long' ? 2.3 : style === 'cap' ? 1.75 : 1.5;
+        L.fillStyle = style === 'cap' ? pal.C : pal.H; L.beginPath(); L.arc(hc.x, hc.y, r, ang - wide, ang + wide); L.closePath(); L.fill();
+        if (style === 'cap') line([at(head, 0.018, 0.07), at(head, 0.018, -0.07)], 0.02, pal.C, false);
+      }
+      dot(at(head, -0.01, 0.024), 0.01, OUT, false); dot(at(head, -0.01, -0.024), 0.01, OUT, false);
+    }
+    arm(sA, P.eA, P.hA, false);
+    return head;
+  }
   R.pkKeeper = function (L, g, sc, time) {
-    const look = (sc && sc.o.keeper && sc.o.keeper.look) || RS.PK_OUR_LOOK, spr = RS.Sprites.pkKeeper(look);
-    const pose = sc ? sc.keeperPose() : { u: Math.sin(time * 2.3) * 0.1, v: 0, angle: 0, k: 0 };
-    const w = spr.w * 2, h = spr.h * 2, base = proj(g, pose.u, pose.v, 1), ground = proj(g, pose.u, 0, 1);
-    L.fillStyle = 'rgba(0,0,0,' + Math.max(0.1, 0.32 - pose.v * 0.3) + ')';
-    L.beginPath(); L.ellipse(ground.x, ground.y, w * 0.34, 1.6, 0, 0, TAU); L.fill();
-    const fr = spr.frames[pose.k > 0.05 ? 4 : Math.floor(time * 3) % 2 ? 0 : 2];
-    const rage = sc && sc.o.rage && sc.mode === 'shoot';
-    if (rage) this.pkFlames(L, base.x, base.y, w, h, time, 0.95); // 분노 모드: he burns behind
-    L.save(); L.translate(base.x, base.y - h / 2); L.rotate(pose.angle);
-    L.drawImage(fr.n, -w / 2, -h / 2, w, h);
-    if (rage) { L.globalCompositeOperation = 'source-atop'; L.fillStyle = 'rgba(255,60,20,' + (0.25 + 0.1 * Math.sin(time * 12)).toFixed(3) + ')'; L.fillRect(-w / 2, -h / 2, w, h); L.globalCompositeOperation = 'source-over'; }
-    L.restore();
-    if (rage) this.pkFlames(L, base.x, base.y, w, h, time + 0.37, 0.6);
+    const look = (sc && sc.o.keeper && sc.o.keeper.look) || RS.PK_OUR_LOOK;
+    const p = sc ? sc.keeperPose() : { mode: 'idle', u: Math.sin(time * 2.3) * 0.1, t: time };
+    const rage = sc && sc.o.rage && sc.mode === 'shoot', rt = rage ? 0.22 + 0.1 * Math.sin(time * 12) : 0;
+    const tone = (c, dk) => { let v = kTint(c, '#000000', dk ? 0.28 : 0); if (rage) v = kTint(c, '#ff3c14', rt); return dk && rage ? kTint(c, '#7a1a08', rt + 0.2) : v; };
+    const K = look.K, S = look.S || '#161616', W = look.W || K;
+    const pal = { K: tone(K), Kd: tone(K, true), k2: look.k2 || '#111111', S: tone(S), Sd: tone(S, true), W: tone(W), Wd: tone(W, true), H: look.H || '#2a1a10', s: look.s || '#d9a27a', C: look.C || K, B: '#1c1c1c', G: rage ? '#ffd8c8' : '#f4f4f4' };
+    const base = p.u || 0, s = p.side || 1, U = g.halfW / g.H, sz = g.H;
+    const toF = (q) => pt(s * (q.u - base) * U, q.v), X = (q) => ({ x: g.cx + base * g.halfW + s * q.x * sz, y: g.goalY - q.y * sz });
+    const T = p.target ? toF(p.target) : pt(0, 0.5);
+    let b = null, hb = null;
+    if (sc && sc.ball && (sc.phase === 'flight' || sc.phase === 'result')) { const q = sc.ballAt(sc.ballK()); b = toF(q); b.z = q.z; hb = toF({ u: sc.ball.u * 0.3, v: 0.3 }); }
+    const P = kPose(p, T, b, hb);
+    // after-images while he flies
+    if (p.mode === 'dive' && p.side && p.k > 0.25 && p.k < 0.99 && !p.land) {
+      for (let i = 2; i >= 1; i--) kDraw(L, kPose(Object.assign({}, p, { k: p.k - i * 0.08 }), T, b, hb), X, pal, sz, look.style, 'rgba(255,255,255,' + (0.09 * (3 - i)).toFixed(2) + ')');
+    }
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    for (const j of KJ) { const q = X(P[j]); x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y); }
+    const hgt = Math.min(P.pel.y, P.fA.y, P.fB.y), gx = X(pt((Math.min(P.fA.x, P.fB.x, P.pel.x) + Math.max(P.hA.x, P.pel.x, P.fA.x)) / 2, 0));
+    L.fillStyle = 'rgba(0,0,0,' + Math.max(0.1, 0.32 - hgt * 0.5).toFixed(3) + ')';
+    L.beginPath(); L.ellipse(gx.x, g.goalY, Math.max(6, (x1 - x0) * 0.5), 1.6, 0, 0, TAU); L.fill();
+    const fw = Math.max(10, x1 - x0), fh = Math.max(12, y1 - y0 + 0.08 * sz), fx = (x0 + x1) / 2;
+    if (rage) this.pkFlames(L, fx, y1, fw, fh, time, 0.95); // 분노 모드: he burns behind
+    const head = X(kDraw(L, P, X, pal, sz, look.style || 'short'));
+    if (rage) this.pkFlames(L, fx, y1, fw, fh, time + 0.37, 0.6);
     // a booted 파넨카 or a 티배깅: the keeper's "!!" over his head
     if (sc && sc.phase === 'result' && sc.result && sc.result.kickAway) {
-      L.fillStyle = '#ff3a2a'; const y = base.y - h - 4 - Math.abs(Math.sin(time * 10)) * 2;
-      L.fillRect(base.x - 3, y, 1.5, 4); L.fillRect(base.x - 3, y + 5, 1.5, 1.5); L.fillRect(base.x + 1.5, y, 1.5, 4); L.fillRect(base.x + 1.5, y + 5, 1.5, 1.5);
+      L.fillStyle = '#ff3a2a'; const x = head.x, y = head.y - 0.1 * sz - 7 - Math.abs(Math.sin(time * 10)) * 2;
+      L.fillRect(x - 3, y, 1.5, 4); L.fillRect(x - 3, y + 5, 1.5, 1.5); L.fillRect(x + 1.5, y, 1.5, 4); L.fillRect(x + 1.5, y + 5, 1.5, 1.5);
     }
   };
   // flickering pixel flames around a body standing at (x, y) of size w × h
@@ -504,4 +656,4 @@
     A.length = n;
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkrender = 'R17';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkrender = 'R18';

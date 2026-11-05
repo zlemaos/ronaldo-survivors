@@ -74,7 +74,6 @@ test('the champion unlocks one SIUUU move at random; three titles open all three
     assert.ok(out.reward && out.reward.id, 'title ' + (t + 1) + ' pays a move');
     assert.ok(!got.includes(out.reward.id), 'never the same move twice');
     got.push(out.reward.id);
-    assert.equal(out.reward.equipped, out.reward.hero === 'ronaldo');
   }
   assert.deepEqual(got.slice().sort(), ['bribe', 'hollywood', 'penaldo']);
   assert.equal(s.meta.cup.wins, 3);
@@ -88,7 +87,8 @@ test('the champion unlocks one SIUUU move at random; three titles open all three
   assert.equal(first.size, 3);
 }));
 
-test('each reward is its hero\'s gift move, held at SIUUU in hand by every career of that hero', () => withRonaldo(() => {
+// (round 19: the cup only unlocks the move — level-ups deal it now and then, tests/round19.test.js; nothing is put in hand)
+test('each reward is its hero\'s gift move; unlocking it puts nothing in hand', () => withRonaldo(() => {
   for (const r of RS.CUP_REWARDS) {
     const sk = RS.SKILLS[r.id];
     assert.ok(sk && sk.gift, r.id + ' is a gift');
@@ -100,28 +100,16 @@ test('each reward is its hero\'s gift move, held at SIUUU in hand by every caree
   const s = saveFor('messi');
   s.meta.unlocked.bribe = true;
   const old = s.career.build.weapon.id;
-  assert.deepEqual(RS.grantCupRewards(s), ['bribe']);
-  const b = s.career.build;
-  assert.equal(b.weapon.id, 'bribe');
-  assert.equal(b.weapon.g, RS.CUP_GRADE);
-  assert.ok(b.evolved.bribe, 'SIUUU plays the evolved form');
-  assert.ok(b.armory.some((w) => w.id === old), 'the old weapon waits in the 무기고');
-  assert.deepEqual(RS.grantCupRewards(s), [], 'given once');
-  // a move the player put away stays where he put it
-  RS.equipFromArmory(b, old);
   assert.deepEqual(RS.grantCupRewards(s), []);
-  assert.equal(b.weapon.id, old);
-  // a new career and a parked hero get it too; the save round-trips
+  assert.equal(s.career.build.weapon.id, old, 'still the old weapon in hand');
   RS.newCareer(s);
-  assert.equal(s.career.build.weapon.id, 'bribe');
+  assert.notEqual(s.career.build.weapon.id, 'bribe', 'a new career does not start with it');
   s.meta.unlocked.penaldo = true;
   RS.switchHero(s, 'ronaldo');
-  assert.equal(s.career.build.weapon.id, 'penaldo');
-  assert.equal(s.career.build.weapon.g, RS.CUP_GRADE);
+  assert.notEqual(s.career.build.weapon.id, 'penaldo', 'nor does a hero switch');
   const st = memStore(null); RS.writeSave(st, s);
   const back = RS.loadSave(st);
-  assert.equal(back.career.build.weapon.id, 'penaldo');
-  assert.equal(back.career.build.weapon.g, RS.CUP_GRADE);
+  assert.notEqual(back.career.build.weapon.id, 'penaldo', 'nor a reload');
   assert.deepEqual(back.meta.cup, s.meta.cup);
   // a save from before round 15 loads with an empty record
   const pre = JSON.parse(JSON.stringify(s)); delete pre.meta.cup;
@@ -164,7 +152,7 @@ test('the three moves fight: at SIUUU each one out-kills the hero\'s starting we
     const base = kills(saveFor(r.hero)).kills;
     const s = saveFor(r.hero);
     s.meta.unlocked[r.id] = true;
-    RS.grantCupRewards(s);
+    RS.gainWeapon(s.career.build, { id: r.id, g: RS.CUP_GRADE, p: 1 }, true); // as when a level-up deals it
     const w = kills(s);
     assert.equal(w.build.weapon.id, r.id);
     assert.ok(w.kills > base, r.id + ' kills ' + w.kills + ' in 60 s, the start weapon ' + base);

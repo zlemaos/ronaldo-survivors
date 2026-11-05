@@ -13,16 +13,32 @@
   // phase lengths in seconds (fast: a teammate's or the other side's kick in a shootout; slow: the ball's flight on a
   // kick that can decide it; react: the other side's kick while our keeper watches it; chip: a 파넨카's lob)
   const T = { runup: 0.55, flight: 0.46, result: 1.5, fastRunup: 0.32, fastFlight: 0.38, fastResult: 0.95, slow: 1.3, chip: 0.95, guess: 2.6 };
+  // Round 18: each shot type has its own run-up — the 발등슛 a longer, straighter charge, the 감아차기 a curved approach
+  // from wider — its length (× T.runup) and its footfalls (RUN_STEPS; the last one is the plant beside the ball, at
+  // PLANT of the run-up; the strike swings through the rest). The flight is × RS.PK_SHOTS[shot].flight.
+  const RUN = { push: 1, drive: 1.4, curl: 1.15, chip: 1.25 };
+  const RUN_STEPS = { push: 4, drive: 6, curl: 5, chip: 4 };
+  const PLANT = 0.8;
+  // a 감아차기 swings out this far (goal half-widths) before it bends back in
+  const CURL_BOW = 0.34;
 
   class PKScene {
     // opt: { mode: 'shoot' | 'keep', who: 'hero' | 'mate' | 'opp' (the kicker), keeper (RS.PK_KEEPERS entry or our
     //   keeper), fin, level, hero, small, yearIdx, auto, fast, slow, rng, forced: { goal } (a teammate's kick: the
-    //   outcome is already rolled), ourK (our keeper's rating, 'keep'), oppMiss, rage (the keeper's 분노 모드) }
+    //   outcome is already rolled), ourK (our keeper's rating, 'keep'), oppMiss, rage (the keeper's 분노 모드),
+    //   shot (round 18: the player's shot type, RS.PK_SHOTS; the 🤖 picks its own) }
     constructor(opt) {
       this.o = opt;
       this.who = opt.who || 'hero';
       this.rng = opt.rng || Math.random;
       this.mode = opt.mode || 'shoot';
+      // the shot type and the kicking foot: the hero's own pick; a teammate's and the other side's kickers vary by
+      // their number (looks only: their outcome does not use it; the other side never curls, so 보고 막기 stays
+      // readable); 메시 is left-footed (RS.pkFoot), and so is one kicker in four of the others
+      const n = opt.n | 0;
+      this.shot = opt.forced ? RS.PK_SHOT_IDS[(n + 1) % 3] : this.mode === 'keep' ? (n % 2 ? 'drive' : 'push') : RS.PK_SHOTS[opt.shot] ? opt.shot : 'push';
+      this.foot = this.who === 'hero' ? RS.pkFoot(opt.hero) : n % 4 === 2 ? 'L' : 'R';
+      this.stepN = 0; // footfalls of the run-up so far (the 'step' sounds)
       this.phase = this.mode === 'keep' ? 'guess' : opt.forced ? 'runup' : 'aim';
       this.t = 0; this.time = 0;
       this.zones = RS.pkZoneCount(opt.level || 1);
@@ -44,21 +60,46 @@
     // the 골결정력 allows
     setAuto(on) {
       this.o.auto = !!on;
-      this.bot = on && this.mode === 'shoot' && !this.o.forced ? RS.pkBotKick(this.rng, this.o.fin || 50, this.o.level || 1) : null;
+      this.bot = on && this.mode === 'shoot' && !this.o.forced ? RS.pkBotKick(this.rng, this.o.fin || 50, this.o.level || 1, this.o.keeper) : null;
+      if (this.mode === 'shoot' && !this.o.forced && this.phase === 'aim') this.shot = this.bot ? this.bot.shot : RS.PK_SHOTS[this.o.shot] ? this.o.shot : 'push';
     }
+    // the player picks the shot type while he aims (round 18)
+    pickShot(id) {
+      if (this.phase !== 'aim' || this.o.auto || this.o.forced || this.mode !== 'shoot' || !RS.PK_SHOTS[id]) return false;
+      if (id !== this.shot) { this.shot = id; this.sfx.push('click'); }
+      return true;
+    }
+    // How the strike looks: the shot type, or 'chip' for a soft touch down the middle (a 파넨카 or a 티배깅 — whatever
+    // type was picked); known once the power is set.
+    style() {
+      if (this.result && (this.result.kind === 'panenka' || this.result.kind === 'tbag')) return 'chip';
+      if (this.mode === 'shoot' && !this.o.forced && this.zone && this.power != null && RS.pkCol(this.zone) === 1) {
+        const pg = RS.pkPowerGrade(this.power, this.o.fin);
+        if (pg === 'red' || pg === 'weak') return 'chip';
+      }
+      return this.shot;
+    }
+    // the run-up for Renderer.pkKicker: its footfalls and the share of it before the plant
+    runSteps() { return RUN_STEPS[this.style()] || 4; }
+    get plantAt() { return PLANT; }
+    // the ball bends this way (+ to the right): a right foot curls it to the left, a left foot to the right
+    get curlDir() { return this.foot === 'L' ? 1 : -1; }
     // does the kick wait for a tap now?
     waiting() { return !this.o.auto && !this.o.forced && (this.phase === 'aim' || this.phase === 'power' || this.phase === 'acc' || this.phase === 'guess' || this.reactOpen); }
     get slow() { return !!this.o.slow; }
     dur(k) {
       if (k === 'flight' && this.mode === 'keep' && this.watch) return this.reactWin + 0.1; // the ball lands just after the window
       if (k === 'flight' && this.result && this.result.kind === 'panenka') return T.chip * (this.slow ? 1.3 : 1);
-      return this.o.fast ? T['fast' + k[0].toUpperCase() + k.slice(1)] : k === 'flight' && this.slow ? T.slow : T[k];
+      const d = this.o.fast ? T['fast' + k[0].toUpperCase() + k.slice(1)] : k === 'flight' && this.slow ? T.slow : T[k];
+      if (k === 'runup') return d * (RUN[this.style()] || 1);
+      if (k === 'flight' && !(this.result && this.result.kind === 'tbag')) return d * RS.pkShot(this.shot).flight;
+      return d;
     }
-    // the gauge (0–1, up and down) and the needle (degrees) as they are now
-    gauge() { const x = (this.t * this.timing.gauge) % 2; return x < 1 ? x : 2 - x; }
+    // the gauge (0–1, up and down; a 발등슛's sweeps faster, a 감아차기's slower) and the needle (degrees) as they are now
+    gauge() { const x = (this.t * this.timing.gauge * RS.pkShot(this.shot).gauge) % 2; return x < 1 ? x : 2 - x; }
     needle() { return (this.t * this.timing.needle * 360) % 360; }
     // each zone's chance at a perfect strike (shown on the aim grid)
-    zoneOdds(z) { return RS.pkZoneBest({ fin: this.o.fin, keeper: this.o.keeper, hero: this.o.hero, rage: this.o.rage }, z); }
+    zoneOdds(z) { return RS.pkZoneBest({ fin: this.o.fin, keeper: this.o.keeper, hero: this.o.hero, rage: this.o.rage, shot: this.shot }, z); }
 
     go(phase) { this.phase = phase; this.t = 0; }
 
@@ -143,9 +184,13 @@
           if (this.o.auto && this.t > 0.6) this.pickDive(null); // he guesses
           else if (!this.o.auto && this.t > T.guess) this.watchNow(); // no early pick: watch the ball
           break;
-        case 'runup':
-          if (this.t >= this.dur('runup')) { this.kick(); this.go('flight'); }
+        case 'runup': {
+          // footfalls: the run-up's steps, then the plant beside the ball
+          const D = this.dur('runup'), N = this.runSteps();
+          while (this.stepN < N && this.t >= D * PLANT * (this.stepN + 1) / N) { this.stepN++; this.sfx.push(this.stepN === N ? 'plant' : 'step'); }
+          if (this.t >= D) { this.kick(); this.go('flight'); }
           break;
+        }
         case 'flight': {
           if (this.reactOpen && this.t > this.reactWin) this.reactOpen = false; // too late
           const k = this.t / this.dur('flight');
@@ -174,6 +219,7 @@
         u = U_COL[a.col] + (rng() - 0.5) * 0.2; v = V_KEEP[a.row] + (rng() - 0.5) * 0.12;
         this.missAt(a.off, a.col, u, v);
         this.sfx.push('kick');
+        this.strikeSfx(null);
         return;
       }
       if (o.forced) {
@@ -181,16 +227,25 @@
         const col = RS.pkCol(this.zone), others = [0, 1, 2].filter((c) => c !== col);
         this.result = { res, goal: res === 'goal', diveCol: res === 'save' ? col : others[Math.floor(rng() * 2)] };
       } else {
-        this.result = RS.pkKick(rng, { fin: o.fin, keeper: o.keeper, zone: this.zone, power: this.power, acc: this.acc, hero: o.hero, rage: o.rage });
+        this.result = RS.pkKick(rng, { fin: o.fin, keeper: o.keeper, zone: this.zone, power: this.power, acc: this.acc, hero: o.hero, rage: o.rage, shot: this.shot });
       }
       const col = RS.pkCol(this.zone), row = RS.pkRow(this.zone), r = this.result;
+      this.kRow = Math.floor(this.target) % 3; // the height he guesses when he is beaten (no extra roll: same luck)
       u = U_COL[col] + (rng() - 0.5) * 0.18; v = V_ROW[row] + (rng() - 0.5) * 0.12;
+      if (this.shot === 'curl' && col !== 1) u *= 1.12; // a 감아차기 bends in nearer the corner
       if (r.kind === 'perfect') { u = col === 1 ? (rng() < 0.5 ? -0.14 : 0.14) : U_CORNER[col]; v = V_CORNER[row]; if (r.goal && rng() < 0.5) r.diveCol = col; } // he goes the right way and still cannot reach it
       else if (r.kind === 'panenka') { u = (rng() - 0.5) * 0.12; v = 0.42; }
       else if (r.kind === 'tbag') { u = (rng() - 0.5) * 0.1; v = 0.1; }
       this.missAt(r.res, col, u, v);
       this.sfx.push('kick');
+      this.strikeSfx(r.kind);
       if (r.kind === 'perfect') this.sfx.push('zip');
+    }
+    // the strike's own sound on top of the thump: the 발등슛's crack and rush, the 감아차기's whirring spin, a chip's tick
+    strikeSfx(kind) {
+      if (kind === 'panenka' || kind === 'tbag') this.sfx.push('chip');
+      else if (this.shot === 'drive') this.sfx.push('rocket');
+      else if (this.shot === 'curl') this.sfx.push('spin');
     }
     // where a missed ball goes: off the post, the bar, over or wide (the middle spreads up or to either side)
     missAt(res, col, u, v) {
@@ -224,12 +279,21 @@
     // little toward its corner on a low arc (a perfect strike stays straight, then swerves into the corner; a 파넨카
     // floats up and drops; a 티배깅 one rolls); after the line (s = seconds since) it sinks into the net, sticks in
     // the keeper's gloves, is booted away toward us, bounces off the frame, or flies on into the stands.
+    // Round 18: a 발등슛 flies low and flat, then rises like a rocket; a 감아차기 swings out (against curlDir) and
+    // bends back in, dipping at the end. The other side's 발등슛 flies straight (보고 막기 reads it).
     ballAt(k) {
       const B = this.ball, r = this.result ? this.result : { res: 'goal' }, kind = r.kind;
       if (k <= 1) {
-        if (kind === 'perfect') return { u: B.u * (0.3 * k + 0.7 * k * k * k), v: B.v * Math.pow(k, 1.6) + Math.sin(k * Math.PI) * 0.04, z: k };
+        const shot = kind === 'panenka' || kind === 'tbag' ? null : this.shot, bow = -this.curlDir * CURL_BOW * Math.sin(k * Math.PI) * (1 - 0.35 * k);
+        if (kind === 'perfect') {
+          if (shot === 'curl') return { u: B.u * k + bow * 1.2, v: B.v * Math.pow(k, 1.3) + Math.sin(k * Math.PI) * 0.1, z: k };
+          if (shot === 'drive') return { u: B.u * (0.5 * k + 0.5 * k * k * k), v: B.v * Math.pow(k, 2) + Math.sin(k * Math.PI) * 0.03, z: k };
+          return { u: B.u * (0.3 * k + 0.7 * k * k * k), v: B.v * Math.pow(k, 1.6) + Math.sin(k * Math.PI) * 0.04, z: k };
+        }
         if (kind === 'panenka') return { u: B.u * k, v: B.v * k + Math.sin(k * Math.PI) * 0.6, z: k };
         if (kind === 'tbag') return { u: B.u * k, v: B.v * k, z: k };
+        if (shot === 'drive') return this.mode === 'keep' ? { u: B.u * k, v: B.v * k, z: k } : { u: B.u * k, v: B.v * Math.pow(k, 1.7) + Math.sin(k * Math.PI) * 0.03, z: k };
+        if (shot === 'curl') return { u: B.u * k + bow, v: B.v * k + Math.sin(k * Math.PI) * 0.13, z: k };
         return { u: B.u * k * (0.8 + 0.2 * k), v: B.v * k + Math.sin(k * Math.PI) * 0.08, z: k };
       }
       const s = (k - 1) * this.dur('flight'), side = Math.sign(B.u) || this.fake, ease = (rate) => 1 - Math.exp(-s * rate);
@@ -247,35 +311,42 @@
         default: return { u: B.u * (1 + 0.25 * s), v: B.v + 0.8 * s, z: 1 + 0.9 * s }; // over / wide: into the stands
       }
     }
-    // The keeper: u across and v off the ground (goal space), his lean (radians, + to the right) and how far into
-    // the dive he is (0–1). Before the kick he sways on his line; a save takes him to the ball, otherwise he goes
-    // the way he guessed (diveCol) and lands. A 티배깅 keeper starts one way, stops and walks back to the middle; a
-    // keeper who reads a 파넨카 just stands and takes it; a watching keeper moves only when the player reacts.
+    // The keeper for Renderer.pkKeeper (round 18: a jointed keeper). mode 'idle' (on his line; still = a watching
+    // keeper frozen until the player reacts), 'dive' (side -1 / 0 / 1, row 0 low · 1 mid · 2 high, k 0–1 how far
+    // into it — set, load, launch, full stretch — target the goal-space point his leading glove reaches, land 0–1
+    // back down on the grass), 'feint' (a 티배깅 keeper starts toward side, stops and walks back) or 'catch' (he reads
+    // a 파넨카 and takes it). kick 0–1: he boots the ball away.
     keeperPose() {
-      const tt = this.time, idle = { u: Math.sin(tt * 2.3) * 0.1, v: Math.max(0, Math.sin(tt * 4.6)) * 0.03, angle: 0, k: 0 };
+      const tt = this.time, idle = { mode: 'idle', u: Math.sin(tt * 2.3) * 0.1, t: tt };
       if (this.phase !== 'flight' && this.phase !== 'result') return idle;
       const r = this.result, D = this.dur('flight'), inResult = this.phase === 'result';
-      const fall = inResult ? Math.max(0, 1 - this.t * 2.5) : 1; // back down on the grass
+      const land = inResult ? clamp(this.t / 0.45, 0, 1) : 0;
+      const kick = inResult && r && r.kickAway ? clamp((this.t - 0.3) / 0.22, 0, 1) : 0;
       if (this.mode === 'keep' && this.watch) {
-        if (!r || !this.dive || this.dive.rt == null) return r ? { u: 0, v: 0, angle: 0, k: 0 } : idle;
-        const k = inResult ? 1 : clamp((this.t - this.diveT) / 0.3, 0, 1), e = 1 - (1 - k) * (1 - k), save = r.res === 'save';
-        const tu = save ? this.ball.u * 0.85 : (this.dive.col - 1) * 0.72, tv = save ? Math.max(0.15, this.ball.v * 0.75) : this.dive.row ? 0.55 : 0.18;
-        return { u: tu * e, v: tv * Math.sin(e * Math.PI * 0.5) * fall, angle: (this.dive.col === 1 ? 0 : (this.dive.col - 1) * 1.2) * e, k: e };
+        if (!r || !this.dive || this.dive.rt == null) return r ? { mode: 'idle', u: 0, t: tt, still: true } : idle;
+        const k = inResult ? 1 : clamp((this.t - this.diveT) / 0.32, 0, 1);
+        return this.divePose(r, this.dive.col, this.dive.row ? 2 : 0, k, land);
       }
       if (!r) return idle;
       const q = inResult ? 1 : clamp(this.t / D, 0, 1);
       if (r.kind === 'tbag' && r.res === 'save') { // a feint toward fake, then back to the middle for it
         const out = q < 0.4 ? q / 0.4 : Math.max(0, 1 - (q - 0.4) / 0.45);
-        return { u: this.fake * 0.35 * out, v: 0, angle: this.fake * 0.25 * out, k: 0 };
+        return { mode: 'feint', u: this.fake * 0.3 * out, side: this.fake, k: out, hold: q > 0.8, kick, t: tt };
       }
-      if (r.kind === 'panenka' && r.res === 'save') return { u: 0, v: Math.sin(clamp(q, 0, 1) * Math.PI) * 0.12 * fall, angle: inResult ? Math.sin(this.t * 30) * 0.12 : 0, k: 0 };
-      const col = r.diveCol, save = r.res === 'save';
-      const k = inResult ? 1 : clamp((this.t / D - 0.12) / 0.6, 0, 1), e = 1 - (1 - k) * (1 - k);
-      const reach = r.kind === 'perfect' && col === RS.pkCol(this.zone) ? 0.82 : 1; // fingertips short of the corner
-      const tu = save ? this.ball.u * 0.85 : (col - 1) * 0.72 * reach, tv = save ? Math.max(0.15, this.ball.v * 0.75) : col === 1 ? 0.3 : 0.18 + (r.kind === 'perfect' ? this.ball.v * 0.5 : 0);
-      return { u: tu * e, v: tv * Math.sin(e * Math.PI * 0.5) * fall, angle: (col === 1 ? 0 : (col - 1) * 1.2) * e, k: e };
+      if (r.kind === 'panenka' && r.res === 'save') return { mode: 'catch', u: 0, k: q, kick, t: tt };
+      const k = inResult ? 1 : clamp((this.t / D - 0.06) / 0.62, 0, 1);
+      const row = this.mode === 'keep' ? (r.diveRow ? 2 : 0) : this.kRow;
+      return this.divePose(r, r.diveCol, row, k, land);
+    }
+    // a dive toward col at height row; a save takes his glove to the ball (and the ball's height decides the dive)
+    divePose(r, col, row, k, land) {
+      const B = this.ball, save = r.res === 'save';
+      const reach = r.kind === 'perfect' && col === RS.pkCol(this.zone) ? 0.84 : 1; // fingertips short of the corner
+      if (save) row = B.v < 0.34 ? 0 : B.v < 0.66 ? 1 : 2;
+      const target = save ? { u: B.u, v: B.v } : { u: (col - 1) * 0.86 * reach, v: [0.1, 0.5, 0.86][row] * (r.kind === 'perfect' ? 0.92 : 1) };
+      return { mode: 'dive', u: 0, side: col - 1, row, k, land, target, t: this.time };
     }
   }
   RS.PKScene = PKScene;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkscene = 'R17';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkscene = 'R18';
