@@ -31,8 +31,7 @@ test('a perfect strike beats the shown odds; a softer strike or a poorer needle 
     const green = odds({ zone: z, power: P.good[0] + 0.005, acc: 'good' }), soft = odds({ zone: z, power: 0.62, acc: 'good' }), poor = odds({ zone: z, power: P.good[0] + 0.005, acc: 'miss' });
     assert.ok(best.goal > green.goal && green.goal > soft.goal && green.goal > poor.goal, 'zone ' + z + ': ' + [best.goal, green.goal, soft.goal, poor.goal].map((x) => x.toFixed(2)));
     assert.equal(soft.off, green.off, 'a softer strike does not go wider');
-    // round 27: along the ground a poor needle stays on target; aimed high it flies off more (round23 test)
-    if (RS.pkRow(z) === 0) assert.equal(poor.off, green.off, 'a poor needle along the ground does not go wider either');
+    assert.equal(poor.off, green.off, 'a poor needle does not go wider either (노멀; 하드 up high: round23 test)');
     assert.ok(soft.save > green.save && poor.save > green.save, 'both are saved more');
   }
   assert.ok(RS.PK_PULL.great === 0 && RS.PK_PULL.fine < RS.PK_PULL.good && RS.PK_PULL.good < RS.PK_PULL.miss);
@@ -120,7 +119,7 @@ test('round 20: the harder the strike, the faster and narrower the dial', () => 
   assert.ok(hard.needle > blue.needle && blue.needle > soft.needle);
   assert.ok(hard.great < blue.great && hard.good < blue.good && soft.good > blue.good);
   const sc = new RS.PKScene({ mode: 'shoot', who: 'hero', keeper: K.pro, fin: 80, level: 80, hero: 'ronaldo', rng: RS.makeRng(2) });
-  sc.pickZone(3); sc.stopPower(0.94);
+  sc.pickZone(9); sc.stopPower(0.94);
   assert.deepEqual(sc.timing, hard, 'the scene\'s dial follows the power');
 });
 
@@ -147,8 +146,7 @@ test('round 22: blue, yellow and white are steps; white mostly on target; a miss
     const at = (acc) => RS.pkOdds({ fin: 76, keeper: K[keeper], hero: 'ronaldo', zone: z, power: P.blue + 0.02, acc });
     const blue = at('great').goal, yellow = at('fine').goal, white = at('good'), miss = at('miss').goal;
     assert.ok(blue > yellow && yellow > white.goal, keeper + ' z' + z + ' ' + [blue, yellow, white.goal].map((v) => v.toFixed(3)));
-    // round 27: under the bar a white needle is off 4 times in 10 — on the ground it stays on target
-    if (RS.pkRow(z) === 0) assert.ok(white.off < 0.2, keeper + ' z' + z + ' white wide ' + white.off.toFixed(2));
+    assert.ok(white.off < 0.2, keeper + ' z' + z + ' white wide ' + white.off.toFixed(2));
     assert.ok(white.goal - miss >= (keeper === 'neuer' ? 0.2 : 0.12), keeper + ' z' + z + ' white ' + white.goal.toFixed(2) + ' miss ' + miss.toFixed(2));
   }
   const T = RS.pkTiming(76);

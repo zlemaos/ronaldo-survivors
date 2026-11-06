@@ -1572,7 +1572,7 @@
   // poise: × knockback and stun taken by the crowd; bossCool: × the rest between boss attacks; ramp: seasons over
   // which the extra toughness grows in (the debut on 노멀 still plays as it always did; 하드 bites from the start).
   RS.DIFFS = {
-    easy: { name: '이지', icon: '🙂', hp: 0.72, dmg: 0.65, spawn: 0.85, spawnRamp: 0, crowd: 1, boss: 0.8, grow: 0, heal: 1.4, special: 1, poise: 1, bossCool: 1, ramp: 0, desc: '적이 약하고 회복이 자주 나온다. 처음이라면 여기서' },
+    easy: { name: '이지', icon: '🙂', hp: 0.72, dmg: 0.65, spawn: 0.85, spawnRamp: 0, crowd: 1, boss: 0.8, grow: 0, heal: 1.4, special: 1, poise: 1, bossCool: 1, ramp: 0, desc: '적이 약하고 회복이 자주 나온다. 승부차기 게이지도 느리다. 처음이라면 여기서' },
     // round 11: grow 0.035 → 0.02 (normal), 0.08 → 0.045 (hard): one weapon grows far slower than six moves did
     normal: { name: '노멀', icon: '⚽', hp: 1.6, dmg: 1.5, spawn: 1.25, spawnRamp: 3, crowd: 1, boss: 1.5, grow: 0.02, heal: 0.9, special: 0.85, poise: 0.85, bossCool: 0.95, ramp: 3, desc: '기본 난이도. 중반부터는 벽이 느껴진다 · 훈련장 강화가 필요하다' },
     // grow 0.08 (round 10, was 0.05): with each match replayable from its seed, 완전 오토 with the whole 훈련장 still
@@ -1582,7 +1582,7 @@
     // fixed, 완전 오토 with the whole 훈련장 cleared 하드 on seed 7 of 7 · 3 · 5 · 9 (×0.5: on 7 and 3). At ×0.25 its
     // season-10 hand is 영웅 8 % · 전설 2 %, near round 12's 에픽 7 % · no 황금, and it stalls on all six seeds tried
     // (7 · 3 · 5 · 9 · 11 · 13), between 2011 and 2022.
-    hard: { name: '하드', icon: '🔥', hp: 2.4, dmg: 2.1, spawn: 1.25, spawnRamp: 3, crowd: 2, boss: 2.2, grow: 0.045, heal: 0.45, special: 0.5, top: 0.25, poise: 0.6, bossCool: 0.8, ramp: 1, desc: '적이 단단하고 아프며 잘 밀리지 않는다. 회복과 특수 아이템, SS·SSS 카드도 드물다. 오토로는 못 깬다' }
+    hard: { name: '하드', icon: '🔥', hp: 2.4, dmg: 2.1, spawn: 1.25, spawnRamp: 3, crowd: 2, boss: 2.2, grow: 0.045, heal: 0.45, special: 0.5, top: 0.25, poise: 0.6, bossCool: 0.8, ramp: 1, desc: '적이 단단하고 아프며 잘 밀리지 않는다. 회복과 특수 아이템, SS·SSS 카드도 드물다. 승부차기는 높이 찰수록 어렵다. 오토로는 못 깬다' }
   };
   RS.DIFF_ORDER = ['easy', 'normal', 'hard'];
   RS.DIFF = 'normal';
@@ -2045,4 +2045,4 @@
     reroll: { name: '전술 보드', icon: '🔁', desc: '레벨업 리롤 +1', max: 3, ballon: [1, 1, 1], mods: { reroll: 1 } }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).data = 'R27';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).data = 'R28';

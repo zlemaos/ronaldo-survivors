@@ -47,7 +47,7 @@ test('a failed 파넨카 costs morale: the gauge and the needle speed up and the
   const sc = new RS.PKScene({ mode: 'shoot', who: 'hero', keeper: K.pro, fin: 76, level: 80, hero: 'ronaldo', morale: 2, rng: RS.makeRng(1) });
   assert.deepEqual(sc.timing, RS.pkTiming(76, null, 2), 'the scene uses it');
   sc.pickZone(9); sc.stopPower(P.blue);
-  assert.deepEqual(sc.timing, RS.pkTiming(76, P.blue, 2, 2), 'shaken, and aimed under the bar (round 27)');
+  assert.deepEqual(sc.timing, shaken);
 }));
 
 test('their kicker chips one now and then: our keeper who stays takes it, one who dives is beaten', () => {
@@ -133,7 +133,8 @@ test('the 토너먼트 opens all nine zones from the 유소년 대회 on', () =>
   assert.ok(b && [...seen].some((z) => z >= 7), 'the bot aims high too');
 }));
 
-test('round 27: under the bar is the hardest to hit — a harder dial and an inexact needle flies off', () => {
+const onDiff = (k, fn) => { try { RS.setDiff(k); return fn(); } finally { RS.setDiff('normal'); } };
+test('round 27 on 하드: under the bar is the hardest to hit — a harder dial and an inexact needle flies off', () => onDiff('hard', () => {
   const low = RS.pkTiming(76, P.blue, 0, 0), high = RS.pkTiming(76, P.blue, 0, 2);
   assert.ok(high.needle > low.needle && high.great < low.great && high.good < low.good, 'the dial is faster and narrower up there');
   for (const acc of ['fine', 'good', 'miss']) {
@@ -143,4 +144,13 @@ test('round 27: under the bar is the hardest to hit — a harder dial and an ine
   assert.ok(odds({ zone: 7, acc: 'good' }).goal < odds({ zone: 1, acc: 'good' }).goal, 'a white needle: low beats high');
   assert.ok(odds({ zone: 7, acc: 'great', power: 0.86 }).goal > odds({ zone: 1, acc: 'great', power: 0.86 }).goal, 'hit exactly, the top corner pays best');
   assert.equal(odds({ zone: 7, acc: 'great', power: P.blue }).kind, 'perfect', 'a perfect strike up there still goes in');
+}));
+
+test('round 28: the difficulty buttons — 노멀 is round 26 (every row alike), 이지 a slower and wider dial', () => {
+  const norm = onDiff('normal', () => ({ t0: RS.pkTiming(76, P.blue, 0, 0), t2: RS.pkTiming(76, P.blue, 0, 2), off: odds({ zone: 7, acc: 'good' }).off, low: odds({ zone: 1, acc: 'good' }).off }));
+  assert.deepEqual(norm.t2, norm.t0, '노멀: the same dial for every row');
+  assert.ok(norm.off < 0.2, '노멀: a white needle up high stays on target, ' + norm.off.toFixed(2));
+  const easy = onDiff('easy', () => RS.pkTiming(76, P.blue, 0, 2)), hard = onDiff('hard', () => RS.pkTiming(76, P.blue, 0, 2));
+  assert.ok(easy.gauge < norm.t2.gauge && easy.needle < norm.t2.needle && easy.good > norm.t2.good, '이지 is easier than 노멀');
+  assert.ok(hard.needle > norm.t2.needle && hard.good < norm.t2.good, '하드 is harder than 노멀');
 });
