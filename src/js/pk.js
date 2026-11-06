@@ -23,6 +23,13 @@
     4: { save: 0.28, off: 0.025 }, 5: { save: 0.55, off: 0.02 }, 6: { save: 0.28, off: 0.025 },
     7: { save: 0.1, off: 0.045 }, 8: { save: 0.34, off: 0.06 }, 9: { save: 0.1, off: 0.045 }
   };
+  // Round 27 (the user: 상중하 높이 있으면 당연히 상단이 제일 차기 어려워야지 … 그게 어려우니까 선수들이 적당히 띄워차거나
+  // 땅볼로 차는 거): the higher the aim, the harder the dial (× its speed and ÷ its bands, RS.pkTiming) and the more
+  // an inexact needle sends the ball over or wide instead of in (RS.PK_AIM_OFF[acc] × RS.PK_ROW_OFF[row]). A ball
+  // along the ground never flies off this way; one under the bar struck with the white needle is off 4 times in 10.
+  RS.PK_ROW_HARD = [1, 1.15, 1.4];
+  RS.PK_AIM_OFF = { great: 0, fine: 0.15, good: 0.4, miss: 0.7 };
+  RS.PK_ROW_OFF = [0, 0.3, 1];
 
   // ---------------------------------------------------------------- the kicker
   // 골결정력 (1–99): the hero's own touch from the spot (날두 scored 84 % of his career penalties, 메시 78 %),
@@ -74,8 +81,9 @@
   // in a session (morale 1–3, RS.PK_MORALE_MAX) speeds the gauge and the needle up and narrows the needle's bands
   // by × (1 + RS.PK_MORALE per step) — the odds of a given strike stay; hitting it gets harder.
   RS.PK_MORALE = 0.3; RS.PK_MORALE_MAX = 3;
-  RS.pkTiming = (fin, power, morale) => {
-    const m = 1 + RS.PK_MORALE * clamp(morale | 0, 0, RS.PK_MORALE_MAX), h = RS.pkPowerHard(power) * m;
+  // row (round 27): the aimed zone's row — the higher, the faster and narrower the needle (RS.PK_ROW_HARD)
+  RS.pkTiming = (fin, power, morale, row) => {
+    const m = 1 + RS.PK_MORALE * clamp(morale | 0, 0, RS.PK_MORALE_MAX), h = RS.pkPowerHard(power) * m * (RS.PK_ROW_HARD[row | 0] || 1);
     return {
       gauge: (1.5 - fin * 0.006) * m, // sweeps a second: fin 55 → 1.17, fin 95 → 0.93
       needle: (0.95 - fin * 0.003) * h, // turns a second: 0.785 → 0.665 (on the blue band)
@@ -214,7 +222,9 @@
       // a miss: the zone's own risk (less with 골결정력; a 발등슛 more), an over-hit flies high, the post to the sides
       const mBase = Math.min(0.5, Z.off * (1.3 - fin / 100) * S.base * S.drift);
       const mPow = pg === 'over' ? Math.min(0.9, (row === 2 ? 0.65 : row === 1 ? 0.4 : 0.22) * S.over) : 0;
-      const post = corner ? RS.PK_POST * S.post : 0, off = 1 - (1 - post) * (1 - mBase) * (1 - mPow);
+      // round 27: aimed high with an inexact needle it flies over or wide (a 발등슛 more, a 감아차기 less)
+      const mAim = Math.min(0.9, (RS.PK_AIM_OFF[o.acc] != null ? RS.PK_AIM_OFF[o.acc] : RS.PK_AIM_OFF.miss) * RS.PK_ROW_OFF[row] * S.drift);
+      const post = corner ? RS.PK_POST * S.post : 0, off = 1 - (1 - post) * (1 - mBase) * (1 - mPow) * (1 - mAim);
       // a save: the spot it ends up at — the zone, pulled toward the middle of its row by the needle — the keeper
       // (squared: a legend reaches what others cannot), its pace and 골결정력
       const pull = (RS.PK_PULL[o.acc] != null ? RS.PK_PULL[o.acc] : RS.PK_PULL.miss) * S.pull, mid = RS.PK_ZONE[row * 3 + 2];
@@ -276,12 +286,14 @@
   // rated 88 or more, else 밀어차기; a faster gauge (발등슛) spreads its power wider.
   RS.pkBotKick = function (rng, fin, level, keeper, zones) {
     const n = zones || RS.pkZoneCount(level);
-    const pool = n === 9 ? [7, 9, 1, 3, 4, 6] : n === 6 ? [1, 3, 4, 6, 1, 3] : [1, 3, 1, 3, 2];
+    // round 27: like real kickers it mostly goes low or half-high; under the bar one time in five
+    const pool = n === 9 ? [1, 3, 1, 3, 4, 6, 4, 6, 7, 9] : n === 6 ? [1, 3, 4, 6, 1, 3] : [1, 3, 1, 3, 2];
     const zone = pool[Math.floor(rng() * pool.length)];
     const shot = RS.pkBotShot(zone, keeper);
     const spread = (0.2 - fin * 0.0013) * RS.pkShot(shot).gauge;
     const power = clamp(RS.PK_POWER.blue + (rng() * 2 - 1) * spread, 0.6, 1);
-    const r = rng(), great = (0.12 + fin * 0.0035) / RS.pkPowerHard(power); // a harder strike, a harder dial
+    // a harder strike, a higher aim: a harder dial
+    const r = rng(), great = (0.12 + fin * 0.0035) / (RS.pkPowerHard(power) * RS.PK_ROW_HARD[RS.pkRow(zone)]);
     return { zone, power, acc: r < great ? 'great' : r < great + 0.15 ? 'fine' : r < great + 0.55 ? 'good' : 'miss', shot };
   };
   RS.pkBotShot = (zone, keeper) => (RS.pkRow(zone) === 2 ? 'curl' : RS.pkCol(zone) === 1 || ((keeper && keeper.rating) || 80) >= 88 ? 'drive' : 'push');
@@ -692,4 +704,4 @@
   }
   RS.PKSession = PKSession;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R26';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R27';

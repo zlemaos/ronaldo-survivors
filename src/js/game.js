@@ -3477,4 +3477,4 @@
     };
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).game = 'R26';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).game = 'R27';

@@ -157,7 +157,8 @@
     pickZone(z) { this.zone = z; this.sfx.push('click'); this.go('power'); }
     stopPower(p) {
       this.power = p; this.go('acc');
-      this.timing = RS.pkTiming(this.o.fin || 50, p, this.o.morale); // round 20: the harder the strike, the faster and narrower the dial
+      // round 20: the harder the strike, the faster and narrower the dial; round 27: the higher the aim, too
+      this.timing = RS.pkTiming(this.o.fin || 50, p, this.o.morale, RS.pkRow(this.zone));
       this.sfx.push(RS.pkPowerGrade(p, this.o.fin) === 'perfect' ? 'sparkle' : 'tap');
     }
     stopNeedle(deg) {
@@ -397,4 +398,4 @@
   }
   RS.PKScene = PKScene;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkscene = 'R26';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkscene = 'R27';

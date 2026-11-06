@@ -47,7 +47,7 @@ test('a failed 파넨카 costs morale: the gauge and the needle speed up and the
   const sc = new RS.PKScene({ mode: 'shoot', who: 'hero', keeper: K.pro, fin: 76, level: 80, hero: 'ronaldo', morale: 2, rng: RS.makeRng(1) });
   assert.deepEqual(sc.timing, RS.pkTiming(76, null, 2), 'the scene uses it');
   sc.pickZone(9); sc.stopPower(P.blue);
-  assert.deepEqual(sc.timing, shaken);
+  assert.deepEqual(sc.timing, RS.pkTiming(76, P.blue, 2, 2), 'shaken, and aimed under the bar (round 27)');
 }));
 
 test('their kicker chips one now and then: our keeper who stays takes it, one who dives is beaten', () => {
@@ -132,3 +132,15 @@ test('the 토너먼트 opens all nine zones from the 유소년 대회 on', () =>
   for (let i = 0; i < 200; i++) seen.add(RS.pkBotKick(RS.makeRng(i), S.fin, S.level, S.keeper, S.zones).zone);
   assert.ok(b && [...seen].some((z) => z >= 7), 'the bot aims high too');
 }));
+
+test('round 27: under the bar is the hardest to hit — a harder dial and an inexact needle flies off', () => {
+  const low = RS.pkTiming(76, P.blue, 0, 0), high = RS.pkTiming(76, P.blue, 0, 2);
+  assert.ok(high.needle > low.needle && high.great < low.great && high.good < low.good, 'the dial is faster and narrower up there');
+  for (const acc of ['fine', 'good', 'miss']) {
+    const g = odds({ zone: 1, acc }), m = odds({ zone: 4, acc }), t = odds({ zone: 7, acc });
+    assert.ok(t.off > m.off && m.off > g.off, acc + ': ' + [g.off, m.off, t.off].map((x) => x.toFixed(2)).join(' '));
+  }
+  assert.ok(odds({ zone: 7, acc: 'good' }).goal < odds({ zone: 1, acc: 'good' }).goal, 'a white needle: low beats high');
+  assert.ok(odds({ zone: 7, acc: 'great', power: 0.86 }).goal > odds({ zone: 1, acc: 'great', power: 0.86 }).goal, 'hit exactly, the top corner pays best');
+  assert.equal(odds({ zone: 7, acc: 'great', power: P.blue }).kind, 'perfect', 'a perfect strike up there still goes in');
+});
