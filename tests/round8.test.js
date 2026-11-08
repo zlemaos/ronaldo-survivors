@@ -136,6 +136,29 @@ test('two teammates at most on the pitch, and 챠비 + 니에미스타 with 메�
   assert.ok(info.trio && RS.pairSynergy(save.career.build).named);
 }));
 
+test('2008 뻽: turning down 챠비·니에미스타 keeps them off the pitch, rolls a 원맨쇼 or 탈진, and the AI never picks it', () => withHero('messi', () => {
+  const idx = RS.YEARS.findIndex((y) => y.event === 'pep');
+  const run = (seed) => {
+    const save = RS.newSave(); save.career.build = RS.newBuild('messi');
+    const before = RS.computeStats(save.career.build, {});
+    const cards = RS.eventChoices(save, idx);
+    assert.notEqual(RS.autoEventPick(cards).id, 'pepev_solo');
+    const info = RS.applyEvent(save, idx, cards.find((c) => c.id === 'pepev_solo'), RS.makeRng(seed));
+    return { info, b: save.career.build, before };
+  };
+  const seen = new Set();
+  for (let seed = 1; seed < 40 && seen.size < 2; seed++) {
+    const { info, b, before } = run(seed);
+    seen.add(info.roll);
+    assert.ok(!info.trio && !b.teammates.some((m) => RS.TRIO.includes(m.id)), 'no trio');
+    assert.equal(b.flags.solo, true);
+    const after = RS.computeStats(b, {});
+    assert.ok(after.dmg > before.dmg && after.teamDmg < before.teamDmg, 'he hits harder, the teammates less');
+    if (info.roll === 1) assert.ok(after.maxHp < before.maxHp, '탈진 costs health');
+  }
+  assert.equal(seen.size, 2, 'both outcomes come up');
+}));
+
 test('드리볼 chases the enemies near 메시, 드롭볼 falls on a crowd and comes back, 신의 손 slams and stuns', () => withHero('messi', () => {
   const d = messiWorld((b) => { b.skills = { dribball: 1 }; b.skillOrder = ['dribball']; });
   runWorld(d, 1);
