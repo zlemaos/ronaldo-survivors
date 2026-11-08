@@ -1631,13 +1631,11 @@
           desc: '공격력 +10%, 치명타 확률 +5%. 스쿼드는 그대로.' },
         { id: 'pepev_rondo', icon: '🔁', name: '론도 훈련', tag: '영구 효과', mods: { cd: -0.08, teamCd: -0.1 }, ai: 2, result: '🔁 론도로 패스 감각이 살아났다!',
           desc: '쿨타임 -8%, 동료 쿨타임 -10%. 스쿼드는 그대로.' },
-        // round 29: turn the trio down and carry the team alone — a coin flip, and the teammates sulk either way
-        { id: 'pepev_solo', icon: '🙅', name: '"패스 필요 없어, 나 혼자 한다"', tag: '🎲 독박축구', ai: 3, result: '🙅 챠비·니에미스타를 거절했다!',
-          desc: '챠비·니에미스타는 선발에 들어오지 않는다. 서운한 동료들: 동료 공격력 -25%. 50%: 원맨쇼 대성공(공격력 +25%, 치명타 +5%, 민심 -5) · 50%: 혼자 다 뛰다 탈진(공격력 +8%, 최대 체력 -15, 민심 -15)',
-          rolls: [
-            { p: 0.5, win: true, text: '혼자 여섯 명을 제치고 골! 챠비와 니에미스타는 하프라인에서 손만 들고 서 있었다.', fx: { fans: -5, flag: { solo: true }, mods: { dmg: 0.25, crit: 0.05, teamDmg: -0.25 } } },
-            { p: 0.5, text: '공을 혼자 끌고 다니다 후반 20분에 숨이 넘어갔다. 뻽은 터치라인에서 머리를 감싸 쥐었다.', fx: { fans: -15, flag: { solo: true }, mods: { dmg: 0.08, hp: -15, teamDmg: -0.25 } } }
-          ] }
+        // round 29: turn the trio down and carry the team alone — a chosen hard mode: every teammate leaves and
+        // nobody signs for the rest of the career (solo: RS.applyEvent, RS.addMate, RS.mateCandidates)
+        { id: 'pepev_solo', icon: '🙅', name: '"패스 필요 없어, 나 혼자 한다"', tag: '🔥 독박축구', solo: true, mods: { dmg: 0.3, crit: 0.08 }, fx: { fans: -10 }, ai: 3,
+          result: '🙅 독박축구 선언! 챠비와 니에미스타는 하프라인에서 손만 들고 서 있었다',
+          desc: '스스로 고르는 어려운 길: 지금 동료가 모두 떠나고 커리어 끝까지 동료 없이 혼자 뛴다(영입·이적 제안도 없다). 대신 공격력 +30%, 치명타 확률 +8% · 민심 -10' }
       ]
     },
     // ---- 토레쓰 (round 14). Cards may carry fx { mods, flag: { name: value }, gradeDown: n (every owned weapon
@@ -2052,4 +2050,4 @@
     reroll: { name: '전술 보드', icon: '🔁', desc: '레벨업 리롤 +1', max: 3, ballon: [1, 1, 1], mods: { reroll: 1 } }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).data = 'R29';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).data = 'R30';

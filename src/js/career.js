@@ -209,6 +209,7 @@
     if (card.skillsUp) RS.enhanceWeapon(b, card.skillsUp);
     if (card.mods && !b.coachCards.includes(card.id)) b.coachCards.push(card.id);
     if (card.trio) { RS.formTrio(b); info.trio = true; }
+    if (card.solo) { b.teammates = []; b.bench = []; b.flags.solo = true; }
     if (card.rolls) { // rolled once, like a press answer
       let r = (rng || Math.random)(), roll = card.rolls.length - 1;
       for (let i = 0; i < card.rolls.length; i++) { if (r < card.rolls[i].p) { roll = i; break; } r -= card.rolls[i].p; }
@@ -578,4 +579,4 @@
     return true;
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).career = 'R29';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).career = 'R30';

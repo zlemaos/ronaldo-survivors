@@ -136,27 +136,24 @@ test('two teammates at most on the pitch, and 챠비 + 니에미스타 with 메�
   assert.ok(info.trio && RS.pairSynergy(save.career.build).named);
 }));
 
-test('2008 뻽: turning down 챠비·니에미스타 keeps them off the pitch, rolls a 원맨쇼 or 탈진, and the AI never picks it', () => withHero('messi', () => {
+test('2008 뻽 독박축구: every teammate leaves, nobody signs for the rest of the career, and the AI never picks it', () => withHero('messi', () => {
   const idx = RS.YEARS.findIndex((y) => y.event === 'pep');
-  const run = (seed) => {
-    const save = RS.newSave(); save.career.build = RS.newBuild('messi');
-    const before = RS.computeStats(save.career.build, {});
-    const cards = RS.eventChoices(save, idx);
-    assert.notEqual(RS.autoEventPick(cards).id, 'pepev_solo');
-    const info = RS.applyEvent(save, idx, cards.find((c) => c.id === 'pepev_solo'), RS.makeRng(seed));
-    return { info, b: save.career.build, before };
-  };
-  const seen = new Set();
-  for (let seed = 1; seed < 40 && seen.size < 2; seed++) {
-    const { info, b, before } = run(seed);
-    seen.add(info.roll);
-    assert.ok(!info.trio && !b.teammates.some((m) => RS.TRIO.includes(m.id)), 'no trio');
-    assert.equal(b.flags.solo, true);
-    const after = RS.computeStats(b, {});
-    assert.ok(after.dmg > before.dmg && after.teamDmg < before.teamDmg, 'he hits harder, the teammates less');
-    if (info.roll === 1) assert.ok(after.maxHp < before.maxHp, '탈진 costs health');
+  const save = RS.newSave(), b = save.career.build = RS.newBuild('messi');
+  RS.addMate(b, 'talis'); RS.addMate(b, 'modric'); RS.addMate(b, 'tinykeeper');
+  const before = RS.computeStats(b, {});
+  const cards = RS.eventChoices(save, idx);
+  assert.notEqual(RS.autoEventPick(cards).id, 'pepev_solo');
+  RS.applyEvent(save, idx, cards.find((c) => c.id === 'pepev_solo'), RS.makeRng(1));
+  assert.deepEqual([b.teammates.length, b.bench.length], [0, 0]);
+  assert.ok(RS.computeStats(b, {}).dmg > before.dmg, 'he hits harder alone');
+  assert.equal(RS.addMate(b, 'xavino'), false);
+  for (let i = idx; i < RS.YEARS.length; i++) {
+    assert.deepEqual(RS.mateCandidates(b, i), []);
+    save.career.transferDone = -1;
+    assert.deepEqual(RS.transferOffers(save, i, RS.makeRng(2)), []);
   }
-  assert.equal(seen.size, 2, 'both outcomes come up');
+  RS.releaseOffSeason(b, idx + 1);
+  assert.equal(RS.allMates(b).length, 0, 'still alone next season');
 }));
 
 test('드리볼 chases the enemies near 메시, 드롭볼 falls on a crowd and comes back, 신의 손 slams and stuns', () => withHero('messi', () => {

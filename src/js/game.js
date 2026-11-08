@@ -455,6 +455,7 @@
   // Who can sign in season yearIdx: the hero's own teammates at that club in that very season (RS.TEAMMATES yrs),
   // nobody who is the same person as a man in the squad, never a reward-only player (special).
   RS.mateCandidates = function (build, yearIdx) {
+    if (build.flags && build.flags.solo) return []; // 독박축구 (RS.EVENTS.pep): nobody signs
     const owned = RS.allMates(build).map((m) => m.id);
     return Object.keys(RS.TEAMMATES).filter((id) => !RS.TEAMMATES[id].special && RS.mateInSeason(id, yearIdx) && !owned.some((o) => RS.samePerson(o, id)));
   };
@@ -485,7 +486,7 @@
   // A new teammate (강화 lv, default +1) goes on the pitch if there is room, else on the bench.
   // Returns 'pitch' | 'bench' | false.
   RS.addMate = function (build, id, lv) {
-    if (!RS.TEAMMATES[id] || RS.allMates(build).some((m) => RS.samePerson(m.id, id))) return false;
+    if (!RS.TEAMMATES[id] || (build.flags && build.flags.solo) || RS.allMates(build).some((m) => RS.samePerson(m.id, id))) return false;
     const m = { id, lv: Math.max(1, Math.min(RS.MATE_MAX_LV, lv | 0 || 1)) };
     if (build.teammates.length < RS.MAX_MATES) { build.teammates.push(m); RS.mateJoined(build, id); return 'pitch'; }
     if (build.bench.length < RS.MAX_BENCH) { build.bench.push(m); RS.mateJoined(build, id); return 'bench'; }
@@ -3477,4 +3478,4 @@
     };
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).game = 'R29';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).game = 'R30';
