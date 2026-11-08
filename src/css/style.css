@@ -4,7 +4,7 @@ body.hurt-flash::after {
   box-shadow: inset 0 0 70px 24px rgba(255, 40, 40, 0.55);
 }
 :root {
-  --build: "R31"; /* the build of this file (App.mixedFiles; bump with RS.VERSION) */
+  --build: "R32"; /* the build of this file (App.mixedFiles; bump with RS.VERSION) */
   --bg: #0b1d12;
   --panel: rgba(12, 22, 16, 0.94);
   --line: rgba(255, 255, 255, 0.14);
@@ -237,6 +237,15 @@ ul.howto { text-align: left; padding-left: 4px; list-style: none; margin: 0; dis
 /* transfer verdicts: ▲ stronger (green), ▼ weaker (red) */
 .card .hn.up { color: #6dff8a; font-size: 13px; font-weight: 900; }
 .card .hn.down { color: #ff7a6a; font-size: 13px; font-weight: 900; }
+/* level-up weapon card (round 32): two banners on top — does the weapon in hand change, and the grade's direction */
+.card .wx { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+.card .wx-c { font-size: 13px; font-weight: 900; padding: 2px 7px; border-radius: 6px; border: 2px solid; white-space: nowrap; }
+.card .wx-c.swap { color: #fff; background: #b8551c; border-color: #ff9a4a; }
+.card .wx-c.same { color: #cfe6ff; background: #1d3554; border-color: #4f86c6; }
+.card .wx-c.up { color: #0b2a12; background: #6dff8a; border-color: #b6ffc4; }
+.card .wx-c.down { color: #fff; background: #c2352a; border-color: #ff8a7e; }
+.card .wx-c.even { color: #e8ecf1; background: #3a414b; border-color: #7d8693; }
+.card.swapping { outline: 2px dashed #ff9a4a; outline-offset: 2px; }
 /* one colour scale for every card, badge and chip (RS.GRADES, round 13): 일반 grey · 고급 green · 희귀 blue ·
    영웅 purple · 전설 gold with a light sweep. The rarer, the stronger the colour. Weapons, passive cards, items
    (RELICS[].g) and teammates (OVR tier) all use it. */

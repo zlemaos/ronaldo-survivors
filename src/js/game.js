@@ -603,8 +603,11 @@
   function describe(c, build) {
     switch (c.kind) {
       case 'weapon': { const w = c.wpn, cur = build.weapon, a = RS.weaponPower(cur), n = RS.weaponPower(w);
+        // swap / cmp / from*: the two banners on top of the card (main.js renderCards): does the weapon in hand
+        // change, and is the grade above or below the one held
         return Object.assign(c, { name: RS.weaponName(build, w), icon: RS.weaponIcon(w), desc: RS.weaponDesc(build, w), tag: RS.gradeTag(w), g: w.g,
-          hint: (c.cup ? '🏆 승부차기 우승으로 해금 · 아주 드물게 나온다 · ' : '') + (n > a ? '▲ ' : n < a ? '▼ ' : '= ') + '무기 공격력 ' + a + ' → ' + n + (w.id === cur.id ? ' · 같은 무기 업그레이드' : ' · 무기 교체 (지금 무기는 무기고로)') }); }
+          swap: w.id !== cur.id, cmp: Math.sign(w.g - cur.g), fromIcon: RS.weaponIcon(cur), fromName: RS.weaponName(build, cur), fromGrade: RS.gradeOf(cur.g).name, toGrade: RS.gradeOf(w.g).name,
+          hint: (c.cup ? '🏆 승부차기 우승으로 해금 · 아주 드물게 나온다 · ' : '') + (n > a ? '▲ ' : n < a ? '▼ ' : '= ') + '무기 공격력 ' + a + ' → ' + n + (w.id === cur.id ? '' : ' · 지금 무기는 무기고로') }); }
       case 'enhance': { const w = build.weapon, nw = Object.assign({}, w, { p: w.p + 1 });
         return Object.assign(c, { name: RS.weaponName(build, w) + ' 강화', icon: '🔨', desc: RS.gradeTag(w) + ' → +' + nw.p + ' · 무기 공격력 ' + RS.weaponPower(w) + ' → ' + RS.weaponPower(nw),
           tag: '강화 +' + nw.p, g: w.g, hint: '강화는 +' + RS.PLUS_MAX + '까지 · 등급이 한 단계 오르는 것이 +10보다 세다' }); }
@@ -3478,4 +3481,4 @@
     };
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).game = 'R31';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).game = 'R32';

@@ -4,8 +4,8 @@
   const $ = (id) => document.getElementById(id);
   const STEP = 1 / 60;
   const AUTO_LABEL = { off: '수동', semi: '반자동', full: '오토' };
-  const AUTO_HINT = { off: '✋ 직접 조작', semi: '🤖 이동·일반 카드는 AI, 중요한 선택은 내가', full: '🚀 모든 선택을 AI가 (등급 카드 → 연계 카드 순)' };
-  // a level-up hand holding one of these waits for the player in 반자동
+  const AUTO_HINT = { off: '✋ 직접 조작', semi: '🤖 이동은 AI, 카드·선택은 전부 내가', full: '🚀 모든 선택을 AI가 (등급 카드 → 연계 카드 순)' };
+  // an item, 약물 or gamble card: the level-up title announces it
   const SPECIAL = (c) => c.kind === 'relic' || c.kind === 'gamble' || c.kind === 'stim';
 
   const App = {
@@ -726,6 +726,16 @@
         b.querySelector('.n').textContent = c.name;
         b.querySelector('.tg').textContent = c.tag || '';
         b.querySelector('.ds').textContent = c.desc || '';
+        if (c.kind === 'weapon' && c.cmp != null) { // level-up weapon card: does the weapon change, grade up or down
+          const wx = document.createElement('div'); wx.className = 'wx';
+          const sw = document.createElement('span'); sw.className = 'wx-c ' + (c.swap ? 'swap' : 'same');
+          sw.textContent = c.swap ? '🔄 무기 바뀜 ' + c.fromIcon + '→' + c.icon : '⬆️ 지금 무기(' + c.fromName + ') 그대로';
+          const gr = document.createElement('span'); gr.className = 'wx-c ' + (c.cmp > 0 ? 'up' : c.cmp < 0 ? 'down' : 'even');
+          gr.textContent = c.cmp > 0 ? '▲ 등급 UP ' + c.fromGrade + '→' + c.toGrade : c.cmp < 0 ? '▼ 등급 DOWN ' + c.fromGrade + '→' + c.toGrade : '= 같은 등급 ' + c.toGrade;
+          wx.append(sw, gr);
+          b.querySelector('.tx').prepend(wx);
+          if (c.swap) b.classList.add('swapping');
+        }
         const hn = b.querySelector('.hn');
         if (c.hint) {
           hn.textContent = c.hint;
@@ -770,11 +780,8 @@
       const note = RS.unlockNote(this.world.build); // a recruit card brought 제라두 (round 14)
       if (note) { RS.Audio.sfx('jackpot'); this.banner(note); }
     },
-    // 반자동 picks a plain hand itself and leaves a graded / 약물 / gamble card to the player; 완전 오토 picks all.
-    autoPicks(w) {
-      const m = this.autoMode();
-      return m === 'full' || (m === 'semi' && !w.choices.some((c) => SPECIAL(c) || c.cup));
-    },
+    // Only 완전 오토 picks a level-up card; 반자동 runs the hero but leaves every card to the player.
+    autoPicks() { return this.autoMode() === 'full'; },
     refreshLevelUp() { this.lvShown = false; this.showLevelUp(); },
 
     // "지금 무기": the one weapon in hand in its grade colour (level-up screen, HUD).
@@ -1248,7 +1255,7 @@
         e.stopPropagation();
         const m = RS.AUTO_MODES[(RS.AUTO_MODES.indexOf(this.autoMode()) + 1) % RS.AUTO_MODES.length];
         this.setAuto(m);
-        this.banner({ off: '✋ 수동 — 직접 조작', semi: '🤖 반자동 — 중요한 선택만 내가', full: '🚀 완전 오토 — 전부 AI가' }[m]);
+        this.banner({ off: '✋ 수동 — 직접 조작', semi: '🤖 반자동 — 이동은 AI, 선택은 전부 내가', full: '🚀 완전 오토 — 전부 AI가' }[m]);
         if (this.world && this.world.phase === 'levelup' && this.lvShown) this.lvAutoT = 0;
       };
       $('btn-years').onclick = () => this.showYears();
@@ -1316,4 +1323,4 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => App.boot());
   else App.boot();
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).main = 'R31';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).main = 'R32';
