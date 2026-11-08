@@ -1633,9 +1633,12 @@
           desc: '쿨타임 -8%, 동료 쿨타임 -10%. 스쿼드는 그대로.' },
         // round 29: turn the trio down and carry the team alone — a chosen hard mode: every teammate leaves and
         // nobody signs for the rest of the career (solo: RS.applyEvent, RS.addMate, RS.mateCandidates)
-        { id: 'pepev_solo', icon: '🙅', name: '"패스 필요 없어, 나 혼자 한다"', tag: '🔥 독박축구', solo: true, mods: { dmg: 0.3, crit: 0.08 }, fx: { fans: -10 }, ai: 3,
-          result: '🙅 독박축구 선언! 챠비와 니에미스타는 하프라인에서 손만 들고 서 있었다',
-          desc: '스스로 고르는 어려운 길: 지금 동료가 모두 떠나고 커리어 끝까지 동료 없이 혼자 뛴다(영입·이적 제안도 없다). 대신 공격력 +30%, 치명타 확률 +8% · 민심 -10' }
+        { id: 'pepev_solo', icon: '🙅', name: '"패스 필요 없어, 나 혼자 한다"', tag: '🔥 독박축구', solo: true, ai: 3,
+          desc: '난이도를 스스로 올리는 길: 지금 동료가 모두 떠나고 커리어 끝까지 동료 없이 혼자 뛴다(영입·이적 제안도 없다) · 민심 -10. 20%: 혼자서도 통한다(공격력 +15%) · 80%: 아무 보상 없음',
+          rolls: [
+            { p: 0.2, win: true, text: '🙅 독박축구 선언! 혼자 여섯 명을 제치고 골. 챠비와 니에미스타는 하프라인에서 손만 들고 서 있었다', fx: { fans: -10, mods: { dmg: 0.15 } } },
+            { p: 0.8, text: '🙅 독박축구 선언! 패스해 줄 사람이 없다. 뻽은 터치라인에서 머리를 감싸 쥐었다', fx: { fans: -10 } }
+          ] }
       ]
     },
     // ---- 토레쓰 (round 14). Cards may carry fx { mods, flag: { name: value }, gradeDown: n (every owned weapon
@@ -2050,4 +2053,4 @@
     reroll: { name: '전술 보드', icon: '🔁', desc: '레벨업 리롤 +1', max: 3, ballon: [1, 1, 1], mods: { reroll: 1 } }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).data = 'R30';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).data = 'R31';

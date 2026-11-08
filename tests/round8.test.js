@@ -138,14 +138,22 @@ test('two teammates at most on the pitch, and 챠비 + 니에미스타 with 메�
 
 test('2008 뻽 독박축구: every teammate leaves, nobody signs for the rest of the career, and the AI never picks it', () => withHero('messi', () => {
   const idx = RS.YEARS.findIndex((y) => y.event === 'pep');
-  const save = RS.newSave(), b = save.career.build = RS.newBuild('messi');
-  RS.addMate(b, 'talis'); RS.addMate(b, 'modric'); RS.addMate(b, 'tinykeeper');
-  const before = RS.computeStats(b, {});
-  const cards = RS.eventChoices(save, idx);
-  assert.notEqual(RS.autoEventPick(cards).id, 'pepev_solo');
-  RS.applyEvent(save, idx, cards.find((c) => c.id === 'pepev_solo'), RS.makeRng(1));
-  assert.deepEqual([b.teammates.length, b.bench.length], [0, 0]);
-  assert.ok(RS.computeStats(b, {}).dmg > before.dmg, 'he hits harder alone');
+  const pick = (seed) => {
+    const save = RS.newSave(), b = save.career.build = RS.newBuild('messi');
+    RS.addMate(b, 'talis'); RS.addMate(b, 'modric'); RS.addMate(b, 'tinykeeper');
+    const cards = RS.eventChoices(save, idx);
+    assert.notEqual(RS.autoEventPick(cards).id, 'pepev_solo');
+    const info = RS.applyEvent(save, idx, cards.find((c) => c.id === 'pepev_solo'), RS.makeRng(seed));
+    assert.deepEqual([b.teammates.length, b.bench.length], [0, 0]);
+    return { save, b, info, dmg: RS.computeStats(b, {}).dmg };
+  };
+  // mostly no reward at all: a harder career by choice; now and then the solo act pays off a little
+  const runs = [...Array(200).keys()].map((i) => pick(i + 1));
+  const wins = runs.filter((r) => r.info.win);
+  assert.ok(wins.length > 20 && wins.length < 60, 'about one in five: ' + wins.length);
+  const plain = runs.find((r) => !r.info.win).dmg;
+  for (const r of runs) assert.ok(r.info.win ? r.dmg > plain : r.dmg === plain, 'the reward is the only difference');
+  const { save, b } = runs[0];
   assert.equal(RS.addMate(b, 'xavino'), false);
   for (let i = idx; i < RS.YEARS.length; i++) {
     assert.deepEqual(RS.mateCandidates(b, i), []);
