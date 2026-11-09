@@ -1323,4 +1323,4 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => App.boot());
   else App.boot();
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).main = 'R35';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).main = 'R36';

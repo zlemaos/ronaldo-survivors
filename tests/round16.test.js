@@ -74,7 +74,20 @@ test('our keeper: the right column at the wrong height seldom saves; watching th
   assert.equal(RS.soSaveChance(84, aim, { col: 2, row: 1 }), 0);
   const quick = RS.soSaveChance(84, aim, { col: 0, row: 1, rt: 0.3 }), slow = RS.soSaveChance(84, aim, { col: 0, row: 1, rt: 0.9 });
   assert.ok(quick > slow && quick > right * 0.6, 'a quick reaction ' + quick.toFixed(2) + ' vs a guess ' + right.toFixed(2));
-  assert.ok(slow < 0.15);
+  assert.ok(slow >= 0.6 - 1e-9, 'round 36: even the latest reaction saves 60 %');
+});
+
+test('round 36: watching and pressing the right cell saves 80 % at once, never under 60 % within the window, on every difficulty', () => {
+  const was = RS.DIFF, aim = { col: 2, row: 0, off: null };
+  try {
+    for (const d of ['easy', 'normal', 'hard']) {
+      RS.setDiff(d);
+      for (const k of [60, 70, 84]) {
+        assert.ok(Math.abs(RS.soSaveChance(k, aim, { col: 2, row: 0, rt: 0 }) - 0.8) < 1e-9);
+        assert.ok(Math.abs(RS.soSaveChance(k, aim, { col: 2, row: 0, rt: RS.soReact() }) - 0.6) < 1e-9);
+      }
+    }
+  } finally { RS.setDiff(was); }
 });
 
 test('round 35: a tap during the run-up after the early pick timed out is an early dive, not dropped', () => {

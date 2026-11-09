@@ -419,7 +419,9 @@
     // over his head, unless he went up for it
     if (aim.col === 1) return aim.row === 0 ? RS.SO_MID_SAVE.low : dive.row === 1 ? RS.SO_MID_SAVE.highUp : RS.SO_MID_SAVE.highOver;
     const kf = clamp(0.75 + (ourK - 70) * 0.017, 0.6, 1.25), same = dive.row === aim.row;
-    if (dive.rt != null) return clamp((same ? 0.8 - 0.75 * clamp(dive.rt, 0, 1) : 0.1) * kf, 0, 0.9);
+    // round 36 (the user: 보고 막기 … 42~60%밖에 못 막으면 보람이 없잖아 … 80%까지, 0.5초에 눌러도 60%): the right cell by
+    // watching saves 80 % at once down to 60 % at the end of the reaction window, whoever our keeper is
+    if (dive.rt != null) return same ? 0.8 - 0.2 * clamp(dive.rt / RS.soReact(), 0, 1) : clamp(0.1 * kf, 0, 0.9);
     return clamp((same ? 0.7 : 0.2) * kf, 0, 0.85);
   };
   RS.soOppSave = function (rng, ourK, aim, dive) {
@@ -714,4 +716,4 @@
   }
   RS.PKSession = PKSession;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R35';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R36';

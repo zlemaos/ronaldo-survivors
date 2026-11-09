@@ -25,6 +25,9 @@
   const PLANT = 0.8;
   // a 감아차기 swings out this far (goal half-widths) before it bends back in
   const CURL_BOW = 0.34;
+  // round 36 (the user: 방향 맞췄는데 공이 그냥 지나감 — 버그?): a goal past a keeper who went the right way clips his
+  // fingertips — his glove's centre stops this far inside the ball, and the touch nudges it at most this far on
+  const TOUCH_GAP = 0.05, TOUCH_PUSH = 0.09;
 
   class PKScene {
     // opt: { mode: 'shoot' | 'keep', who: 'hero' | 'mate' | 'opp' (the kicker), keeper (RS.PK_KEEPERS entry or our
@@ -289,6 +292,29 @@
       else if (res === 'wide') { u = side * 1.38; v = Math.min(v, 0.5); }
       this.ball = { u, v };
     }
+    // Round 36: does this goal clip the keeper's fingertips? Only the outcome decides it (no roll): a goal that is
+    // neither a perfect strike, a 파넨카 nor a 'slow' ball, past a keeper who went its way — the shot's column when
+    // we kick (his height is only a look: he dives to the ball's), the column and the height he picked or reacted
+    // to when our keeper dives (the wrong height stays a clean miss over or under him; one who froze never moved).
+    get touch() {
+      const r = this.result;
+      if (!r || r.res !== 'goal' || r.kind || !this.ball || !this.zone) return false;
+      if (this.mode === 'keep') return (!this.watch || !!(this.dive && this.dive.rt != null)) && r.diveCol === r.col && r.diveRow === r.row;
+      return r.diveCol === RS.pkCol(this.zone);
+    }
+    // where his glove meets the ball (goal space: just inside it from his side; in the middle on top of a low one,
+    // under a high one) and the nudge (du, dv) the touch gives it on into the net — never past the post or the bar
+    touchAt() {
+      const B = this.ball, side = RS.pkCol(this.zone) - 1, up = B.v < 0.34 ? -1 : 1;
+      const dv = up > 0 ? clamp(0.97 - B.v, 0, TOUCH_PUSH * 0.5) : -Math.min(B.v, TOUCH_PUSH * 0.5);
+      if (side) return { u: B.u - side * TOUCH_GAP, v: B.v, du: side * clamp(0.97 - Math.abs(B.u), 0, TOUCH_PUSH), dv };
+      return { u: B.u, v: B.v - up * TOUCH_GAP * 1.4, du: (Math.sign(B.u) || this.fake) * TOUCH_PUSH * 0.6, dv };
+    }
+    // seconds since the ball clipped his glove, or -1 (no touch, or not yet)
+    touchT() {
+      const k = this.ballK();
+      return this.touch && k >= 1 ? (k - 1) * this.dur('flight') : -1;
+    }
     // the ball arrives: net, glove, frame or nothing (a watching keeper who never moved stays on his line)
     impact() {
       if (!this.result) { this.reactOpen = false; this.result = RS.soOppSave(this.rng, this.o.ourK || 70, this.aim, { col: 1, row: 0, rt: this.reactWin }); }
@@ -296,6 +322,7 @@
       // round 23 (the user: 탄성 탄식이나 함성 … 진동 그런게 왜캐 없어): the crowd roars ('roar') for us, sighs
       // ('aah') against us; the frame draws a gasp first ('ooh')
       if (r.res === 'goal') {
+        if (this.touch) { const d = this.touchAt(); this.vfx.push({ kind: 'touch', u: d.u, v: d.v, du: d.du, dv: d.dv }); this.sfx.push('tap'); } // round 36
         this.vfx.push({ kind: r.kind === 'perfect' ? 'perfect' : 'goal', u: B.u, v: B.v });
         this.sfx.push('net'); this.sfx.push(keep ? 'aah' : 'goal');
         if (r.kind === 'perfect') this.sfx.push('perfect');
@@ -348,6 +375,10 @@
         if (r.res === 'save') return { u: B.u, v: lerp(v0, 0.3, smooth((s - 0.15) / 0.45)), z: 1 }; // he picks it up
         return { u: B.u, v: Math.max(0, v0 * Math.exp(-s * 1.5)), z: 1 + 0.13 * (1 - Math.exp(-s * 1.3)) }; // it trickles in
       }
+      if (r.res === 'goal' && this.touch) { // round 36: off his fingertips — nudged aside, a little slower into the net
+        const d = this.touchAt(), e = ease(8);
+        return { u: B.u + d.du * e, v: Math.max(0, (B.v + d.dv * e) * Math.exp(-Math.max(0, s - 0.08) * 2.6) - 0.02 * s), z: 1 + 0.15 * ease(5) };
+      }
       switch (r.res) {
         case 'goal': return { u: B.u, v: Math.max(0, B.v * Math.exp(-s * 2.6) - 0.02 * s), z: 1 + 0.15 * ease(9) };
         case 'save': return { u: B.u + side * 0.55 * ease(3), v: Math.max(0, B.v + 0.9 * s - 2.4 * s * s), z: 1 - 0.5 * ease(2.5) };
@@ -371,7 +402,9 @@
         if (r && r.kind === 'panenka' && r.res === 'save') return { mode: 'catch', u: 0, k: 1, kick: 0, t: tt }; // he stayed: it drops into his arms
         if (r && r.kind === 'panenka' && (!this.dive || this.dive.rt == null)) return this.divePose(r, 1, 2, inResult ? 1 : 0.6, 0); // a late jump under it
         if (!r || !this.dive || this.dive.rt == null) return r ? { mode: 'idle', u: 0, t: tt, still: true } : idle;
-        const k = inResult ? 1 : clamp((this.t - this.diveT) / 0.32, 0, 1);
+        // round 36: a late reaction that still gets a touch flies quicker, so his glove is there as the ball arrives
+        const kd = this.touch ? clamp(this.dur('flight') - this.diveT, 0.1, 0.32) : 0.32;
+        const k = inResult ? 1 : clamp((this.t - this.diveT) / kd, 0, 1);
         return this.divePose(r, this.dive.col, this.dive.row ? 2 : 0, k, land);
       }
       if (!r) return idle;
@@ -391,15 +424,16 @@
       const row = this.mode === 'keep' ? (r.diveRow ? 2 : 0) : this.kRow;
       return this.divePose(r, r.diveCol, row, k, land);
     }
-    // a dive toward col at height row; a save takes his glove to the ball (and the ball's height decides the dive)
+    // a dive toward col at height row; a save takes his glove to the ball, a touch (round 36) his fingertips just
+    // inside it (and the ball's height decides the dive)
     divePose(r, col, row, k, land) {
-      const B = this.ball, save = r.res === 'save';
+      const B = this.ball, save = r.res === 'save', touch = !save && this.touch;
       const reach = r.kind === 'perfect' && col === RS.pkCol(this.zone) ? 0.84 : 1; // fingertips short of the corner
-      if (save) row = B.v < 0.34 ? 0 : B.v < 0.66 ? 1 : 2;
-      const target = save ? { u: B.u, v: B.v } : { u: (col - 1) * 0.86 * reach, v: [0.1, 0.5, 0.86][row] * (r.kind === 'perfect' ? 0.92 : 1) };
+      if (save || touch) row = B.v < 0.34 ? 0 : B.v < 0.66 ? 1 : 2;
+      const target = save ? { u: B.u, v: B.v } : touch ? this.touchAt() : { u: (col - 1) * 0.86 * reach, v: [0.1, 0.5, 0.86][row] * (r.kind === 'perfect' ? 0.92 : 1) };
       return { mode: 'dive', u: 0, side: col - 1, row, k, land, target, t: this.time };
     }
   }
   RS.PKScene = PKScene;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkscene = 'R35';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkscene = 'R36';

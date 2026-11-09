@@ -397,6 +397,15 @@
     if (rage) this.pkFlames(L, fx, y1, fw, fh, time, 0.95); // 분노 모드: he burns behind
     const head = X(kDraw(L, P, X, pal, sz, look.style || 'short'));
     if (rage) this.pkFlames(L, fx, y1, fw, fh, time + 0.37, 0.6);
+    // round 36: the ball clipped his fingertips — his lead glove flashes, a ring opening out from it
+    const tt = sc && sc.touchT ? sc.touchT() : -1;
+    if (tt >= 0 && tt < 0.4) {
+      const h = X(P.hA), q = tt / 0.4, r = 2 + q * 9, a = (1 - q) * (1 - q), gr = L.createRadialGradient(h.x, h.y, 0, h.x, h.y, r);
+      gr.addColorStop(0, 'rgba(255,255,240,' + a.toFixed(3) + ')'); gr.addColorStop(0.5, 'rgba(255,236,150,' + (a * 0.6).toFixed(3) + ')'); gr.addColorStop(1, 'rgba(255,220,120,0)');
+      L.globalCompositeOperation = 'lighter'; L.fillStyle = gr; L.fillRect(h.x - r, h.y - r, r * 2, r * 2); L.globalCompositeOperation = 'source-over';
+      L.strokeStyle = 'rgba(255,255,255,' + (0.9 * a).toFixed(3) + ')'; L.lineWidth = 1;
+      L.beginPath(); L.arc(h.x, h.y, 1.5 + q * 6, 0, TAU); L.stroke();
+    }
     // a booted 파넨카: the keeper's "!!" over his head
     if (sc && sc.phase === 'result' && sc.result && sc.result.kickAway) {
       L.fillStyle = '#ff3a2a'; const x = head.x, y = head.y - 0.1 * sz - 7 - Math.abs(Math.sin(time * 10)) * 2;
@@ -447,8 +456,10 @@
       }
       L.globalAlpha = 1;
     }
-    // a slow ball turns over lazily (a roller a little faster than a floater), a held or settled one barely
-    this.pkBallAt(L, g, b.u, b.v, b.z, time, kind === 'slow' ? (b.k < 1.1 ? (sc.slowRoll ? 0.4 : 0.15) : 0.05) : b.k < 1.3 ? 1 : 0.25);
+    // a slow ball turns over lazily (a roller a little faster than a floater), a held or settled one barely; one
+    // off the keeper's fingertips (round 36) spins wildly for a moment
+    const tt = sc.touchT ? sc.touchT() : -1;
+    this.pkBallAt(L, g, b.u, b.v, b.z, time, kind === 'slow' ? (b.k < 1.1 ? (sc.slowRoll ? 0.4 : 0.15) : 0.05) : tt >= 0 && tt < 0.5 ? 3.5 : b.k < 1.3 ? 1 : 0.25);
   };
   R.pkBallAt = function (L, g, u, v, z, time, spin) {
     const p = proj(g, u, v, z), gp = proj(g, u, 0, z), r = ballR(p.s);
@@ -631,6 +642,12 @@
       this.shake = Math.max(this.shake, 0.7);
       return;
     }
+    if (f.kind === 'touch') { // round 36: it clipped the keeper's glove on the way in — a spark off his fingertips
+      Q.push({ fx: 'sparkPop', x: p.x, y: p.y - 1, palette: RS.PFX_WHITE, seed });
+      Q.push({ fx: 'hitSpark', x: p.x, y: p.y - 1, angle: Math.atan2(-f.dv, f.du || 0.001), seed: seed + 1 });
+      this.shake = Math.max(this.shake, 0.12);
+      return;
+    }
     if (f.kind === 'rage') { // he read the 파넨카: a save, then he flares up
       this.pkVfx(sc, { kind: 'save', u: f.u, v: f.v }, g, st);
       Q.push({ fx: 'goldBurst', x: p.x, y: p.y + 6, palette: RS.PFX_FIRE, seed: seed + 3 });
@@ -701,4 +718,4 @@
     A.length = n;
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkrender = 'R35';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkrender = 'R36';
