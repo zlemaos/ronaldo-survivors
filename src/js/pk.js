@@ -97,8 +97,9 @@
       gauge: (1.5 - fin * 0.006) * m * D.ease, // sweeps a second: fin 55 → 1.17, fin 95 → 0.93
       needle: (0.95 - fin * 0.003) * h, // turns a second: 0.785 → 0.665 (on the blue band)
       good: Math.max(8, Math.round((18 + fin * 0.32) / h)), // 36° → 48°
-      great: Math.max(2, Math.round((1 + fin * 0.08) / h)), // 5° → 9°, blue (round 16: half of a perfect strike, so it is narrow)
-      fine: Math.max(6, Math.round((4 + fin * 0.15) / h)) // 12° → 18°, the yellow band around the blue (round 22)
+      // round 34 (the user: 정확도 맞추는거 아주 조금만 버프 … 파랑 노랑 간격 → 파랑은 10% 노랑을 15%): blue × 1.1, yellow × 1.15
+      great: Math.max(2, Math.round((1 + fin * 0.08) * 1.1 / h)), // 6° → 10°, blue (round 16: half of a perfect strike, so it is narrow)
+      fine: Math.max(6, Math.round((4 + fin * 0.15) * 1.15 / h)) // 13° → 21°, the yellow band around the blue (round 22)
     };
   };
   // Where the needle stopped: within great/2 of the target's centre 'great' (blue), within fine/2 'fine' (yellow),
@@ -713,4 +714,4 @@
   }
   RS.PKSession = PKSession;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R33';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R34';
