@@ -36,13 +36,15 @@
         h = '<div class="parody">5경기마다 찾아오는 11m 승부</div><h2 class="glow">⚽ PK 챌린지</h2>' +
           '<p class="story">' + esc(hero) + '가 다섯 번 찬다. 넣을 때마다 💰' + per + ', 다섯 골을 모두 넣으면 보너스 💰' + per * 3 + '.</p>';
       } else if (S.kind === 'cup') {
-        // round 22: the stage ladder, and on a stage's first round its line of the hero's story
-        const story = S.round === 0 && RS.CUP_STORY[S.hero] ? RS.CUP_STORY[S.hero][S.stage] : '';
-        h = this.cupLadder(S.stage, S.hero) + '<div class="parody">' + esc(S.st.name) + ' · ' + esc(S.us) + ' vs ' + esc(S.def.vs) + '</div>' +
-          '<h2 class="glow">' + S.st.icon + ' ' + esc(S.st.name) + ' ' + S.st.rounds[S.round].name + '</h2>' + this.cupBracket(S.round, S.st) +
+        // round 22: the stage ladder, and on a stage's first round its line of the hero's story (round 38: the
+        // 도장깨기 shows its ten 단 and the keeper's line instead; the 챔피언스리그 its bracket only)
+        const dojo = S.mode === 'dojo', wc = S.mode === 'wc';
+        const story = dojo ? RS.DOJO[S.stage].line : wc && S.round === 0 && RS.CUP_STORY[S.hero] ? RS.CUP_STORY[S.hero][S.stage] : '';
+        h = (dojo ? this.dojoLadder(S.stage) : wc ? this.cupLadder(S.stage, S.hero) : '') + '<div class="parody">' + esc(S.st.name) + ' · ' + esc(S.us) + ' vs ' + esc(S.def.vs) + '</div>' +
+          '<h2 class="glow">' + S.st.icon + ' ' + esc(S.st.name) + ' ' + S.st.rounds[S.round].name + (dojo ? ' · ' + esc(K.name) : '') + '</h2>' + (dojo ? '' : this.cupBracket(S.round, S.st)) +
           (story ? '<p class="story">' + esc(story) + '</p>' : '') +
-          '<p class="story">' + esc(hero) + '가 우리 팀 킥을 전부 찬다. 상대가 찰 때는 우리 골키퍼가 몸을 날릴 방향을 고른다. 한 번 지면 탈락.</p>' +
-          '<div class="sub">' + this.cupPrize(S.stage, S.hero) + '</div>';
+          '<p class="story">' + esc(hero) + '가 우리 팀 킥을 전부 찬다. 상대가 찰 때는 우리 골키퍼가 몸을 날릴 방향을 고른다. ' + (dojo ? '지면 같은 단에 다시 도전.' : '한 번 지면 탈락.') + '</p>' +
+          '<div class="sub">' + this.cupPrize(S.stage, S.hero, S.mode) + '</div>';
       } else {
         const d = S.def;
         h = '<div class="parody">' + (d.single ? '단 한 번의 페널티킥' : '승부차기 · ' + esc(S.us) + ' vs ' + esc(d.vs)) + '</div>' +
@@ -308,17 +310,20 @@
     },
     // ---------------------------------------------------------------- 승부차기 토너먼트 (round 15, title screen)
     // round 22: each run plays the hero's current stage (유소년 → 청소년 → 대륙컵 → 월드컵)
-    startCup() {
-      const hero = this.save.career.build.hero, stage = RS.cupHeroStage(this.save.meta, hero);
+    // round 38: mode 'ucl' (챔피언스리그), 'wc' (the ladder up to the 월드컵) or 'dojo' (도장깨기, its next 단)
+    startCup(mode) {
+      mode = mode === 'ucl' || mode === 'dojo' ? mode : 'wc';
+      const hero = this.save.career.build.hero, meta = this.save.meta;
+      const stage = mode === 'wc' ? RS.cupHeroStage(meta, hero) : mode === 'dojo' ? RS.dojoNext(meta) : 0;
       RS.cupStart(this.save);
       this.persist();
-      this.cup = { stage, draw: RS.cupDraw(this.rng, hero, stage), round: 0, out: null };
+      this.cup = { mode, stage, draw: RS.pkDraw(this.rng, hero, mode, stage), round: 0, out: null };
       this.cupNext();
     },
     cupNext() {
       const C = this.cup, m = C.draw[C.round];
       C.out = null;
-      this.startPK({ kind: 'cup', stage: C.stage, round: C.round, vs: m.vs, keeper: m.keeper, idx: this.save.career.yearIdx }, () => {
+      this.startPK({ kind: 'cup', mode: C.mode, stage: C.stage, round: C.round, vs: m.vs, keeper: m.keeper, idx: this.save.career.yearIdx }, () => {
         const r = C.out;
         if (this.cup === C && r && r.next != null) { C.round = r.next; this.cupNext(); }
         else { this.cup = null; this.showTitle(); }
@@ -332,7 +337,17 @@
     cupLadder(cur, hero) {
       return '<div class="cup-bracket cup-ladder">' + RS.CUP_STAGES.map((s, i) => { const st = RS.cupStage(i, hero); return '<span class="' + (i < cur ? 'done' : i === cur ? 'cur' : '') + '">' + (i < cur ? '✓ ' : st.icon + ' ') + esc(st.name) + '</span>'; }).join('<i>▸</i>') + '</div>';
     },
-    cupPrize(stage, hero) {
+    // the 도장깨기's ten 단: cleared ones ticked, the one played lit
+    dojoLadder(cur) {
+      const done = RS.normalizeCup(this.save.meta.cup).dojo;
+      return '<div class="cup-bracket cup-ladder">' + RS.DOJO.map((d, i) => '<span class="' + (i === cur ? 'cur' : i < done ? 'done' : '') + '">' + (i < done && i !== cur ? '✓' : i + 1 + '단') + '</span>').join('') + '</div>';
+    },
+    cupPrize(stage, hero, mode) {
+      if (mode === 'ucl') return '🏆 우승하면 💰' + RS.UCL.coins;
+      if (mode === 'dojo') {
+        const nx = RS.DOJO[stage + 1];
+        return '🥋 이기면 💰' + RS.dojoCoins(stage) + (nx ? ' · 다음 ' + (stage + 2) + '단 ' + esc(RS.PK_KEEPERS[nx.keeper].name) + ' 도전' : ' · 역대 최고 골키퍼 10명 완전 정복');
+      }
       if (stage != null && stage < RS.CUP_WC) {
         const st = RS.cupStage(stage, hero), nx = RS.cupStage(stage + 1, hero);
         return '🏆 우승하면 다음 무대 ' + nx.icon + ' ' + esc(nx.name) + ' 진출 · 💰' + st.coins;
@@ -341,20 +356,30 @@
       return left.length ? '🏆 우승하면 SIUUU 스킬 1개 랜덤 해금 (남은 ' + left.length + '개: ' + left.map((r) => RS.SKILLS[r.id].icon + ' ' + RS.SKILLS[r.id].name).join(' · ') + ')'
         : '🏆 SIUUU 스킬 3개를 모두 얻었다 · 우승하면 💰' + RS.CUP_COINS;
     },
-    cupButton() {
+    // round 38: the title's three 승부차기 buttons (top to bottom: 챔피언스리그, 월드컵, 도장깨기)
+    cupButtons() {
       const hero = this.save.career.build.hero, st = RS.cupStage(RS.cupHeroStage(this.save.meta, hero), hero);
       const n = RS.CUP_REWARDS.length - RS.cupLeft(this.save.meta).length, c = RS.normalizeCup(this.save.meta.cup);
-      return '🥅 승부차기 토너먼트 · ' + st.icon + ' ' + st.name + ' · 해금 ' + n + '/' + RS.CUP_REWARDS.length + (c.wins ? ' · 월드컵 우승 ' + c.wins + '회' : '');
+      const d = RS.DOJO[RS.dojoNext(this.save.meta)];
+      return {
+        ucl: '🏆 챔피언스리그 · ' + (RS.UCL_CLUB[hero] || RS.UCL_CLUB.ronaldo) + (c.ucl ? ' · 우승 ' + c.ucl + '회' : ''),
+        wc: '🌍 월드컵 · ' + st.icon + ' ' + st.name + ' · 해금 ' + n + '/' + RS.CUP_REWARDS.length + (c.wins ? ' · 우승 ' + c.wins + '회' : ''),
+        dojo: '🥋 도장깨기 · ' + (c.dojo >= RS.DOJO.length ? '10단 완전 정복!' : (c.dojo + 1) + '단 ' + RS.PK_KEEPERS[d.keeper].name) + ' · ' + c.dojo + '/' + RS.DOJO.length
+      };
     },
     cupFinish(out) {
       const S = this.pk.S, r = out.cup, C = this.cup, st = S.st, name = st.rounds[S.round].name, score = ' ' + out.score[0] + '-' + out.score[1];
       if (C) C.out = r;
       if (out.won) { this.renderer.pkCelebrate(true); RS.Audio.sfx('jackpot'); RS.Audio.sfx('bigroar'); RS.Audio.buzz(r.champion ? [120, 80, 120, 80, 320] : [90, 60, 90]); } else RS.Audio.sfx('lose');
-      const title = r.champion ? '🏆 ' + st.name + ' 우승!' + score : out.won ? '✅ ' + name + ' 승리!' + score : '😢 ' + st.name + ' ' + name + ' 탈락' + score;
+      const dojo = S.mode === 'dojo', kn = S.keeper.name;
+      const title = dojo ? (out.won ? '🥋 ' + name + ' ' + kn + ' 격파!' : '😢 ' + name + ' ' + kn + '에게 패배') + score
+        : r.champion ? '🏆 ' + st.name + ' 우승!' + score : out.won ? '✅ ' + name + ' 승리!' + score : '😢 ' + st.name + ' ' + name + ' 탈락' + score;
       $('pk-res-title').textContent = title;
       $('pk-res-title').className = out.won ? 'glow' : '';
-      const nx = r.next != null && C ? C.draw[r.next] : null, up = r.stageUp != null ? RS.cupStage(r.stageUp, S.hero) : null;
-      $('pk-res-sub').textContent = nx ? '다음: ' + st.rounds[r.next].name + ' vs ' + nx.vs + ' (🧤 ' + RS.PK_KEEPERS[nx.keeper].name + ')'
+      const nx = r.next != null && C ? C.draw[r.next] : null, up = r.stageUp != null && S.mode === 'wc' ? RS.cupStage(r.stageUp, S.hero) : null;
+      const dn = dojo && r.stageUp != null ? RS.DOJO[r.stageUp] : null;
+      $('pk-res-sub').textContent = dojo ? (dn ? '다음 도장: ' + (r.stageUp + 1) + '단 ' + RS.PK_KEEPERS[dn.keeper].name : out.won ? (S.stage === RS.DOJO.length - 1 ? '역대 최고의 골키퍼 10명을 모두 꺾었다!' : '이미 깬 단을 다시 꺾었다') : '다음 도전도 ' + name + ' ' + kn)
+        : nx ? '다음: ' + st.rounds[r.next].name + ' vs ' + nx.vs + ' (🧤 ' + RS.PK_KEEPERS[nx.keeper].name + ')'
         : up ? '다음 무대 진출: ' + up.icon + ' ' + up.name + '!'
         : r.champion ? st.rounds[0].name + '부터 결승까지 ' + st.rounds.length + '번의 승부차기를 모두 이겼다!' : '다음 도전은 다시 ' + st.name + ' ' + st.rounds[0].name + '부터';
       const stats = $('pk-res-stats'), rec = RS.normalizePk(this.save.meta.pk).heroes[S.hero];
@@ -363,7 +388,7 @@
       add(out.goals + '/' + out.shots, '내 킥 성공');
       if (out.coins) add('+' + out.coins, '코인');
       add(rec.goals + '골', '통산 PK (' + RS.pkRate(rec) + '%)');
-      let notes = this.cupBracket(r.champion ? st.rounds.length : out.won ? S.round + 1 : S.round, st);
+      let notes = dojo ? this.dojoLadder(r.stageUp != null ? r.stageUp : S.stage) : this.cupBracket(r.champion ? st.rounds.length : out.won ? S.round + 1 : S.round, st);
       const rw = r.reward;
       if (up) {
         notes += this.cupLadder(r.stageUp, S.hero) + '<div class="pk-title-got cup-reward">' + up.icon + ' ' + esc(up.name) + ' 진출!</div>' +
@@ -376,7 +401,7 @@
           '<div class="sub">이제 ' + esc(hn) + ' 커리어 레벨업에서 아주 드물게 SIUUU로 등장한다' +
             (RS.heroLocked(this.save.meta, rw.hero) ? ' (' + esc(hn) + '는 먼저 해금해야 한다)' : '') + '</div>';
         this.toast('🎁 ' + sk.name + ' 해금!');
-      } else if (rw && rw.coins && S.stage === RS.CUP_WC) notes += '<div class="sub">SIUUU 스킬은 이미 모두 얻었다 · 💰' + rw.coins + '</div>';
+      } else if (rw && rw.coins && S.mode === 'wc' && S.stage === RS.CUP_WC) notes += '<div class="sub">SIUUU 스킬은 이미 모두 얻었다 · 💰' + rw.coins + '</div>';
       for (const t of out.titles) notes += '<div class="pk-title-got">' + t.icon + ' 칭호 획득: ' + esc(t.name) + '!</div>';
       $('pk-res-notes').innerHTML = notes;
       $('pk-result').classList.remove('hidden');
@@ -393,4 +418,4 @@
     }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkui = 'R37';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkui = 'R38';

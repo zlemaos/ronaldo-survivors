@@ -150,6 +150,12 @@
     alisson: { name: '알리쏭', rating: 90, legend: true, look: { K: '#e8e8e8', k2: '#1a5ad8', H: '#2a1a10', style: 'long' } },
     dibu: { name: '디부 마르띠', rating: 92, legend: true, mate: 'messi', note: '승부차기의 악마', look: { K: '#c8e000', k2: '#6a2ab8', H: '#1a1a1a', style: 'fade' } },
     yashin: { name: '검은 거미 야씬', rating: 97, legend: true, note: '전설 중의 전설', look: { K: '#0e0e10', k2: '#2a2a2e', H: '#0e0e10', style: 'cap', C: '#0e0e10' } },
+    // round 38: the rest of the 도장깨기's all-time top 10 (RS.DOJO)
+    zoff: { name: '쪼프', rating: 85, legend: true, look: { K: '#8a8a8a', k2: '#1a1a1a', H: '#3a2a1a', style: 'short' } },
+    schmeichel: { name: '슈마이꿸', rating: 87, legend: true, look: { K: '#e8e000', k2: '#1a1a1a', H: '#e8d0a0', style: 'short' } },
+    maier: { name: '고양이 마이아', rating: 90, legend: true, look: { K: '#1a1a1a', k2: '#e8e8e8', H: '#3a2a1a', style: 'long' } },
+    zamora: { name: '싸모라', rating: 91, legend: true, look: { K: '#f0f0f0', k2: '#1a1a1a', H: '#1a1a1a', style: 'cap', C: '#f0f0f0' } },
+    banks: { name: '뱅끄쓰', rating: 93, legend: true, look: { K: '#ffd400', k2: '#1a1a1a', H: '#3a2a1a', style: 'slick' } },
     // the keepers of the career shootouts (RS.SHOOTOUTS)
     james: { name: '제임쓰', rating: 74, look: { K: '#e06a1a', k2: '#1a1a1a', H: '#1a1a1a', s: '#7a5236', style: 'fade' } },
     robinson: { name: '로빈쓴', rating: 77, look: { K: '#e8e8e8', k2: '#c41e2a', H: '#3a2a1a', style: 'short' } },
@@ -557,16 +563,54 @@
     c = c && typeof c === 'object' ? c : {};
     const st = {}, s0 = c.stage && typeof c.stage === 'object' ? c.stage : {};
     for (const h of Object.keys(RS.PK_BASE)) st[h] = clamp(s0[h] | 0, 0, RS.CUP_WC);
-    return { played: Math.max(0, c.played | 0), wins: Math.max(0, c.wins | 0), best: Math.max(0, Math.min(RS.CUP_ROUNDS.length, c.best | 0)), stage: st };
+    return { played: Math.max(0, c.played | 0), wins: Math.max(0, c.wins | 0), best: Math.max(0, Math.min(RS.CUP_ROUNDS.length, c.best | 0)), stage: st,
+      ucl: Math.max(0, c.ucl | 0), dojo: clamp(c.dojo | 0, 0, RS.DOJO.length) };
   };
+
+  // Round 38 (the user: 승부차기 모드 … 위에는 챔피언스리그 가운데 월드컵 마지막 도장깨기 · 도장깨기는 총 10단계로 역사상
+  // 최고의 골키퍼 탑10과 승부): the title's 승부차기 opens three modes. 'wc' is the stage ladder above (유소년 → 월드컵);
+  // 'ucl' one club tournament, the hero's club against Europe's (coins); 'dojo' ten single shootouts, one per keeper of
+  // FourFourTwo's "The best goalkeepers ever" (2024) top 10, from 10th up to 1st — a win opens the next 단, a loss
+  // replays it. Every mode plays at the 월드컵's level with the national keeper (RS.CUP_LEVEL, RS.CUP_KEEPER).
+  RS.UCL_CLUB = { ronaldo: '마드리드 백색군단', messi: '바르셀로나 청홍군단', torres: '마드리드 적백 줄무늬단' };
+  RS.UCL = { id: 'ucl', name: '챔피언스리그', icon: '🏆', pre: '', lv: RS.CUP_LEVEL, ourK: RS.CUP_KEEPER, coins: 800, rounds: [
+    { name: '16강', miss: 0.24, pool: [{ vs: '리스본 사자단', keeper: 'pro' }, { vs: '파리 에펠군단', keeper: 'national' }, { vs: '바르셀로나 청홍군단', keeper: 'bravo' }] },
+    { name: '8강', miss: 0.18, pool: [{ vs: '리버풀 붉은 함성단', keeper: 'alisson' }, { vs: '마드리드 적백 줄무늬단', keeper: 'oblak' }, { vs: '맨체스터 붉은악마단', keeper: 'vdsar' }] },
+    { name: '4강', miss: 0.14, pool: [{ vs: '런던 파란 사자단', keeper: 'cech' }, { vs: '토리노 얼룩말단', keeper: 'buffon' }, { vs: '마드리드 백색군단', keeper: 'courtois' }] },
+    { name: '결승', miss: 0.1, pool: [{ vs: '마드리드 백색군단', keeper: 'casillas' }, { vs: '뮌헨 붉은 맥주단', keeper: 'neuer' }] }] };
+  // one 단 each: the keeper (his rating here: the climb), the other side's miss rate, the coins, his line
+  RS.DOJO = [
+    { keeper: 'zoff', vs: '이탈리아', rating: 85, miss: 0.16, line: '마흔 살에 월드컵을 들어 올린 최고령 우승 주장' },
+    { keeper: 'schmeichel', vs: '덴마크', rating: 87, miss: 0.15, line: 'XXXL 유니폼을 입던 거인, 트레블 시즌의 벽' },
+    { keeper: 'cech', vs: '체코', rating: 88, miss: 0.14, line: '헤드기어의 벽, 프리미어리그 최다 무실점 202경기' },
+    { keeper: 'buffon', vs: '이탈리아', rating: 89, miss: 0.12, line: '마흔다섯 살까지 골문을 지킨 영원한 수문장' },
+    { keeper: 'maier', vs: '서독', rating: 90, miss: 0.11, line: '안찡의 고양이, 유러피언컵 3연패' },
+    { keeper: 'zamora', vs: '스페인', rating: 91, miss: 0.1, line: '1920년대 세계 최고, 스페인 최고 골키퍼상의 이름' },
+    { keeper: 'casillas', vs: '스페인', rating: 92, miss: 0.09, line: '성 이케르, 5년 연속 세계 최고의 골키퍼' },
+    { keeper: 'banks', vs: '잉글랜드', rating: 93, miss: 0.08, line: '펠레의 헤딩을 걷어낸 세기의 선방' },
+    { keeper: 'neuer', vs: '독일', rating: 95, miss: 0.07, line: '골문을 비우고 뛰쳐나오는 스위퍼 키퍼의 완성형' },
+    { keeper: 'yashin', vs: '소련', rating: 97, miss: 0.06, line: '골키퍼 유일의 발롱도르, 검은 거미' }
+  ];
+  RS.dojoCoins = (i) => (i >= RS.DOJO.length - 1 ? 2000 : 150 + 60 * i);
+  // the 단 to play next: the first one not cleared (the last once all ten are)
+  RS.dojoNext = (meta) => Math.min(RS.DOJO.length - 1, RS.normalizeCup(meta.cup).dojo);
+  RS.dojoStage = (i) => {
+    const d = RS.DOJO[clamp(i | 0, 0, RS.DOJO.length - 1)];
+    return { id: 'dojo', name: '도장깨기', icon: '🥋', pre: '', lv: RS.CUP_LEVEL, ourK: RS.CUP_KEEPER, coins: RS.dojoCoins(i | 0),
+      rounds: [{ name: ((i | 0) + 1) + '단', miss: d.miss, pool: [{ vs: d.vs + ' 레전드', keeper: d.keeper }] }] };
+  };
+  RS.pkModeStage = (mode, stage, hero) => (mode === 'ucl' ? RS.UCL : mode === 'dojo' ? RS.dojoStage(stage) : RS.cupStage(stage, hero));
+  RS.pkModeUs = (mode, hero) => (mode === 'ucl' ? RS.UCL_CLUB[hero] || RS.UCL_CLUB.ronaldo : RS.soUsName(hero, 0, { nat: true }));
   RS.cupHeroStage = (meta, hero) => RS.normalizeCup(meta.cup).stage[hero] || 0;
   RS.cupLeft = (meta) => RS.CUP_REWARDS.filter((r) => !(meta.unlocked && meta.unlocked[r.id]));
   // The opponents of one run for this hero at this stage (the 월드컵 when no stage is given).
-  RS.cupDraw = function (rng, hero, stage) {
-    const st = RS.cupStage(stage, hero), us = RS.soUsName(hero, 0, { nat: true });
+  RS.cupDraw = (rng, hero, stage) => RS.pkDraw(rng, hero, 'wc', stage);
+  // round 38: any mode's draw; the 도장깨기's one keeper per 단 is met whoever he played for (the fallback)
+  RS.pkDraw = function (rng, hero, mode, stage) {
+    const st = RS.pkModeStage(mode, stage, hero), us = RS.pkModeUs(mode, hero);
     return st.rounds.map((r) => {
       const ok = r.pool.filter((m) => { const K = RS.PK_KEEPERS[m.keeper]; return m.vs !== us && K.mate !== hero && !(K.nemesis && K.nemesis[hero] != null); });
-      const m = ok[Math.floor(rng() * ok.length)];
+      const m = (ok.length ? ok : r.pool)[Math.floor(rng() * (ok.length || r.pool.length))];
       return { vs: st.pre + m.vs, keeper: m.keeper };
     });
   };
@@ -578,8 +622,23 @@
   // null), champion, stage, stageUp (the stage it opened, or null), reward: { id, hero } | { coins } }.
   // (round 19: the move only unlocks; level-ups deal it now and then. round 22: below the 월드컵 a title opens the next
   // stage for this hero and pays the stage's coins.)
-  RS.cupResult = function (save, round, won, rng, stage, hero) {
-    const m = save.meta, si = stage == null ? RS.CUP_WC : clamp(stage | 0, 0, RS.CUP_WC);
+  // round 38: mode 'ucl' pays its coins and counts the title; 'dojo' opens the next 단 (stageUp) and pays the 단's coins
+  RS.cupResult = function (save, round, won, rng, stage, hero, mode) {
+    const m = save.meta;
+    if (mode === 'ucl' || mode === 'dojo') {
+      const st = RS.pkModeStage(mode, stage), last = st.rounds.length - 1, si = stage | 0;
+      const out = { round, won, next: null, champion: false, stage: si, stageUp: null, reward: null, mode };
+      m.cup = RS.normalizeCup(m.cup);
+      if (!won) return out;
+      if (round < last) { out.next = round + 1; return out; }
+      out.champion = true;
+      if (mode === 'ucl') m.cup.ucl++;
+      else if (m.cup.dojo <= si) { m.cup.dojo = si + 1; if (si + 1 < RS.DOJO.length) out.stageUp = si + 1; }
+      m.coins += st.coins;
+      out.reward = { coins: st.coins };
+      return out;
+    }
+    const si = stage == null ? RS.CUP_WC : clamp(stage | 0, 0, RS.CUP_WC);
     const st = RS.cupStage(si, hero), last = st.rounds.length - 1;
     const out = { round, won, next: null, champion: false, stage: si, stageUp: null, reward: null };
     m.cup = RS.normalizeCup(m.cup);
@@ -615,19 +674,23 @@
       this.rng = opt.rng || Math.random;
       this.hero = RS.HEROES[b.hero] ? b.hero : 'ronaldo';
       // the 토너먼트 (round 22): its stage (the 월드컵 when none is given) sets the level — fixed for the youth stages
-      this.stage = opt.kind === 'cup' ? (opt.stage == null ? RS.CUP_WC : clamp(opt.stage | 0, 0, RS.CUP_WC)) : null;
-      this.st = opt.kind === 'cup' ? RS.cupStage(this.stage, RS.HEROES[b.hero] ? b.hero : 'ronaldo') : null;
-      this.level = opt.kind === 'cup' ? (this.stage === RS.CUP_WC ? Math.max(b.level || 1, RS.CUP_LEVEL) : this.st.lv) : b.level || 1;
+      // round 38: mode 'wc' (that ladder), 'ucl' or 'dojo' (its 단 in stage); the last two play at the 월드컵's level
+      this.mode = opt.kind === 'cup' ? (opt.mode === 'ucl' || opt.mode === 'dojo' ? opt.mode : 'wc') : null;
+      this.stage = opt.kind !== 'cup' ? null : this.mode === 'ucl' ? 0 : this.mode === 'dojo' ? clamp(opt.stage | 0, 0, RS.DOJO.length - 1)
+        : opt.stage == null ? RS.CUP_WC : clamp(opt.stage | 0, 0, RS.CUP_WC);
+      this.st = opt.kind === 'cup' ? RS.pkModeStage(this.mode, this.stage, this.hero) : null;
+      const top = this.mode && (this.mode !== 'wc' || this.stage === RS.CUP_WC);
+      this.level = opt.kind === 'cup' ? (top ? Math.max(b.level || 1, RS.CUP_LEVEL) : this.st.lv) : b.level || 1;
       this.small = RS.smallBody(b);
       this.fin = RS.pkFinishing({ hero: this.hero, level: this.level }, save.meta);
       // round 23 (the user: 승부차기 모드에선 유소년때도 다 해금시켜줘 미니게임인데): the 토너먼트 opens every zone
       this.zones = opt.kind === 'cup' ? 9 : RS.pkZoneCount(this.level);
       if (opt.kind === 'cup') {
         this.round = Math.max(0, Math.min(this.st.rounds.length - 1, opt.round | 0));
-        this.def = { cup: true, all: true, nat: true, title: this.st.icon + ' ' + this.st.name + ' · ' + this.st.rounds[this.round].name, vs: opt.vs, keeper: opt.keeper };
+        this.def = { cup: true, all: true, nat: this.mode !== 'ucl', title: this.st.icon + ' ' + this.st.name + ' · ' + this.st.rounds[this.round].name, vs: opt.vs, keeper: opt.keeper };
         this.keeperId = opt.keeper;
         this.so = RS.newShootout(this.rng() < 0.5 ? 'us' : 'them');
-        this.us = this.st.pre + RS.soUsName(this.hero, 0, this.def);
+        this.us = this.mode === 'wc' ? this.st.pre + RS.soUsName(this.hero, 0, this.def) : RS.pkModeUs(this.mode, this.hero);
       } else if (opt.kind === 'shootout') {
         this.def = RS.shootoutFor(this.hero, this.idx);
         this.keeperId = this.def.keeper;
@@ -638,9 +701,11 @@
         this.keeperId = RS.pkChallengeKeeper(this.rng, this.hero, this.idx);
       }
       this.keeper = RS.PK_KEEPERS[this.keeperId];
+      // the 도장깨기: the 단's rating, and no hero's 천적 cap (each 단 must be winnable)
+      if (this.mode === 'dojo') this.keeper = Object.assign({}, this.keeper, { rating: RS.DOJO[this.stage].rating, nemesis: null });
       // the 토너먼트: the national team's keeper (RS.CUP_KEEPER at least) and each round's opposing kickers (oppMiss)
       // (round 22: a youth stage has its own keeper, not the career's)
-      this.ourK = this.kind !== 'cup' ? RS.soOurKeeper(b) : this.stage === RS.CUP_WC ? Math.max(RS.CUP_KEEPER, RS.soOurKeeper(b)) : this.st.ourK;
+      this.ourK = this.kind !== 'cup' ? RS.soOurKeeper(b) : top ? Math.max(RS.CUP_KEEPER, RS.soOurKeeper(b)) : this.st.ourK;
       this.oppMiss = this.kind === 'cup' ? this.st.rounds[this.round].miss : null;
       this.ourKeeper = { name: '우리 골키퍼', rating: this.ourK, look: RS.PK_OUR_LOOK };
       this.rage = false; // the other keeper's 분노 모드 (round 16)
@@ -704,7 +769,7 @@
         out.score = [this.so.us.filter(Boolean).length, this.so.them.filter(Boolean).length];
         const rec = RS.normalizePk(this.save.meta.pk).heroes[this.hero];
         if (out.won) rec.won++; else rec.lost++;
-        out.cup = RS.cupResult(this.save, this.round, out.won, this.rng, this.stage, this.hero);
+        out.cup = RS.cupResult(this.save, this.round, out.won, this.rng, this.stage, this.hero, this.mode);
         if (out.cup.reward && out.cup.reward.coins) out.coins = out.cup.reward.coins;
       } else {
         const won = this.so ? !!this.so.won : goals > 0;
@@ -716,4 +781,4 @@
   }
   RS.PKSession = PKSession;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R37';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R38';

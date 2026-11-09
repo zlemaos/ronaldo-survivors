@@ -15,8 +15,8 @@
   <title>호날두 서바이버즈</title>
   <!-- the build: bump it with RS.VERSION (src/js/core.js), every ?v= below, each script's RS_FILES stamp and --build in the css.
        The game is in src/; js/ and css/ keep round 11's files for pages a phone cached before round 12: do not load or edit them. -->
-  <meta name="build" content="R37">
-  <link rel="stylesheet" href="src/css/style.css?v=R37">
+  <meta name="build" content="R38">
+  <link rel="stylesheet" href="src/css/style.css?v=R38">
 </head>
 <body>
   <canvas id="game" aria-label="게임 화면"></canvas>
@@ -108,7 +108,12 @@
       </div>
       <div id="opt-hint" class="opt-hint"></div>
       <button id="btn-play" class="btn primary big">커리어 시작</button>
-      <button id="btn-cup" class="btn cup-btn">🥅 승부차기 토너먼트</button>
+      <button id="btn-cup" class="btn cup-btn" aria-expanded="false">🥅 승부차기 ▾</button>
+      <div id="cup-modes" class="cup-modes hidden">
+        <button id="btn-ucl" class="btn cup-btn">🏆 챔피언스리그</button>
+        <button id="btn-wc" class="btn cup-btn">🌍 월드컵</button>
+        <button id="btn-dojo" class="btn cup-btn">🥋 도장깨기</button>
+      </div>
       <div class="row">
         <button id="btn-years" class="btn">📅 연도 선택</button>
         <button id="btn-shop" class="btn">🛒 훈련장</button>
@@ -320,20 +325,20 @@
   <div id="tap-hint" class="hidden">화면을 눌러 이동</div>
   <button id="auto-badge" class="auto-badge hidden" type="button"></button>
 
-  <script src="src/js/core.js?v=R37"></script>
-  <script src="src/js/data.js?v=R37"></script>
-  <script src="src/js/game.js?v=R37"></script>
-  <script src="src/js/career.js?v=R37"></script>
-  <script src="src/js/pk.js?v=R37"></script>
-  <script src="src/js/pkscene.js?v=R37"></script>
-  <script src="src/js/sprites.js?v=R37"></script>
-  <script src="src/js/pixelfx.js?v=R37"></script>
-  <script src="src/js/render.js?v=R37"></script>
-  <script src="src/js/pkrender.js?v=R37"></script>
-  <script src="src/js/pkkick.js?v=R37"></script>
-  <script src="src/js/audio.js?v=R37"></script>
-  <script src="src/js/input.js?v=R37"></script>
-  <script src="src/js/pkui.js?v=R37"></script>
-  <script src="src/js/main.js?v=R37"></script>
+  <script src="src/js/core.js?v=R38"></script>
+  <script src="src/js/data.js?v=R38"></script>
+  <script src="src/js/game.js?v=R38"></script>
+  <script src="src/js/career.js?v=R38"></script>
+  <script src="src/js/pk.js?v=R38"></script>
+  <script src="src/js/pkscene.js?v=R38"></script>
+  <script src="src/js/sprites.js?v=R38"></script>
+  <script src="src/js/pixelfx.js?v=R38"></script>
+  <script src="src/js/render.js?v=R38"></script>
+  <script src="src/js/pkrender.js?v=R38"></script>
+  <script src="src/js/pkkick.js?v=R38"></script>
+  <script src="src/js/audio.js?v=R38"></script>
+  <script src="src/js/input.js?v=R38"></script>
+  <script src="src/js/pkui.js?v=R38"></script>
+  <script src="src/js/main.js?v=R38"></script>
 </body>
 </html>

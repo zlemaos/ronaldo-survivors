@@ -176,7 +176,8 @@
         : this.save.meta.unlocked.torresBlue ? '✨ 성공한 첼씨 토레쓰 획득 · 새 커리어는 SSS 첼씨 토레쓰 · ' + RS.HEROES.torres.desc : RS.HEROES.torres.desc;
       this.renderWallet($('title-wallet'));
       $('title-pk').textContent = this.pkLine();
-      $('btn-cup').textContent = this.cupButton();
+      const cb = this.cupButtons();
+      for (const k of ['ucl', 'wc', 'dojo']) $('btn-' + k).textContent = cb[k];
       const ts = $('title-sprite'); ts.innerHTML = '';
       ts.appendChild(RS.Sprites.toCanvas(RS.Sprites.hero(c.build.hero, c.yearIdx, 1, null, RS.smallBody(c.build)), 0, 7));
       this.makeAttract();
@@ -1270,7 +1271,14 @@
         this.toast(h.name + ' 커리어를 처음부터 시작합니다');
       };
       $('btn-shop').onclick = () => this.showShop();
-      $('btn-cup').onclick = () => { RS.Audio.sfx('click'); this.startCup(); };
+      // round 38: 승부차기 opens its three modes (챔피언스리그 · 월드컵 · 도장깨기)
+      $('btn-cup').onclick = () => {
+        RS.Audio.sfx('click');
+        const open = $('cup-modes').classList.toggle('hidden') === false;
+        $('btn-cup').setAttribute('aria-expanded', String(open));
+        $('btn-cup').textContent = '🥅 승부차기 ' + (open ? '▴' : '▾');
+      };
+      for (const k of ['ucl', 'wc', 'dojo']) $('btn-' + k).onclick = () => { RS.Audio.sfx('click'); this.startCup(k); };
       $('btn-howto').onclick = () => this.show('howto');
       $('btn-mute').onclick = () => this.toggleMute();
       $('btn-mute-hud').onclick = (e) => { e.stopPropagation(); this.toggleMute(); };
@@ -1323,4 +1331,4 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => App.boot());
   else App.boot();
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).main = 'R37';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).main = 'R38';
