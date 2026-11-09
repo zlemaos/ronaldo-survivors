@@ -61,7 +61,7 @@
         '파넨카가 실패하면 사기가 떨어져 게이지와 바늘이 빨라진다.</div>' +
         '<div class="sub pk-how">슛 종류(칸을 고를 때 아래 버튼, PC는 Q·W·E): 🦶 밀어차기 = 기본 · 🚀 발등슛 = 발등으로 세게, 막기 어렵지만 게이지가 빨라 빗나가기 쉽다 · ' +
         '🌀 감아차기 = 발 안쪽으로 휘게, 구석으로 휘어 잘 안 빗나가지만 느려서 방향을 읽히면 막힌다</div>' +
-        (S.kind === 'challenge' ? '' : '<div class="sub pk-how">🧤 막을 때: 6칸(위·아래) 중 미리 고르거나, 기다렸다가 공이 날아오면 ' + RS.soReact() + '초 안에 누르기 (난이도별 이지 0.9 · 노멀 0.6 · 하드 0.5초)</div>');
+        (S.kind === 'challenge' ? '' : '<div class="sub pk-how">🧤 막을 때: 6칸(위·아래) 중 미리 고르거나, 기다렸다가 공이 날아오면 ' + RS.soReact() + '초 안에 누르기 (난이도별 이지 0.9 · 노멀 0.6 · 하드 0.4초)</div>');
       $('pk-intro-body').innerHTML = h;
       $('pk-intro').classList.remove('hidden');
       const go = () => {
@@ -393,4 +393,4 @@
     }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkui = 'R36';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkui = 'R37';

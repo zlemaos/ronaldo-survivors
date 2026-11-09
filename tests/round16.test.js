@@ -100,10 +100,10 @@ test('round 35: a tap during the run-up after the early pick timed out is an ear
   assert.ok(sc.result && sc.result.diveCol === 2 && sc.result.diveRow === 0);
 });
 
-test('the reaction window follows the difficulty: 0.9 s 이지, 0.6 s 노멀, 0.5 s 하드, and the ball lands right after it', () => {
+test('the reaction window follows the difficulty: 0.9 s 이지, 0.6 s 노멀, 0.4 s 하드, and the ball lands right after it', () => {
   const was = RS.DIFF;
   try {
-    for (const [d, w] of [['easy', 0.9], ['normal', 0.6], ['hard', 0.5]]) {
+    for (const [d, w] of [['easy', 0.9], ['normal', 0.6], ['hard', 0.4]]) {
       RS.setDiff(d);
       assert.equal(RS.soReact(), w);
       const sc = new RS.PKScene({ mode: 'keep', who: 'opp', keeper: { name: 'k', rating: 84 }, fin: 80, level: 80, ourK: 84, oppMiss: 0, rng: RS.makeRng(5) });
