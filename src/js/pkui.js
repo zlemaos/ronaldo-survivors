@@ -215,7 +215,7 @@
       if (shot) { e.preventDefault(); this.pkPickShot(shot); }
       else if (sc.phase === 'aim' && /^[1-9]$/.test(e.key) && +e.key <= sc.zones) { sc.pickZone(+e.key); e.preventDefault(); }
       else if ((sc.phase === 'power' || sc.phase === 'acc') && (e.code === 'Space' || e.key === 'Enter')) { e.preventDefault(); if (sc.phase === 'power') sc.stopPower(sc.gauge()); else sc.stopNeedle(sc.needle()); }
-      else if (sc.phase === 'guess' || sc.reactOpen) { // keeper: 1–3 low, 7–9 high (as on a numpad), Space waits to watch
+      else if (sc.keepOpen()) { // keeper: 1–3 low, 7–9 high (as on a numpad), Space waits to watch
         if (sc.phase === 'guess' && (e.code === 'Space' || e.key === 'Enter')) { e.preventDefault(); sc.watchNow(); return; }
         const n = /^[1-9]$/.test(e.key) ? +e.key : 0;
         if (n && n !== 5 && (n <= 3 || n >= 7)) { e.preventDefault(); sc.keepInput({ col: (n - 1) % 3, row: n >= 7 ? 1 : 0 }); }
@@ -393,4 +393,4 @@
     }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkui = 'R34';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkui = 'R35';

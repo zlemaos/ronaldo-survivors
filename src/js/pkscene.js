@@ -132,9 +132,12 @@
       }
       if (this.phase === 'power') { this.stopPower(this.gauge()); return true; }
       if (this.phase === 'acc') { this.stopNeedle(this.needle()); return true; }
-      if (this.phase === 'guess' || this.reactOpen) { const c = this.keepCell(x, y); if (!c) return false; this.keepInput(c); return true; }
+      if (this.keepOpen()) { const c = this.keepCell(x, y); if (!c) return false; this.keepInput(c); return true; }
       return false;
     }
+    // round 35 (the user: 내가 먼저 다이빙 했는데 선방 안되는데?): once the early pick timed out into watching, a tap
+    // during the run-up was dropped and the keeper stood still — it is an early dive too
+    keepOpen() { return this.phase === 'guess' || this.reactOpen || (this.mode === 'keep' && this.watch && this.phase === 'runup' && !this.o.auto); }
     zoneAt(x, y) {
       const g = this.geo; if (!g) return 0;
       const u = (x - g.cx) / g.halfW, v = (g.goalY - y) / (g.goalY - g.barY);
@@ -152,6 +155,7 @@
     // a cell from a tap or a key: the early dive, or the reaction while the ball flies
     keepInput(c) {
       if (this.phase === 'guess') this.pickDive(c);
+      else if (this.phase === 'runup' && this.watch) { this.dive = c; this.watch = false; this.sfx.push('click'); }
       else if (this.reactOpen) this.react(c);
     }
     pickZone(z) { this.zone = z; this.sfx.push('click'); this.go('power'); }
@@ -398,4 +402,4 @@
   }
   RS.PKScene = PKScene;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkscene = 'R34';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkscene = 'R35';

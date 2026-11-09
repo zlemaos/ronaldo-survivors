@@ -493,7 +493,7 @@
     if (own && sc.zone && (ph === 'power' || ph === 'acc' || ph === 'runup')) this.pkMark(L, g, sc.zone, time);
     if (own && (ph === 'power' || ((ph === 'acc' || ph === 'runup') && sc.power != null))) this.pkGauge(L, g, sc);
     if (own && (ph === 'acc' || (ph === 'runup' && sc.acc))) this.pkDial(L, g, sc);
-    if (sc.mode === 'keep' && (ph === 'guess' || sc.reactOpen)) this.pkGuess(L, g, sc, time);
+    if (sc.mode === 'keep' && sc.keepOpen()) this.pkGuess(L, g, sc, time);
   };
   // open cells tinted by their odds (green ≥ 80 %, yellow ≥ 65 %, orange below); locked ones dark
   R.pkGrid = function (L, g, sc, time) {
@@ -601,7 +601,7 @@
       if (sc.perfect) text('★ PERFECT ★', g.cx, g.gaugeY + 16 - Math.min(1, sc.t / 0.15) * 4, base * 1.5, Math.floor(sc.t * 12) % 2 ? '#ffffff' : '#6ab8ff');
       else text({ great: '파랑! 정조준', fine: '노랑! 좋아', good: '하양 · 조금 흔들', miss: '빗나간다…' }[sc.acc], g.dialX, g.dialY - g.dialR - 8, base * 0.95, { great: '#6ab8ff', fine: '#ffd23a', good: '#ffffff', miss: '#ff6a6a' }[sc.acc]);
     }
-    if (sc.mode === 'keep' && (ph === 'guess' || sc.reactOpen)) {
+    if (sc.mode === 'keep' && sc.keepOpen()) {
       const col = sc.reactOpen ? '#ffb070' : '#7fe0ff';
       for (let c = 0; c < 3; c++) for (let r = 0; r < 2; r++) text([['↙', '↓', '↘'], ['↖', '↑', '↗']][r][c], g.cx + (-1 + (c + 0.5) * 2 / 3) * g.halfW, g.goalY - (r + 0.5) * g.H / 2, base * 1.2, col);
       text(sc.reactOpen ? '지금!' : '미리 고르거나 · 공 보고 막기', g.cx, g.gaugeY - 6, base * 0.75, col);
@@ -701,4 +701,4 @@
     A.length = n;
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkrender = 'R34';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkrender = 'R35';

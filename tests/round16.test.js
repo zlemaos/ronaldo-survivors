@@ -77,6 +77,16 @@ test('our keeper: the right column at the wrong height seldom saves; watching th
   assert.ok(slow < 0.15);
 });
 
+test('round 35: a tap during the run-up after the early pick timed out is an early dive, not dropped', () => {
+  const sc = new RS.PKScene({ mode: 'keep', who: 'opp', keeper: { name: 'k', rating: 84 }, fin: 80, level: 80, ourK: 84, oppMiss: 0, rng: RS.makeRng(5) });
+  sc.update(3); // the 2.6 s pick timed out: watching, the kicker runs up
+  assert.ok(sc.phase === 'runup' && sc.watch && sc.keepOpen());
+  sc.keepInput({ col: 2, row: 0 });
+  assert.deepEqual(sc.dive, { col: 2, row: 0 });
+  sc.update(1); // the strike settles it with that dive
+  assert.ok(sc.result && sc.result.diveCol === 2 && sc.result.diveRow === 0);
+});
+
 test('the reaction window follows the difficulty: 0.9 s 이지, 0.6 s 노멀, 0.5 s 하드, and the ball lands right after it', () => {
   const was = RS.DIFF;
   try {
