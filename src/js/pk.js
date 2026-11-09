@@ -386,10 +386,10 @@
   // 승부차기 토너먼트's own rate, RS.CUP_ROUNDS).
   // Round 16: the kick has a height too (row 0 low, 1 high: a third go high) and our keeper picks one of six cells —
   // early (a guess before the strike) or by watching the ball (react: seconds after the strike, within
-  // RS.soReact(): 0.9 s on 이지, 0.6 on 노멀, 0.3 on 하드 — the user, round 16). The right cell saves often, the right
+  // RS.soReact(): 0.9 s on 이지, 0.6 on 노멀, 0.5 on 하드 — the user, round 16; 하드 0.3 → 0.5 in round 33). The right cell saves often, the right
   // side at the wrong height seldom; a reaction saves more the
   // quicker it came. dive: { col, row, rt } | a column (old callers: the height is a coin) | null (he guesses).
-  RS.SO_REACT = { easy: 0.9, normal: 0.6, hard: 0.3 };
+  RS.SO_REACT = { easy: 0.9, normal: 0.6, hard: 0.5 };
   RS.soReact = () => RS.SO_REACT[RS.DIFF] || RS.SO_REACT.normal;
   // Round 23 (the user: 파넨카 상대는 안 참?): one kicker in RS.SO_OPP_PANENKA chips it down the middle (aim.panenka):
   // our keeper who stays — picked the middle, or watched it and never moved, or reacted to the middle — takes it
@@ -713,4 +713,4 @@
   }
   RS.PKSession = PKSession;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R32';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R33';

@@ -77,10 +77,10 @@ test('our keeper: the right column at the wrong height seldom saves; watching th
   assert.ok(slow < 0.15);
 });
 
-test('the reaction window follows the difficulty: 0.9 s 이지, 0.6 s 노멀, 0.3 s 하드, and the ball lands right after it', () => {
+test('the reaction window follows the difficulty: 0.9 s 이지, 0.6 s 노멀, 0.5 s 하드, and the ball lands right after it', () => {
   const was = RS.DIFF;
   try {
-    for (const [d, w] of [['easy', 0.9], ['normal', 0.6], ['hard', 0.3]]) {
+    for (const [d, w] of [['easy', 0.9], ['normal', 0.6], ['hard', 0.5]]) {
       RS.setDiff(d);
       assert.equal(RS.soReact(), w);
       const sc = new RS.PKScene({ mode: 'keep', who: 'opp', keeper: { name: 'k', rating: 84 }, fin: 80, level: 80, ourK: 84, oppMiss: 0, rng: RS.makeRng(5) });
