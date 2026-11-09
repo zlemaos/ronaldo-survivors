@@ -133,14 +133,14 @@
   // ---------------------------------------------------------------- keepers
   // rating: 80 = the zone table; higher saves more. legend: the hall of fame. nemesis: the most one hero can score
   // against him. mate: the hero who had him on his own side (never drawn as that hero's PK 챌린지 keeper).
-  // look: kit, trim, hair, skin and hair style of his sprite (RS.Sprites.pkKeeper; style 'cap' = a cap or 체흐's
-  // black head guard, C its colour).
+  // look: kit, trim, hair, skin and hair style of his sprite (RS.Sprites.pkKeeper; style 'cap' = a cap, 'headgear' =
+  // 체흐's padded black scrum cap with a chin strap; C its colour).
   RS.PK_KEEPERS = {
     local: { name: '동네 수문장', rating: 55, look: { K: '#c8a020', k2: '#6a4a10', H: '#3a2a1a', style: 'short' } },
     reserve: { name: '2부 리그 수문장', rating: 64, look: { K: '#7a8a9a', k2: '#2a3a4a', H: '#2a1a10', style: 'fade' } },
     pro: { name: '1부 리그 수문장', rating: 72, look: { K: '#e06a1a', k2: '#1a1a1a', H: '#1a1a1a', style: 'slick' } },
     national: { name: '국가대표 수문장', rating: 80, look: { K: '#2a3aa8', k2: '#ffd400', H: '#4a3020', style: 'short' } },
-    cech: { name: '체흐', rating: 90, legend: true, nemesis: { messi: 0.1 }, note: '메시의 천적 — 여섯 번 만나 한 골도 못 넣었고, 2012년 페널티킥은 크로스바를 때렸다', look: { K: '#26262e', k2: '#5a5a66', H: '#1a1a1a', style: 'cap', C: '#111111' } },
+    cech: { name: '체흐', rating: 90, legend: true, nemesis: { messi: 0.1 }, note: '메시의 천적 — 여섯 번 만나 한 골도 못 넣었고, 2012년 페널티킥은 크로스바를 때렸다', look: { K: '#26262e', k2: '#5a5a66', H: '#1a1a1a', style: 'headgear', C: '#111111' } },
     buffon: { name: '부폰', rating: 93, legend: true, mate: 'ronaldo', look: { K: '#2e2e2e', k2: '#e8e8e8', H: '#2a1a10', style: 'long' } },
     casillas: { name: '카시야스', rating: 91, legend: true, mate: 'ronaldo', look: { K: '#f2c200', k2: '#1a1a1a', H: '#2a1a10', style: 'short' } },
     vdsar: { name: '반데르사르', rating: 88, legend: true, mate: 'ronaldo', look: { K: '#2a6a3a', k2: '#111111', H: '#c0a070', style: 'short' } },
@@ -783,4 +783,4 @@
   }
   RS.PKSession = PKSession;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R39';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R40';

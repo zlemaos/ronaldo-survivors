@@ -51,7 +51,9 @@
     long: ['..HHHHHH...', '.HHHHHHHHH.', '.HHsssssH..', '.HHssesse..', '..Hsssss...'],
     // 토레쓰 (round 11): the 엘 니뇨 look — long strawberry-blond hair held back by a white band
     torres: ['...HHHHH...', '..HHHHHHHH.', '.HHqqqqqqH.', '.HHssesse..', '..Hsssss...'],
-    cap: ['...CCCCC...', '..CCCCCCCC.', '..Hssssss..', '..sssesse..', '...sssss...']
+    cap: ['...CCCCC...', '..CCCCCCCC.', '..Hssssss..', '..sssesse..', '...sssss...'],
+    // 체흐: a padded scrum cap over the crown, back and ears (j = its padding seams), its straps closing round the jaw
+    headgear: ['...CCjCC...', '.CCjCCCjCC.', '.CCsssssCC.', '.CCsessesC.', '..CCsssCC..']
   };
   const TANK = [
     '.....HHHHH.....',
@@ -105,14 +107,14 @@
 
   const BASE_PAL = { '.': null, s: '#e7b48c', e: '#1a1a1a', H: '#2a1b12', h: '#e2c068', f: '#7a5a46', b: '#4a2e1c',
     K: '#ffffff', k: '#dddddd', S: '#ffffff', W: '#ffffff', B: '#222222', C: '#444444', Y: '#f4d43a', y: '#ffe98a',
-    G: '#e0a822', g: '#ffd75a', O: '#c06a2a', o: '#f2a35a', R: '#d22b2b', c: '#7a4a22', q: '#f8f8f8', x: '#26262a' };
+    G: '#e0a822', g: '#ffd75a', O: '#c06a2a', o: '#f2a35a', R: '#d22b2b', c: '#7a4a22', q: '#f8f8f8', x: '#26262a', j: '#5a5a66' };
 
   // ---------------------------------------------------------------- HD people (opt.hd)
   // People are drawn at twice the detail: Scale2x rounds the 13×16 template's stair-step edges, every colour
   // area gets a light rim on its upper-left and a shade on its lower-right (light from the upper left, like the
   // balls), eyes get a glint, and the outline is one crisp dark pixel plus a soft one. The renderer draws them
   // back at world size on its 2× canvas, so the art reads finer while the sizes stay the same.
-  const SHADE_GROUP = { s: 1, e: 1, b: 1, H: 2, h: 2, f: 2, K: 3, A: 3, Y: 3, R: 3, S: 4, W: 5, B: 6, C: 7, q: 8, x: 8 };
+  const SHADE_GROUP = { s: 1, e: 1, b: 1, H: 2, h: 2, f: 2, K: 3, A: 3, Y: 3, R: 3, S: 4, W: 5, B: 6, C: 7, j: 7, q: 8, x: 8 };
   // Scale2x (EPX) on a char grid. Eyes are kept as solid 2×2 blocks (smoothing would chip them).
   function scale2x(rows) {
     const h = rows.length, w = Math.max(...rows.map((r) => r.length));
@@ -622,4 +624,4 @@
     }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).sprites = 'R39';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).sprites = 'R40';

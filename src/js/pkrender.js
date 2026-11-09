@@ -361,7 +361,15 @@
       line([at(P.chest, 0.005, 0.04), at(P.chest, 0.005, -0.04)], 0.022, pal.k2, false); // collar
       line([at(P.chest, -0.06, 0.068), at(P.pel, 0.03, 0.05)], 0.014, pal.k2, false); line([at(P.chest, -0.06, -0.068), at(P.pel, 0.03, -0.05)], 0.014, pal.k2, false);
       const hc = X(head), ht = X(at(head, 1, 0)), ang = Math.atan2(ht.y - hc.y, ht.x - hc.x), r = 0.066 * sz;
-      if (style !== 'bald') {
+      if (style === 'headgear') { // 체흐's scrum cap: a padded shell over crown, back and ears, seams, a chin strap
+        L.fillStyle = pal.C; L.strokeStyle = OUT; L.lineWidth = 1;
+        L.beginPath(); L.arc(hc.x, hc.y, r * 1.12, ang - 2.3, ang + 2.3); L.closePath(); L.fill(); L.stroke();
+        const fc = X(at(head, -0.024, 0));
+        L.fillStyle = pal.s; L.beginPath(); L.ellipse(fc.x, fc.y, 0.041 * sz, 0.042 * sz, ang, 0, TAU); L.fill(); // the face opening
+        line([at(head, 0.024, 0.058), at(head, 0.034, 0), at(head, 0.024, -0.058)], 0.01, pal.J, false); // padding seams: the brow rim
+        for (const w of [0, 0.03, -0.03]) line([at(head, 0.074 - Math.abs(w) * 0.5, w * 0.5), at(head, 0.036, w)], 0.01, pal.J, false); // and the panels
+        line([at(head, -0.02, 0.05), at(head, -0.058, 0), at(head, -0.02, -0.05)], 0.01, pal.C, false); // the chin strap
+      } else if (style !== 'bald') {
         const wide = style === 'long' ? 2.3 : style === 'cap' ? 1.75 : 1.5;
         L.fillStyle = style === 'cap' ? pal.C : pal.H; L.beginPath(); L.arc(hc.x, hc.y, r, ang - wide, ang + wide); L.closePath(); L.fill();
         if (style === 'cap') line([at(head, 0.018, 0.07), at(head, 0.018, -0.07)], 0.02, pal.C, false);
@@ -377,7 +385,7 @@
     const rage = sc && sc.o.rage && sc.mode === 'shoot', rt = rage ? 0.22 + 0.1 * Math.sin(time * 12) : 0;
     const tone = (c, dk) => { let v = kTint(c, '#000000', dk ? 0.28 : 0); if (rage) v = kTint(c, '#ff3c14', rt); return dk && rage ? kTint(c, '#7a1a08', rt + 0.2) : v; };
     const K = look.K, S = look.S || '#161616', W = look.W || K;
-    const pal = { K: tone(K), Kd: tone(K, true), k2: look.k2 || '#111111', S: tone(S), Sd: tone(S, true), W: tone(W), Wd: tone(W, true), H: look.H || '#2a1a10', s: look.s || '#d9a27a', C: look.C || K, B: '#1c1c1c', G: rage ? '#ffd8c8' : '#f4f4f4' };
+    const pal = { K: tone(K), Kd: tone(K, true), k2: look.k2 || '#111111', S: tone(S), Sd: tone(S, true), W: tone(W), Wd: tone(W, true), H: look.H || '#2a1a10', s: look.s || '#d9a27a', C: look.C || K, J: '#8a8a98', B: '#1c1c1c', G: rage ? '#ffd8c8' : '#f4f4f4' };
     const base = p.u || 0, s = p.side || 1, U = g.halfW / g.H, sz = g.H;
     const toF = (q) => pt(s * (q.u - base) * U, q.v), X = (q) => ({ x: g.cx + base * g.halfW + s * q.x * sz, y: g.goalY - q.y * sz });
     const T = p.target ? toF(p.target) : pt(0, 0.5);
@@ -718,4 +726,4 @@
     A.length = n;
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkrender = 'R39';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkrender = 'R40';

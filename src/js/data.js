@@ -1299,7 +1299,7 @@
     coutinho: { name: '쿠치뉴', ovr: 84, role: 'mid', era: 'liverpool', yrs: [2013, 2014], hair: '#2a1a10', skin: '#c99070' },
     drogbro: { name: '드록빠', ovr: 89, role: 'striker', era: 'chelseat', yrs: [2011, 2012], hair: '#111111', skin: '#5a3a26' },
     lampardo: { name: '람빠드', ovr: 88, role: 'mid', era: 'chelseat', yrs: [2011, 2014], hair: '#6a4a2a', skin: '#f1c9a5' },
-    cechwall: { name: '체흐', ovr: 89, role: 'keeper', era: 'chelseat', yrs: [2011, 2014], hair: '#1a1a1a', skin: '#f0c8a2' },
+    cechwall: { name: '체흐', ovr: 89, role: 'keeper', era: 'chelseat', yrs: [2011, 2014], hair: '#1a1a1a', skin: '#f0c8a2', style: 'headgear' },
     terrycap: { name: '존 테뤼', ovr: 87, role: 'defender', era: 'chelseat', yrs: [2011, 2014], hair: '#2a1a10', skin: '#f1c9a5' },
     dluiz: { name: '다비드 루이쓰', ovr: 84, role: 'defender', era: 'chelseat', yrs: [2011, 2014], hair: '#3a2a1a', skin: '#c8956a', style: 'long' },
     matamagic: { name: '후안 마따', ovr: 86, role: 'mid', era: 'chelseat', yrs: [2012, 2013], hair: '#1a1a1a', skin: '#e8b892' },
@@ -2053,4 +2053,4 @@
     reroll: { name: '전술 보드', icon: '🔁', desc: '레벨업 리롤 +1', max: 3, ballon: [1, 1, 1], mods: { reroll: 1 } }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).data = 'R39';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).data = 'R40';
