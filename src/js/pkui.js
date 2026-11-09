@@ -340,13 +340,13 @@
     // the 도장깨기's ten 단: cleared ones ticked, the one played lit
     dojoLadder(cur) {
       const done = RS.normalizeCup(this.save.meta.cup).dojo;
-      return '<div class="cup-bracket cup-ladder">' + RS.DOJO.map((d, i) => '<span class="' + (i === cur ? 'cur' : i < done ? 'done' : '') + '">' + (i < done && i !== cur ? '✓' : i + 1 + '단') + '</span>').join('') + '</div>';
+      return '<div class="cup-bracket cup-ladder">' + RS.DOJO.map((d, i) => '<span class="' + (i === cur ? 'cur' : i < done ? 'done' : '') + '">' + (i < done && i !== cur ? '✓' : d.boss ? '👑 보스' : i + 1 + '단') + '</span>').join('') + '</div>';
     },
     cupPrize(stage, hero, mode) {
       if (mode === 'ucl') return '🏆 우승하면 💰' + RS.UCL.coins;
       if (mode === 'dojo') {
         const nx = RS.DOJO[stage + 1];
-        return '🥋 이기면 💰' + RS.dojoCoins(stage) + (nx ? ' · 다음 ' + (stage + 2) + '단 ' + esc(RS.PK_KEEPERS[nx.keeper].name) + ' 도전' : ' · 역대 최고 골키퍼 10명 완전 정복');
+        return '🥋 이기면 💰' + RS.dojoCoins(stage) + (nx ? ' · 다음 ' + RS.dojoName(stage + 1) + ' ' + esc(RS.PK_KEEPERS[nx.keeper].name) + ' 도전' : ' · 도장깨기 완전 정복');
       }
       if (stage != null && stage < RS.CUP_WC) {
         const st = RS.cupStage(stage, hero), nx = RS.cupStage(stage + 1, hero);
@@ -364,7 +364,7 @@
       return {
         ucl: '🏆 챔피언스리그 · ' + (RS.UCL_CLUB[hero] || RS.UCL_CLUB.ronaldo) + (c.ucl ? ' · 우승 ' + c.ucl + '회' : ''),
         wc: '🌍 월드컵 · ' + st.icon + ' ' + st.name + ' · 해금 ' + n + '/' + RS.CUP_REWARDS.length + (c.wins ? ' · 우승 ' + c.wins + '회' : ''),
-        dojo: '🥋 도장깨기 · ' + (c.dojo >= RS.DOJO.length ? '10단 완전 정복!' : (c.dojo + 1) + '단 ' + RS.PK_KEEPERS[d.keeper].name) + ' · ' + c.dojo + '/' + RS.DOJO.length
+        dojo: '🥋 도장깨기 · ' + (c.dojo >= RS.DOJO.length ? '야신까지 완전 정복!' : RS.dojoName(c.dojo) + ' ' + RS.PK_KEEPERS[d.keeper].name + ' · ' + Math.min(c.dojo, RS.DOJO.length - 1) + '/' + (RS.DOJO.length - 1) + '단')
       };
     },
     cupFinish(out) {
@@ -378,7 +378,7 @@
       $('pk-res-title').className = out.won ? 'glow' : '';
       const nx = r.next != null && C ? C.draw[r.next] : null, up = r.stageUp != null && S.mode === 'wc' ? RS.cupStage(r.stageUp, S.hero) : null;
       const dn = dojo && r.stageUp != null ? RS.DOJO[r.stageUp] : null;
-      $('pk-res-sub').textContent = dojo ? (dn ? '다음 도장: ' + (r.stageUp + 1) + '단 ' + RS.PK_KEEPERS[dn.keeper].name : out.won ? (S.stage === RS.DOJO.length - 1 ? '역대 최고의 골키퍼 10명을 모두 꺾었다!' : '이미 깬 단을 다시 꺾었다') : '다음 도전도 ' + name + ' ' + kn)
+      $('pk-res-sub').textContent = dojo ? (dn ? (dn.boss ? '10단 돌파! 최종 레전드 보스 ' : '다음 도장: ' + RS.dojoName(r.stageUp) + ' ') + RS.PK_KEEPERS[dn.keeper].name + (dn.boss ? ' 등장' : '') : out.won ? (RS.DOJO[S.stage].boss ? '최종 보스 야신까지 쓰러뜨렸다. 도장깨기 완전 정복!' : '이미 깬 단을 다시 꺾었다') : '다음 도전도 ' + name + ' ' + kn)
         : nx ? '다음: ' + st.rounds[r.next].name + ' vs ' + nx.vs + ' (🧤 ' + RS.PK_KEEPERS[nx.keeper].name + ')'
         : up ? '다음 무대 진출: ' + up.icon + ' ' + up.name + '!'
         : r.champion ? st.rounds[0].name + '부터 결승까지 ' + st.rounds.length + '번의 승부차기를 모두 이겼다!' : '다음 도전은 다시 ' + st.name + ' ' + st.rounds[0].name + '부터';
@@ -418,4 +418,4 @@
     }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkui = 'R38';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkui = 'R39';

@@ -133,37 +133,34 @@
   // ---------------------------------------------------------------- keepers
   // rating: 80 = the zone table; higher saves more. legend: the hall of fame. nemesis: the most one hero can score
   // against him. mate: the hero who had him on his own side (never drawn as that hero's PK 챌린지 keeper).
-  // look: kit, trim, hair, skin and hair style of his sprite (RS.Sprites.pkKeeper; style 'cap' = a cap or 쩨흐's
+  // look: kit, trim, hair, skin and hair style of his sprite (RS.Sprites.pkKeeper; style 'cap' = a cap or 체흐's
   // black head guard, C its colour).
   RS.PK_KEEPERS = {
     local: { name: '동네 수문장', rating: 55, look: { K: '#c8a020', k2: '#6a4a10', H: '#3a2a1a', style: 'short' } },
     reserve: { name: '2부 리그 수문장', rating: 64, look: { K: '#7a8a9a', k2: '#2a3a4a', H: '#2a1a10', style: 'fade' } },
     pro: { name: '1부 리그 수문장', rating: 72, look: { K: '#e06a1a', k2: '#1a1a1a', H: '#1a1a1a', style: 'slick' } },
     national: { name: '국가대표 수문장', rating: 80, look: { K: '#2a3aa8', k2: '#ffd400', H: '#4a3020', style: 'short' } },
-    cech: { name: '쩨흐', rating: 90, legend: true, nemesis: { messi: 0.1 }, note: '메시의 천적 — 여섯 번 만나 한 골도 못 넣었고, 2012년 페널티킥은 크로스바를 때렸다', look: { K: '#26262e', k2: '#5a5a66', H: '#1a1a1a', style: 'cap', C: '#111111' } },
-    buffon: { name: '부퐁', rating: 93, legend: true, mate: 'ronaldo', look: { K: '#2e2e2e', k2: '#e8e8e8', H: '#2a1a10', style: 'long' } },
-    casillas: { name: '카시야쓰', rating: 91, legend: true, mate: 'ronaldo', look: { K: '#f2c200', k2: '#1a1a1a', H: '#2a1a10', style: 'short' } },
-    vdsar: { name: '판데르싸르', rating: 88, legend: true, mate: 'ronaldo', look: { K: '#2a6a3a', k2: '#111111', H: '#c0a070', style: 'short' } },
-    neuer: { name: '노이어르', rating: 93, legend: true, look: { K: '#9ad010', k2: '#111111', H: '#d8b870', style: 'short' } },
-    courtois: { name: '꾸르뚜아', rating: 90, legend: true, look: { K: '#7a3ad8', k2: '#111111', H: '#3a2a1a', style: 'long' } },
-    oblak: { name: '오블라끄', rating: 91, legend: true, look: { K: '#2a8a5a', k2: '#111111', H: '#3a2a1a', style: 'long' } },
-    alisson: { name: '알리쏭', rating: 90, legend: true, look: { K: '#e8e8e8', k2: '#1a5ad8', H: '#2a1a10', style: 'long' } },
-    dibu: { name: '디부 마르띠', rating: 92, legend: true, mate: 'messi', note: '승부차기의 악마', look: { K: '#c8e000', k2: '#6a2ab8', H: '#1a1a1a', style: 'fade' } },
-    yashin: { name: '검은 거미 야씬', rating: 97, legend: true, note: '전설 중의 전설', look: { K: '#0e0e10', k2: '#2a2a2e', H: '#0e0e10', style: 'cap', C: '#0e0e10' } },
-    // round 38: the rest of the 도장깨기's all-time top 10 (RS.DOJO)
-    zoff: { name: '쪼프', rating: 85, legend: true, look: { K: '#8a8a8a', k2: '#1a1a1a', H: '#3a2a1a', style: 'short' } },
-    schmeichel: { name: '슈마이꿸', rating: 87, legend: true, look: { K: '#e8e000', k2: '#1a1a1a', H: '#e8d0a0', style: 'short' } },
-    maier: { name: '고양이 마이아', rating: 90, legend: true, look: { K: '#1a1a1a', k2: '#e8e8e8', H: '#3a2a1a', style: 'long' } },
-    zamora: { name: '싸모라', rating: 91, legend: true, look: { K: '#f0f0f0', k2: '#1a1a1a', H: '#1a1a1a', style: 'cap', C: '#f0f0f0' } },
-    banks: { name: '뱅끄쓰', rating: 93, legend: true, look: { K: '#ffd400', k2: '#1a1a1a', H: '#3a2a1a', style: 'slick' } },
+    cech: { name: '체흐', rating: 90, legend: true, nemesis: { messi: 0.1 }, note: '메시의 천적 — 여섯 번 만나 한 골도 못 넣었고, 2012년 페널티킥은 크로스바를 때렸다', look: { K: '#26262e', k2: '#5a5a66', H: '#1a1a1a', style: 'cap', C: '#111111' } },
+    buffon: { name: '부폰', rating: 93, legend: true, mate: 'ronaldo', look: { K: '#2e2e2e', k2: '#e8e8e8', H: '#2a1a10', style: 'long' } },
+    casillas: { name: '카시야스', rating: 91, legend: true, mate: 'ronaldo', look: { K: '#f2c200', k2: '#1a1a1a', H: '#2a1a10', style: 'short' } },
+    vdsar: { name: '반데르사르', rating: 88, legend: true, mate: 'ronaldo', look: { K: '#2a6a3a', k2: '#111111', H: '#c0a070', style: 'short' } },
+    neuer: { name: '노이어', rating: 93, legend: true, look: { K: '#9ad010', k2: '#111111', H: '#d8b870', style: 'short' } },
+    courtois: { name: '쿠르투아', rating: 90, legend: true, look: { K: '#7a3ad8', k2: '#111111', H: '#3a2a1a', style: 'long' } },
+    oblak: { name: '오블락', rating: 91, legend: true, look: { K: '#2a8a5a', k2: '#111111', H: '#3a2a1a', style: 'long' } },
+    alisson: { name: '알리송', rating: 90, legend: true, look: { K: '#e8e8e8', k2: '#1a5ad8', H: '#2a1a10', style: 'long' } },
+    dibu: { name: '디부 마르티네스', rating: 92, legend: true, mate: 'messi', note: '승부차기의 악마', look: { K: '#c8e000', k2: '#6a2ab8', H: '#1a1a1a', style: 'fade' } },
+    yashin: { name: '검은 거미 야신', rating: 97, legend: true, note: '전설 중의 전설', look: { K: '#0e0e10', k2: '#2a2a2e', H: '#0e0e10', style: 'cap', C: '#0e0e10' } },
+    // round 38: the 도장깨기's keepers not met elsewhere (RS.DOJO)
+    schmeichel: { name: '슈마이켈', rating: 90, legend: true, look: { K: '#e8e000', k2: '#1a1a1a', H: '#e8d0a0', style: 'short' } },
+    kahn: { name: '올리버 칸', rating: 90, legend: true, look: { K: '#1a8a3a', k2: '#1a1a1a', H: '#e0c890', style: 'short' } },
     // the keepers of the career shootouts (RS.SHOOTOUTS)
-    james: { name: '제임쓰', rating: 74, look: { K: '#e06a1a', k2: '#1a1a1a', H: '#1a1a1a', s: '#7a5236', style: 'fade' } },
-    robinson: { name: '로빈쓴', rating: 77, look: { K: '#e8e8e8', k2: '#c41e2a', H: '#3a2a1a', style: 'short' } },
-    bravo: { name: '브라보오', rating: 84, look: { K: '#1a1a1a', k2: '#e01b1b', H: '#1a1a1a', style: 'slick' } },
-    ospina: { name: '오스삐나', rating: 82, look: { K: '#f0c000', k2: '#1a3a8a', H: '#1a1a1a', style: 'long' } },
-    lloris: { name: '요리쓰', rating: 86, look: { K: '#ffd400', k2: '#1a1a1a', H: '#4a3020', style: 'short' } },
-    willis: { name: '윌리쓰', rating: 70, look: { K: '#ffd400', k2: '#1a1a1a', H: '#d8b870', style: 'bald' } },
-    dominguez: { name: '도밍게쓰', rating: 74, look: { K: '#e06a1a', k2: '#1a1a1a', H: '#1a1a1a', style: 'short' } },
+    james: { name: '제임스', rating: 74, look: { K: '#e06a1a', k2: '#1a1a1a', H: '#1a1a1a', s: '#7a5236', style: 'fade' } },
+    robinson: { name: '로빈슨', rating: 77, look: { K: '#e8e8e8', k2: '#c41e2a', H: '#3a2a1a', style: 'short' } },
+    bravo: { name: '브라보', rating: 84, look: { K: '#1a1a1a', k2: '#e01b1b', H: '#1a1a1a', style: 'slick' } },
+    ospina: { name: '오스피나', rating: 82, look: { K: '#f0c000', k2: '#1a3a8a', H: '#1a1a1a', style: 'long' } },
+    lloris: { name: '요리스', rating: 86, look: { K: '#ffd400', k2: '#1a1a1a', H: '#4a3020', style: 'short' } },
+    willis: { name: '윌리스', rating: 70, look: { K: '#ffd400', k2: '#1a1a1a', H: '#d8b870', style: 'bald' } },
+    dominguez: { name: '도밍게스', rating: 74, look: { K: '#e06a1a', k2: '#1a1a1a', H: '#1a1a1a', style: 'short' } },
     // the youth keepers of the 승부차기 토너먼트's first two stages (round 22, RS.CUP_STAGES)
     u17: { name: '유소년 수문장', rating: 58, look: { K: '#3ab0e0', k2: '#1a1a1a', H: '#3a2a1a', style: 'short' } },
     u17b: { name: '유소년 대표 수문장', rating: 63, look: { K: '#e0a020', k2: '#1a1a1a', H: '#1a1a1a', style: 'fade' } },
@@ -248,7 +245,7 @@
       const save = clamp(RS.PK_SAVE_K * spot * k2 * RS.PK_POWER_SAVE[pg] * (1.25 - fin / 200) * sv + sa, 0.02, 0.95);
       odds = { goal: (1 - off) * (1 - save), save: (1 - off) * save, off, post, kind: null };
     }
-    // a keeper one hero could never beat (메시 against 쩨흐): at most that chance, the rest half on the frame
+    // a keeper one hero could never beat (메시 against 체흐): at most that chance, the rest half on the frame
     const cap = o.keeper.nemesis && o.keeper.nemesis[o.hero];
     if (cap != null && odds.goal > cap) { const rest = 1 - cap; odds.goal = cap; odds.save = rest / 2; odds.off = rest / 2; odds.nemesis = true; }
     return odds;
@@ -317,7 +314,7 @@
   // ---------------------------------------------------------------- PK 챌린지 (after every fifth match)
   RS.PK_EVERY = 5;
   RS.PK_KICKS = 5;
-  // coins a goal: 11 against 동네 수문장 … 32 against 야씬; all five in pays three more
+  // coins a goal: 11 against 동네 수문장 … 32 against 야신; all five in pays three more
   RS.pkCoinPer = (keeper) => Math.round(8 + (keeper.rating - 50) * 0.5);
   RS.pkReward = (keeper, goals) => RS.pkCoinPer(keeper) * (goals + (goals >= RS.PK_KICKS ? 3 : 0));
   // Titles for the penalties a hero has scored over all his careers (PK 챌린지 and 승부차기 alike).
@@ -363,16 +360,16 @@
     ronaldo: {
       2004: { nat: true, title: '유로 2004 8강 승부차기', vs: '잉글랜드', keeper: 'james', order: 4, story: '안방 유로 8강, 잉글랜드와 연장까지 2-2. 열아홉 살 날두가 11m 앞에 선다.', real: '실제: 날두 성공, 포르투갈 6-5 승' },
       2006: { nat: true, title: '독일 월드컵 8강 승부차기', vs: '잉글랜드', keeper: 'robinson', order: 5, story: '윙크 논란 속 0-0. 다섯 번째 키커로 나선다.', real: '실제: 날두가 마지막 키커로 성공, 3-1 승' },
-      2008: { title: '모스크바 챔스 결승 승부차기', vs: '첼씨', keeper: 'cech', order: 3, story: '빗속의 모스크바, 1-1. 세 번째 키커 날두 앞에 쩨흐가 선다.', real: '실제: 날두 실축(쩨흐 선방), 그래도 맨체스터 6-5 우승' },
-      2012: { title: '챔스 4강 승부차기', vs: '뮌헨', keeper: 'neuer', order: 1, story: '마드리드의 4강 2차전, 합계 3-3. 첫 키커는 날두.', real: '실제: 날두 실축(노이어르 선방), 1-3 탈락' },
+      2008: { title: '모스크바 챔스 결승 승부차기', vs: '첼씨', keeper: 'cech', order: 3, story: '빗속의 모스크바, 1-1. 세 번째 키커 날두 앞에 체흐가 선다.', real: '실제: 날두 실축(체흐 선방), 그래도 맨체스터 6-5 우승' },
+      2012: { title: '챔스 4강 승부차기', vs: '뮌헨', keeper: 'neuer', order: 1, story: '마드리드의 4강 2차전, 합계 3-3. 첫 키커는 날두.', real: '실제: 날두 실축(노이어 선방), 1-3 탈락' },
       2016: { title: '밀라노 챔스 결승 승부차기', vs: '아틀레띠꼬', keeper: 'oblak', order: 5, story: '마드리드 더비 결승 1-1. 다섯 번째 키커에게 우승이 걸렸다.', real: '실제: 날두가 우승을 확정하는 마지막 킥 성공, 5-3' },
-      2024: { nat: true, title: '유로 2024 16강 승부차기', vs: '슬로베니아', keeper: 'oblak', order: 1, story: '연장전 페널티킥을 오블라끄에게 막히고 눈물. 승부차기 첫 키커로 다시 선다.', real: '실제: 날두 성공, 3-0 승 (우리 골키퍼 세 번 선방)' }
+      2024: { nat: true, title: '유로 2024 16강 승부차기', vs: '슬로베니아', keeper: 'oblak', order: 1, story: '연장전 페널티킥을 오블락에게 막히고 눈물. 승부차기 첫 키커로 다시 선다.', real: '실제: 날두 성공, 3-0 승 (우리 골키퍼 세 번 선방)' }
     },
     messi: {
-      2012: { single: true, title: '챔스 4강 2차전 페널티킥', vs: '첼씨', keeper: 'cech', story: '첼씨는 10명, 이 한 방이면 결승이 보인다. 골문엔 천적 쩨흐.', real: '실제: 크로스바. 첼씨가 결승에 갔다' },
+      2012: { single: true, title: '챔스 4강 2차전 페널티킥', vs: '첼씨', keeper: 'cech', story: '첼씨는 10명, 이 한 방이면 결승이 보인다. 골문엔 천적 체흐.', real: '실제: 크로스바. 첼씨가 결승에 갔다' },
       2015: { nat: true, title: '코파 아메리카 결승 승부차기', vs: '칠레', keeper: 'bravo', order: 1, story: '산티아고 결승 0-0. 첫 키커로 나선다.', real: '실제: 메시 성공, 하지만 1-4 패' },
       2016: { nat: true, title: '코파 아메리카 결승 승부차기', vs: '칠레', keeper: 'bravo', order: 1, story: '또 칠레, 또 결승 승부차기. 첫 키커는 메시.', real: '실제: 메시 실축(크로스바 위로), 2-4 패, 대표팀 은퇴 선언' },
-      2021: { nat: true, title: '코파 아메리카 4강 승부차기', vs: '콜롬비아', keeper: 'ospina', order: 1, story: '브라질리아 4강 1-1. 첫 키커로 나선다.', real: '실제: 메시 성공, 디부 마르띠 세 번 선방, 3-2 승' },
+      2021: { nat: true, title: '코파 아메리카 4강 승부차기', vs: '콜롬비아', keeper: 'ospina', order: 1, story: '브라질리아 4강 1-1. 첫 키커로 나선다.', real: '실제: 메시 성공, 디부 마르티네스 세 번 선방, 3-2 승' },
       2022: { nat: true, title: '카타르 월드컵 결승 승부차기', vs: '프랑스', keeper: 'lloris', order: 1, story: '3-3, 음바뻬의 해트트릭. 월드컵이 11m에 달렸다.', real: '실제: 메시 성공, 4-2 우승' },
       2023: { title: '리그스컵 결승 승부차기', vs: '내슈빌', keeper: 'willis', order: 1, story: '마이애미 첫 트로피가 걸린 결승 1-1.', real: '실제: 메시 성공, 10-9 끝장 승부 끝에 우승' },
       2024: { nat: true, title: '코파 아메리카 8강 승부차기', vs: '에콰도르', keeper: 'dominguez', order: 1, story: '1-1. 첫 키커 메시가 공을 내려놓는다.', real: '실제: 파넨카가 크로스바, 그래도 4-2 승' }
@@ -568,10 +565,12 @@
   };
 
   // Round 38 (the user: 승부차기 모드 … 위에는 챔피언스리그 가운데 월드컵 마지막 도장깨기 · 도장깨기는 총 10단계로 역사상
-  // 최고의 골키퍼 탑10과 승부): the title's 승부차기 opens three modes. 'wc' is the stage ladder above (유소년 → 월드컵);
-  // 'ucl' one club tournament, the hero's club against Europe's (coins); 'dojo' ten single shootouts, one per keeper of
-  // FourFourTwo's "The best goalkeepers ever" (2024) top 10, from 10th up to 1st — a win opens the next 단, a loss
-  // replays it. Every mode plays at the 월드컵's level with the national keeper (RS.CUP_LEVEL, RS.CUP_KEEPER).
+  // 최고의 골키퍼 탑10과 승부 · 1990년대 이후로 해 단 야신은 10단계 깨고 최종 레전드 보스로): the title's 승부차기 opens
+  // three modes. 'wc' is the stage ladder above (유소년 → 월드컵); 'ucl' one club tournament, the hero's club against
+  // Europe's (coins); 'dojo' single shootouts against the ten best keepers since the 1990s — FourFourTwo's "The best
+  // goalkeepers ever" (2024) in its order, the lesser-known 90s names (Zubizarreta, Preud'homme) left out — from 10th up
+  // to 1st, then 야신 as the final boss (boss: true). A win opens the next 단, a loss replays it. Every mode plays at
+  // the 월드컵's level with the national keeper (RS.CUP_LEVEL, RS.CUP_KEEPER).
   RS.UCL_CLUB = { ronaldo: '마드리드 백색군단', messi: '바르셀로나 청홍군단', torres: '마드리드 적백 줄무늬단' };
   RS.UCL = { id: 'ucl', name: '챔피언스리그', icon: '🏆', pre: '', lv: RS.CUP_LEVEL, ourK: RS.CUP_KEEPER, coins: 800, rounds: [
     { name: '16강', miss: 0.24, pool: [{ vs: '리스본 사자단', keeper: 'pro' }, { vs: '파리 에펠군단', keeper: 'national' }, { vs: '바르셀로나 청홍군단', keeper: 'bravo' }] },
@@ -580,24 +579,27 @@
     { name: '결승', miss: 0.1, pool: [{ vs: '마드리드 백색군단', keeper: 'casillas' }, { vs: '뮌헨 붉은 맥주단', keeper: 'neuer' }] }] };
   // one 단 each: the keeper (his rating here: the climb), the other side's miss rate, the coins, his line
   RS.DOJO = [
-    { keeper: 'zoff', vs: '이탈리아', rating: 85, miss: 0.16, line: '마흔 살에 월드컵을 들어 올린 최고령 우승 주장' },
-    { keeper: 'schmeichel', vs: '덴마크', rating: 87, miss: 0.15, line: 'XXXL 유니폼을 입던 거인, 트레블 시즌의 벽' },
-    { keeper: 'cech', vs: '체코', rating: 88, miss: 0.14, line: '헤드기어의 벽, 프리미어리그 최다 무실점 202경기' },
-    { keeper: 'buffon', vs: '이탈리아', rating: 89, miss: 0.12, line: '마흔다섯 살까지 골문을 지킨 영원한 수문장' },
-    { keeper: 'maier', vs: '서독', rating: 90, miss: 0.11, line: '안찡의 고양이, 유러피언컵 3연패' },
-    { keeper: 'zamora', vs: '스페인', rating: 91, miss: 0.1, line: '1920년대 세계 최고, 스페인 최고 골키퍼상의 이름' },
-    { keeper: 'casillas', vs: '스페인', rating: 92, miss: 0.09, line: '성 이케르, 5년 연속 세계 최고의 골키퍼' },
-    { keeper: 'banks', vs: '잉글랜드', rating: 93, miss: 0.08, line: '펠레의 헤딩을 걷어낸 세기의 선방' },
-    { keeper: 'neuer', vs: '독일', rating: 95, miss: 0.07, line: '골문을 비우고 뛰쳐나오는 스위퍼 키퍼의 완성형' },
-    { keeper: 'yashin', vs: '소련', rating: 97, miss: 0.06, line: '골키퍼 유일의 발롱도르, 검은 거미' }
+    { keeper: 'oblak', vs: '슬로베니아', rating: 84, miss: 0.16, line: '아틀레티코의 벽, 라리가와 유로파리그를 들어 올린 수문장' },
+    { keeper: 'alisson', vs: '브라질', rating: 86, miss: 0.15, line: '리버풀의 수호신, 극장 결승골 헤딩까지 넣은 골키퍼' },
+    { keeper: 'courtois', vs: '벨기에', rating: 87, miss: 0.14, line: '2미터 거인, 첼시·아틀레티코·레알을 지킨 벽' },
+    { keeper: 'kahn', vs: '독일', rating: 88, miss: 0.13, line: '골키퍼 최초의 월드컵 골든볼, 무서운 눈빛의 티타늄' },
+    { keeper: 'vdsar', vs: '네덜란드', rating: 89, miss: 0.12, line: '아약스와 맨유에서 챔스 우승, 네덜란드 최고의 골키퍼' },
+    { keeper: 'schmeichel', vs: '덴마크', rating: 90, miss: 0.11, line: 'XXXL 유니폼을 입던 거인, 맨유 트레블의 벽' },
+    { keeper: 'cech', vs: '체코', rating: 91, miss: 0.1, line: '헤드기어의 벽, 프리미어리그 최다 무실점 202경기' },
+    { keeper: 'buffon', vs: '이탈리아', rating: 92, miss: 0.09, line: '마흔다섯 살까지 골문을 지킨 영원한 수문장' },
+    { keeper: 'casillas', vs: '스페인', rating: 94, miss: 0.08, line: '성 이케르, 5년 연속 세계 최고의 골키퍼' },
+    { keeper: 'neuer', vs: '독일', rating: 96, miss: 0.07, line: '골문을 비우고 뛰쳐나오는 스위퍼 키퍼의 완성형' },
+    { keeper: 'yashin', vs: '소련', rating: 99, miss: 0.05, boss: true, line: '골키퍼 유일의 발롱도르, 검은 거미 — 최종 레전드 보스' }
   ];
-  RS.dojoCoins = (i) => (i >= RS.DOJO.length - 1 ? 2000 : 150 + 60 * i);
+  RS.dojoCoins = (i) => (i >= RS.DOJO.length - 1 ? 3000 : i === RS.DOJO.length - 2 ? 1500 : 150 + 60 * i);
+  // a 단's label: 1단 … 10단, then the final boss
+  RS.dojoName = (i) => (RS.DOJO[i] && RS.DOJO[i].boss ? '최종 보스' : (i | 0) + 1 + '단');
   // the 단 to play next: the first one not cleared (the last once all ten are)
   RS.dojoNext = (meta) => Math.min(RS.DOJO.length - 1, RS.normalizeCup(meta.cup).dojo);
   RS.dojoStage = (i) => {
     const d = RS.DOJO[clamp(i | 0, 0, RS.DOJO.length - 1)];
     return { id: 'dojo', name: '도장깨기', icon: '🥋', pre: '', lv: RS.CUP_LEVEL, ourK: RS.CUP_KEEPER, coins: RS.dojoCoins(i | 0),
-      rounds: [{ name: ((i | 0) + 1) + '단', miss: d.miss, pool: [{ vs: d.vs + ' 레전드', keeper: d.keeper }] }] };
+      rounds: [{ name: RS.dojoName(i | 0), miss: d.miss, pool: [{ vs: d.vs + ' 레전드', keeper: d.keeper }] }] };
   };
   RS.pkModeStage = (mode, stage, hero) => (mode === 'ucl' ? RS.UCL : mode === 'dojo' ? RS.dojoStage(stage) : RS.cupStage(stage, hero));
   RS.pkModeUs = (mode, hero) => (mode === 'ucl' ? RS.UCL_CLUB[hero] || RS.UCL_CLUB.ronaldo : RS.soUsName(hero, 0, { nat: true }));
@@ -781,4 +783,4 @@
   }
   RS.PKSession = PKSession;
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R38';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pk = 'R39';

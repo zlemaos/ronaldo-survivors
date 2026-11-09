@@ -6,8 +6,10 @@ const RS = require('./load.js');
 const saveFor = (hero) => { const s = RS.newSave(); s.meta.unlocked.torres = true; if (hero !== 'ronaldo') RS.switchHero(s, hero); return s; };
 const withRonaldo = (fn) => { try { return fn(); } finally { RS.selectHero('ronaldo'); } };
 
-test('the 도장깨기 climbs FourFourTwo\'s top 10 from 10th to 1st, each 단 harder than the last', () => {
-  assert.deepEqual(RS.DOJO.map((d) => d.keeper), ['zoff', 'schmeichel', 'cech', 'buffon', 'maier', 'zamora', 'casillas', 'banks', 'neuer', 'yashin']);
+test('the 도장깨기 climbs ten keepers since the 1990s, 10th to 1st, then 야신 as the final boss, each 단 harder than the last', () => {
+  assert.deepEqual(RS.DOJO.map((d) => d.keeper), ['oblak', 'alisson', 'courtois', 'kahn', 'vdsar', 'schmeichel', 'cech', 'buffon', 'casillas', 'neuer', 'yashin']);
+  assert.deepEqual(RS.DOJO.map((d, i) => RS.dojoName(i)).slice(-2), ['10단', '최종 보스']);
+  assert.ok(RS.DOJO.filter((d) => d.boss).length === 1 && RS.DOJO[RS.DOJO.length - 1].boss);
   for (let i = 1; i < RS.DOJO.length; i++) {
     assert.ok(RS.DOJO[i].rating > RS.DOJO[i - 1].rating && RS.DOJO[i].miss < RS.DOJO[i - 1].miss, 'step ' + i);
     assert.ok(RS.PK_KEEPERS[RS.DOJO[i].keeper], RS.DOJO[i].keeper);
@@ -30,7 +32,7 @@ test('a 도장깨기 win opens the next 단 and pays; a loss replays it; the las
 test('a 도장깨기 session meets that 단\'s keeper at its rating — Ronaldo meets his old teammate, Messi his 천적 without the cap', () => withRonaldo(() => {
   for (const hero of ['ronaldo', 'messi']) {
     const s = saveFor(hero);
-    for (const i of [2, 3]) {
+    for (const i of [6, 7]) {
       const m = RS.pkDraw(RS.makeRng(3), hero, 'dojo', i)[0];
       assert.equal(m.keeper, RS.DOJO[i].keeper);
       const S = new RS.PKSession(s, { kind: 'cup', mode: 'dojo', stage: i, round: 0, vs: m.vs, keeper: m.keeper, rng: RS.makeRng(1) });
