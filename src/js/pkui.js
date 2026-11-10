@@ -148,7 +148,7 @@
       const shot = RS.pkShot(sc.shot), tag = shot.icon + ' ' + shot.name;
       let t = '';
       if (INPUT.includes(sc.phase) && sc.o.auto && sc.who !== 'mate') t = sc.mode === 'keep' ? '🤖 ' + who + '가 찬다 · 우리 골키퍼가 방향을 고른다' : '🤖 ' + who + '가 자동으로 찬다 · ' + tag;
-      else if (sc.phase === 'aim') t = '👆 노릴 칸을 누르세요 · 숫자는 ' + shot.name + ' 성공 확률';
+      else if (sc.phase === 'aim') t = '👆 공을 보낼 위치를 누르세요 · ' + shot.name;
       else if (sc.phase === 'power') t = tag + ' · 👆 지금 눌러 파워 결정! 오른쪽 초록이 좋고, 가운데 파란 줄이 퍼펙트' + (RS.pkCol(sc.zone) === 1 ? ' · 왼쪽 초록이면 파넨카' : '') + (sc.o.morale ? ' · 😰 사기 저하: 게이지가 빠르다' : '');
       else if (sc.phase === 'acc') t = '👆 바늘이 하얀 칸에 올 때 누르세요 · 노랑이 더 좋고, 가운데 파랑 + 파워 파란 줄이면 퍼펙트';
       else if (sc.phase === 'guess') t = '🧤 ' + who + '가 찬다! 막을 칸(6칸)을 미리 누르거나, 기다렸다가 공 보고 막기';
@@ -418,4 +418,4 @@
     }
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkui = 'R40';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkui = 'R41';

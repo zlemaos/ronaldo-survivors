@@ -514,12 +514,12 @@
     if (own && (ph === 'acc' || (ph === 'runup' && sc.acc))) this.pkDial(L, g, sc);
     if (sc.mode === 'keep' && sc.keepOpen()) this.pkGuess(L, g, sc, time);
   };
-  // open cells tinted by their odds (green ≥ 80 %, yellow ≥ 65 %, orange below); locked ones dark
+  // Open cells share a neutral tint; locked cells stay dark.
   R.pkGrid = function (L, g, sc, time) {
     const pulse = 0.5 + 0.5 * Math.sin(time * 5);
     for (let z = 1; z <= 9; z++) {
       const c = cell(g, z), open = z <= sc.zones;
-      if (open) { const p = sc.zoneOdds(z); L.fillStyle = (p >= 0.8 ? 'rgba(74,224,106,' : p >= 0.65 ? 'rgba(255,210,58,' : 'rgba(255,120,60,') + (0.16 + 0.1 * pulse) + ')'; }
+      if (open) L.fillStyle = 'rgba(127,224,255,' + (0.16 + 0.1 * pulse) + ')';
       else L.fillStyle = 'rgba(0,0,0,0.45)';
       L.fillRect(c.x0 + 0.5, c.y0 + 0.5, c.x1 - c.x0 - 1, c.y1 - c.y0 - 1);
       L.strokeStyle = open ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.15)'; L.lineWidth = 0.5;
@@ -580,7 +580,7 @@
     L.fillStyle = 'rgba(0,0,0,0.6)'; L.fillRect(g.cx - w / 2 - 1, g.gaugeY - 1, w + 2, 4);
     L.fillStyle = react ? '#ffa03c' : '#7fe0ff'; L.fillRect(g.cx - w / 2, g.gaugeY, w * k, 2);
   };
-  // labels in device pixels: odds on the open cells, the level that opens the locked ones, how the strike went
+  // Labels in device pixels: target position, unlock level, and the strike outcome.
   R.pkLabels = function (C, g, sc) {
     const s = this.scale, base = Math.round(15 * (this.dpr || 1)), ph = sc.phase, own = sc.mode === 'shoot' && !sc.o.forced; // 15 CSS px
     C.textAlign = 'center'; C.textBaseline = 'middle'; C.lineJoin = 'round';
@@ -593,7 +593,8 @@
       for (let z = 1; z <= 9; z++) {
         const c = cell(g, z), x = (c.x0 + c.x1) / 2, y = (c.y0 + c.y1) / 2;
         if (z <= sc.zones) {
-          text(Math.round(sc.zoneOdds(z) * 100) + '%', x, y + 0.5, base * 0.95, '#ffffff');
+          const position = (RS.pkCol(z) === 0 ? '왼쪽' : RS.pkCol(z) === 1 ? '중앙' : '오른쪽') + ' ' + (RS.pkRow(z) === 0 ? '하단' : RS.pkRow(z) === 1 ? '중단' : '상단');
+          text(position, x, y + 0.5, base * 0.75, '#ffffff');
           text(String(z), c.x0 + 3, c.y0 + 3.2, base * 0.6, 'rgba(255,255,255,0.8)');
         } else text(sc.o.lockNote ? '🔒' : '🔒Lv.' + RS.PK_ZONE_LV[z <= 6 ? 0 : 1], x, y, base * 0.7, 'rgba(255,255,255,0.6)');
       }
@@ -726,4 +727,4 @@
     A.length = n;
   };
 })(globalThis.RS = globalThis.RS || {});
-(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkrender = 'R40';
+(globalThis.RS_FILES = globalThis.RS_FILES || {}).pkrender = 'R41';
